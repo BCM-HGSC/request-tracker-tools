@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-Chrome Cookie Extractor
-Extracts cookies for a specified domain from Chrome's cookie database
+Chrome Cookie Extractor with Decryption Support
+Extracts and decrypts cookies for a specified domain from Chrome's cookie database
 and outputs them in TSV format (domain, name, value).
 """
 
@@ -10,58 +10,171 @@ import os
 import sys
 import argparse
 import platform
+import json
+import base64
 from pathlib import Path
 import csv
 
+try:
+    from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
+    from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
+    from cryptography.hazmat.primitives import hashes
+    from cryptography.hazmat.backends import default_backend
+    CRYPTO_AVAILABLE = True
+except ImportError:
+    CRYPTO_AVAILABLE = False
 
-def get_chrome_cookie_path():
-    """Get the path to Chrome's cookie database based on the operating system."""
+
+def get_chrome_paths():
+    """Get the paths to Chrome's cookie database and local state file."""
     system = platform.system()
     
     if system == "Windows":
-        # Windows path
-        base_path = os.path.expandvars(r"%LOCALAPPDATA%\Google\Chrome\User Data\Default")
+        base_path = os.path.expandvars(r"%LOCALAPPDATA%\Google\Chrome\User Data")
+        default_path = os.path.join(base_path, "Default")
     elif system == "Darwin":  # macOS
-        # macOS path
-        base_path = os.path.expanduser("~/Library/Application Support/Google/Chrome/Default")
+        base_path = os.path.expanduser("~/Library/Application Support/Google/Chrome")
+        default_path = os.path.join(base_path, "Default")
     elif system == "Linux":
-        # Linux path
-        base_path = os.path.expanduser("~/.config/google-chrome/Default")
+        base_path = os.path.expanduser("~/.config/google-chrome")
+        default_path = os.path.join(base_path, "Default")
     else:
         raise OSError(f"Unsupported operating system: {system}")
     
-    cookie_path = os.path.join(base_path, "Cookies")
+    cookie_path = os.path.join(default_path, "Cookies")
+    local_state_path = os.path.join(base_path, "Local State")
     
-    if not os.path.exists(cookie_path):
-        raise FileNotFoundError(f"Chrome cookie database not found at: {cookie_path}")
-    
-    return cookie_path
+    return cookie_path, local_state_path
 
 
-def extract_cookies(domain, cookie_db_path):
+def get_encryption_key(local_state_path):
+    """Extract the encryption key from Chrome's Local State file."""
+    if not CRYPTO_AVAILABLE:
+        return None
+        
+    try:
+        with open(local_state_path, 'r', encoding='utf-8') as f:
+            local_state = json.load(f)
+        
+        encrypted_key = local_state['os_crypt']['encrypted_key']
+        encrypted_key = base64.b64decode(encrypted_key)[5:]  # Remove 'DPAPI' prefix
+        
+        if platform.system() == "Windows":
+            import win32crypt
+            key = win32crypt.CryptUnprotectData(encrypted_key, None, None, None, 0)[1]
+        elif platform.system() == "Darwin":
+            # macOS keychain access
+            import subprocess
+            try:
+                key = subprocess.check_output([
+                    'security', 'find-generic-password',
+                    '-w', '-s', 'Chrome Safe Storage', '-a', 'Chrome'
+                ]).decode().strip()
+                key = key.encode()
+            except subprocess.CalledProcessError:
+                return None
+        else:
+            # Linux - try default password
+            password = b'peanuts'
+            salt = b'saltysalt'
+            kdf = PBKDF2HMAC(
+                algorithm=hashes.SHA1(),
+                length=16,
+                salt=salt,
+                iterations=1,
+                backend=default_backend()
+            )
+            key = kdf.derive(password)
+        
+        return key
+    except Exception as e:
+        print(f"Could not get encryption key: {e}", file=sys.stderr)
+        return None
+
+
+def decrypt_cookie_value(encrypted_value, key):
+    """Decrypt Chrome's encrypted cookie value."""
+    if not CRYPTO_AVAILABLE or not key:
+        return "<encrypted>"
+    
+    try:
+        if encrypted_value.startswith(b'v10') or encrypted_value.startswith(b'v11'):
+            # Remove version prefix
+            encrypted_value = encrypted_value[3:]
+            # Extract nonce and ciphertext
+            nonce = encrypted_value[:12]
+            ciphertext = encrypted_value[12:]
+            
+            # Decrypt using AES-GCM
+            cipher = Cipher(
+                algorithms.AES(key),
+                modes.GCM(nonce),
+                backend=default_backend()
+            )
+            decryptor = cipher.decryptor()
+            
+            # Split ciphertext and tag
+            plaintext = decryptor.update(ciphertext[:-16])
+            decryptor.finalize_with_tag(ciphertext[-16:])
+            
+            return plaintext.decode('utf-8')
+        else:
+            return "<unsupported_encryption>"
+    except Exception as e:
+        return f"<decrypt_error: {str(e)}>"
+
+
+def extract_cookies(domain, cookie_db_path, encryption_key=None):
     """Extract cookies for the specified domain from Chrome's cookie database."""
     try:
-        # Connect to the SQLite database
-        conn = sqlite3.connect(cookie_db_path)
-        cursor = conn.cursor()
+        # Make a copy of the database to avoid locking issues
+        import shutil
+        import tempfile
         
-        # Query cookies for the specified domain
-        # Using LIKE to match subdomains as well
-        query = """
-        SELECT host_key, name, value 
-        FROM cookies 
-        WHERE host_key LIKE ?
-        ORDER BY host_key, name
-        """
+        with tempfile.NamedTemporaryFile(suffix='.db', delete=False) as tmp_file:
+            shutil.copy2(cookie_db_path, tmp_file.name)
+            temp_db_path = tmp_file.name
         
-        # Add wildcards to match the domain and its subdomains
-        domain_pattern = f"%{domain}%"
-        
-        cursor.execute(query, (domain_pattern,))
-        cookies = cursor.fetchall()
-        
-        conn.close()
-        return cookies
+        try:
+            conn = sqlite3.connect(temp_db_path)
+            cursor = conn.cursor()
+            
+            # Query cookies for the specified domain
+            query = """
+            SELECT host_key, name, value, encrypted_value 
+            FROM cookies 
+            WHERE host_key LIKE ?
+            ORDER BY host_key, name
+            """
+            
+            domain_pattern = f"%{domain}%"
+            cursor.execute(query, (domain_pattern,))
+            cookies = cursor.fetchall()
+            
+            conn.close()
+            
+            # Process cookies and decrypt if necessary
+            processed_cookies = []
+            for host_key, name, value, encrypted_value in cookies:
+                if value:
+                    # Plain text value available
+                    final_value = value
+                elif encrypted_value:
+                    # Need to decrypt
+                    final_value = decrypt_cookie_value(encrypted_value, encryption_key)
+                else:
+                    final_value = "<empty>"
+                
+                processed_cookies.append((host_key, name, final_value))
+            
+            return processed_cookies
+            
+        finally:
+            # Clean up temporary file
+            try:
+                os.unlink(temp_db_path)
+            except:
+                pass
         
     except sqlite3.Error as e:
         print(f"Database error: {e}", file=sys.stderr)
@@ -84,15 +197,39 @@ def main():
         help="Output file (default: stdout)",
         default=None
     )
+    parser.add_argument(
+        "--no-decrypt",
+        action="store_true",
+        help="Don't attempt to decrypt cookie values"
+    )
     
     args = parser.parse_args()
     
+    if not CRYPTO_AVAILABLE and not args.no_decrypt:
+        print("Warning: cryptography library not available. Install with:", file=sys.stderr)
+        print("pip install cryptography", file=sys.stderr)
+        if platform.system() == "Windows":
+            print("pip install pywin32", file=sys.stderr)
+        print("Cookie values will show as <encrypted> if they are encrypted.", file=sys.stderr)
+        print()
+    
     try:
-        # Get Chrome cookie database path
-        cookie_db_path = get_chrome_cookie_path()
+        # Get Chrome paths
+        cookie_db_path, local_state_path = get_chrome_paths()
+        
+        if not os.path.exists(cookie_db_path):
+            raise FileNotFoundError(f"Chrome cookie database not found at: {cookie_db_path}")
+        
+        # Get encryption key if decryption is enabled
+        encryption_key = None
+        if not args.no_decrypt:
+            if os.path.exists(local_state_path):
+                encryption_key = get_encryption_key(local_state_path)
+            else:
+                print("Warning: Chrome Local State file not found. Cannot decrypt cookies.", file=sys.stderr)
         
         # Extract cookies for the domain
-        cookies = extract_cookies(args.domain, cookie_db_path)
+        cookies = extract_cookies(args.domain, cookie_db_path, encryption_key)
         
         if not cookies:
             print(f"No cookies found for domain: {args.domain}", file=sys.stderr)
@@ -123,9 +260,6 @@ def main():
     except FileNotFoundError as e:
         print(f"Error: {e}", file=sys.stderr)
         print("Make sure Chrome is installed and has been run at least once.", file=sys.stderr)
-        return 1
-    except OSError as e:
-        print(f"Error: {e}", file=sys.stderr)
         return 1
     except Exception as e:
         print(f"Unexpected error: {e}", file=sys.stderr)
