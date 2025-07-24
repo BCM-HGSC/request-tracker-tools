@@ -56,12 +56,32 @@ def get_encryption_key(local_state_path):
         with open(local_state_path, 'r', encoding='utf-8') as f:
             local_state = json.load(f)
         
+        # Debug: Show available keys in local_state
+        print(f"Available keys in Local State: {list(local_state.keys())}", file=sys.stderr)
+        
+        # Check if os_crypt exists
+        if 'os_crypt' not in local_state:
+            print("Warning: 'os_crypt' key not found in Local State. Chrome may not be encrypting cookies.", file=sys.stderr)
+            return None
+            
+        if 'encrypted_key' not in local_state['os_crypt']:
+            print("Warning: 'encrypted_key' not found in os_crypt. Chrome may not be encrypting cookies.", file=sys.stderr)
+            return None
+        
         encrypted_key = local_state['os_crypt']['encrypted_key']
-        encrypted_key = base64.b64decode(encrypted_key)[5:]  # Remove 'DPAPI' prefix
+        encrypted_key = base64.b64decode(encrypted_key)
+        
+        # Check for DPAPI prefix
+        if encrypted_key.startswith(b'DPAPI'):
+            encrypted_key = encrypted_key[5:]  # Remove 'DPAPI' prefix
         
         if platform.system() == "Windows":
-            import win32crypt
-            key = win32crypt.CryptUnprotectData(encrypted_key, None, None, None, 0)[1]
+            try:
+                import win32crypt
+                key = win32crypt.CryptUnprotectData(encrypted_key, None, None, None, 0)[1]
+            except ImportError:
+                print("Error: win32crypt not available. Install with: pip install pywin32", file=sys.stderr)
+                return None
         elif platform.system() == "Darwin":
             # macOS keychain access
             import subprocess
@@ -72,6 +92,7 @@ def get_encryption_key(local_state_path):
                 ]).decode().strip()
                 key = key.encode()
             except subprocess.CalledProcessError:
+                print("Warning: Could not access Chrome keychain entry", file=sys.stderr)
                 return None
         else:
             # Linux - try default password
@@ -87,6 +108,10 @@ def get_encryption_key(local_state_path):
             key = kdf.derive(password)
         
         return key
+    except KeyError as e:
+        print(f"Could not find expected key in Local State: {e}", file=sys.stderr)
+        print("This might be an older Chrome version or different profile structure.", file=sys.stderr)
+        return None
     except Exception as e:
         print(f"Could not get encryption key: {e}", file=sys.stderr)
         return None
@@ -139,13 +164,26 @@ def extract_cookies(domain, cookie_db_path, encryption_key=None):
             conn = sqlite3.connect(temp_db_path)
             cursor = conn.cursor()
             
-            # Query cookies for the specified domain
-            query = """
-            SELECT host_key, name, value, encrypted_value 
-            FROM cookies 
-            WHERE host_key LIKE ?
-            ORDER BY host_key, name
-            """
+            # First, let's see what columns are available
+            cursor.execute("PRAGMA table_info(cookies)")
+            columns = [row[1] for row in cursor.fetchall()]
+            print(f"Available columns in cookies table: {columns}", file=sys.stderr)
+            
+            # Build query based on available columns
+            if 'encrypted_value' in columns:
+                query = """
+                SELECT host_key, name, value, encrypted_value 
+                FROM cookies 
+                WHERE host_key LIKE ?
+                ORDER BY host_key, name
+                """
+            else:
+                query = """
+                SELECT host_key, name, value 
+                FROM cookies 
+                WHERE host_key LIKE ?
+                ORDER BY host_key, name
+                """
             
             domain_pattern = f"%{domain}%"
             cursor.execute(query, (domain_pattern,))
@@ -155,15 +193,20 @@ def extract_cookies(domain, cookie_db_path, encryption_key=None):
             
             # Process cookies and decrypt if necessary
             processed_cookies = []
-            for host_key, name, value, encrypted_value in cookies:
-                if value:
-                    # Plain text value available
-                    final_value = value
-                elif encrypted_value:
-                    # Need to decrypt
-                    final_value = decrypt_cookie_value(encrypted_value, encryption_key)
-                else:
-                    final_value = "<empty>"
+            for row in cookies:
+                if len(row) == 4:  # host_key, name, value, encrypted_value
+                    host_key, name, value, encrypted_value = row
+                    if value:
+                        # Plain text value available
+                        final_value = value
+                    elif encrypted_value:
+                        # Need to decrypt
+                        final_value = decrypt_cookie_value(encrypted_value, encryption_key)
+                    else:
+                        final_value = "<empty>"
+                else:  # host_key, name, value (no encrypted_value column)
+                    host_key, name, value = row
+                    final_value = value if value else "<empty>"
                 
                 processed_cookies.append((host_key, name, final_value))
             
