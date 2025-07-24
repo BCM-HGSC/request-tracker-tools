@@ -197,13 +197,20 @@ def decrypt_cookie_value(encrypted_value, key):
             )
             decryptor = cipher.decryptor()
             
-            # Split ciphertext and tag
+            # Split ciphertext and tag (last 16 bytes are the tag)
+            if len(ciphertext) < 16:
+                return "<invalid_ciphertext_length>"
+                
             plaintext = decryptor.update(ciphertext[:-16])
             decryptor.finalize_with_tag(ciphertext[-16:])
             
             return plaintext.decode('utf-8')
+        elif encrypted_value.startswith(b'v20'):
+            # Newer encryption format - might need different handling
+            return "<v20_encryption_not_supported>"
         else:
-            return "<unsupported_encryption>"
+            # Try older encryption methods
+            return "<unsupported_encryption_format>"
     except Exception as e:
         return f"<decrypt_error: {str(e)}>"
 
@@ -250,12 +257,21 @@ def extract_cookies(domain, cookie_db_path, encryption_key=None, debug=False):
                     print(f"Cookie {name}: value='{value}', encrypted_value length={len(encrypted_value) if encrypted_value else 0}", file=sys.stderr)
                     if encrypted_value and len(encrypted_value) > 0:
                         print(f"  Encrypted value starts with: {encrypted_value[:20] if len(encrypted_value) > 20 else encrypted_value}", file=sys.stderr)
+                        
+                        # Try to provide more detail about the encryption
+                        if encrypted_value.startswith(b'v10'):
+                            nonce_len = 12
+                            tag_len = 16
+                            after_prefix = encrypted_value[3:]
+                            print(f"  v10 format: nonce={after_prefix[:nonce_len].hex()}, data_len={len(after_prefix)-nonce_len-tag_len}", file=sys.stderr)
                 
                 if value:
                     # Plain text value available
                     final_value = value
                 elif encrypted_value:
                     # Need to decrypt
+                    if debug and encryption_key:
+                        print(f"  Using key: {encryption_key.hex()[:32]}...", file=sys.stderr)
                     final_value = decrypt_cookie_value(encrypted_value, encryption_key)
                 else:
                     final_value = "<empty>"
@@ -325,6 +341,29 @@ def main():
         if not args.no_decrypt:
             if os.path.exists(local_state_path):
                 encryption_key = get_encryption_key(local_state_path)
+                if not encryption_key and platform.system() == "Darwin":
+                    # On macOS, also try direct keychain access as a last resort
+                    print("Trying direct keychain access...", file=sys.stderr)
+                    import subprocess
+                    try:
+                        # Try the exact command that should work
+                        result = subprocess.run([
+                            'security', 'find-generic-password', 
+                            '-w', '-s', 'Chrome Safe Storage', '-a', 'Chrome'
+                        ], capture_output=True, text=True, check=True)
+                        if result.stdout.strip():
+                            raw_key = result.stdout.strip()
+                            # The keychain returns a hex string, convert to bytes
+                            if len(raw_key) == 48:  # 24 bytes in hex
+                                encryption_key = bytes.fromhex(raw_key)
+                                print("Found keychain key (24 bytes)", file=sys.stderr)
+                            elif len(raw_key) == 32:  # 16 bytes in hex  
+                                encryption_key = bytes.fromhex(raw_key)
+                                print("Found keychain key (16 bytes)", file=sys.stderr)
+                            else:
+                                print(f"Unexpected key length from keychain: {len(raw_key)} chars", file=sys.stderr)
+                    except subprocess.CalledProcessError as e:
+                        print(f"Keychain access failed: {e}", file=sys.stderr)
             else:
                 print("Warning: Chrome Local State file not found. Cannot decrypt cookies.", file=sys.stderr)
         
