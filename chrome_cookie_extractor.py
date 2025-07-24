@@ -14,6 +14,7 @@ import json
 import base64
 from pathlib import Path
 import csv
+import traceback
 
 try:
     from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
@@ -88,10 +89,12 @@ def get_encryption_key(local_state_path):
                     iterations=1,
                     backend=default_backend()
                 )
-                return kdf.derive(password)
+                key = kdf.derive(password)
+                print(f"Generated fallback key: {key.hex()}", file=sys.stderr)
+                return key
             elif platform.system() == "Darwin":
                 print("Trying macOS fallback encryption key", file=sys.stderr)
-                # Try macOS fallback - same as Linux for some Chrome versions
+                # For macOS, try the standard method first
                 password = b'peanuts'
                 salt = b'saltysalt'
                 kdf = PBKDF2HMAC(
@@ -101,7 +104,9 @@ def get_encryption_key(local_state_path):
                     iterations=1,
                     backend=default_backend()
                 )
-                return kdf.derive(password)
+                key = kdf.derive(password)
+                print(f"Generated fallback key: {key.hex()}", file=sys.stderr)
+                return key
             return None
         
         encrypted_key = base64.b64decode(encrypted_key)
@@ -176,7 +181,7 @@ def get_encryption_key(local_state_path):
         return None
 
 
-def decrypt_cookie_value(encrypted_value, key):
+def decrypt_cookie_value(encrypted_value, key, debug=False):
     """Decrypt Chrome's encrypted cookie value."""
     if not CRYPTO_AVAILABLE or not key:
         return "<encrypted>"
@@ -189,6 +194,10 @@ def decrypt_cookie_value(encrypted_value, key):
             nonce = encrypted_value[:12]
             ciphertext = encrypted_value[12:]
             
+            if debug:
+                print(f"    Decryption attempt: nonce_len={len(nonce)}, ciphertext_len={len(ciphertext)}, key_len={len(key)}", file=sys.stderr)
+                print(f"    Nonce: {nonce.hex()}", file=sys.stderr)
+            
             # Decrypt using AES-GCM
             cipher = Cipher(
                 algorithms.AES(key),
@@ -200,19 +209,32 @@ def decrypt_cookie_value(encrypted_value, key):
             # Split ciphertext and tag (last 16 bytes are the tag)
             if len(ciphertext) < 16:
                 return "<invalid_ciphertext_length>"
-                
-            plaintext = decryptor.update(ciphertext[:-16])
-            decryptor.finalize_with_tag(ciphertext[-16:])
             
-            return plaintext.decode('utf-8')
+            data = ciphertext[:-16]
+            tag = ciphertext[-16:]
+            
+            if debug:
+                print(f"    Data length: {len(data)}, Tag length: {len(tag)}", file=sys.stderr)
+                print(f"    Tag: {tag.hex()}", file=sys.stderr)
+            
+            plaintext = decryptor.update(data)
+            decryptor.finalize_with_tag(tag)
+            
+            result = plaintext.decode('utf-8')
+            if debug:
+                print(f"    Successfully decrypted: {result[:50]}{'...' if len(result) > 50 else ''}", file=sys.stderr)
+            return result
+            
         elif encrypted_value.startswith(b'v20'):
-            # Newer encryption format - might need different handling
             return "<v20_encryption_not_supported>"
         else:
-            # Try older encryption methods
             return "<unsupported_encryption_format>"
     except Exception as e:
-        return f"<decrypt_error: {str(e)}>"
+        if debug:
+            print(f"    Decryption exception: {type(e).__name__}: {str(e)}", file=sys.stderr)
+            print(f"    Full traceback:", file=sys.stderr)
+            traceback.print_exc(file=sys.stderr)
+        return f"<decrypt_error: {type(e).__name__}: {str(e)}>"
 
 
 def extract_cookies(domain, cookie_db_path, encryption_key=None, debug=False):
@@ -272,7 +294,7 @@ def extract_cookies(domain, cookie_db_path, encryption_key=None, debug=False):
                     # Need to decrypt
                     if debug and encryption_key:
                         print(f"  Using key: {encryption_key.hex()[:32]}...", file=sys.stderr)
-                    final_value = decrypt_cookie_value(encrypted_value, encryption_key)
+                    final_value = decrypt_cookie_value(encrypted_value, encryption_key, debug)
                 else:
                     final_value = "<empty>"
                 
@@ -399,6 +421,9 @@ def main():
     except FileNotFoundError as e:
         print(f"Error: {e}", file=sys.stderr)
         print("Make sure Chrome is installed and has been run at least once.", file=sys.stderr)
+        return 1
+    except OSError as e:
+        print(f"Error: {e}", file=sys.stderr)
         return 1
     except Exception as e:
         print(f"Unexpected error: {e}", file=sys.stderr)
