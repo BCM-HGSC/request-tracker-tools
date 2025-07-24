@@ -76,9 +76,22 @@ def get_encryption_key(local_state_path):
         
         if not encrypted_key:
             print("Warning: No encryption key found in Local State. Trying fallback methods.", file=sys.stderr)
-            # Try Linux/macOS fallback method without key from file
+            # Try platform-specific fallback methods
             if platform.system() == "Linux":
                 print("Trying Linux fallback encryption key", file=sys.stderr)
+                password = b'peanuts'
+                salt = b'saltysalt'
+                kdf = PBKDF2HMAC(
+                    algorithm=hashes.SHA1(),
+                    length=16,
+                    salt=salt,
+                    iterations=1,
+                    backend=default_backend()
+                )
+                return kdf.derive(password)
+            elif platform.system() == "Darwin":
+                print("Trying macOS fallback encryption key", file=sys.stderr)
+                # Try macOS fallback - same as Linux for some Chrome versions
                 password = b'peanuts'
                 salt = b'saltysalt'
                 kdf = PBKDF2HMAC(
@@ -105,17 +118,41 @@ def get_encryption_key(local_state_path):
                 print("Error: win32crypt not available. Install with: pip install pywin32", file=sys.stderr)
                 return None
         elif platform.system() == "Darwin":
-            # macOS keychain access
+            # macOS keychain access - try multiple possible entries
             import subprocess
-            try:
-                key = subprocess.check_output([
-                    'security', 'find-generic-password',
-                    '-w', '-s', 'Chrome Safe Storage', '-a', 'Chrome'
-                ]).decode().strip()
-                key = key.encode()
-            except subprocess.CalledProcessError:
-                print("Warning: Could not access Chrome keychain entry", file=sys.stderr)
-                return None
+            keychain_entries = [
+                ('Chrome Safe Storage', 'Chrome'),
+                ('Chromium Safe Storage', 'Chromium'),
+                ('Chrome', 'Chrome'),
+                ('Safe Storage', 'Chrome')
+            ]
+            
+            for service, account in keychain_entries:
+                try:
+                    print(f"Trying keychain entry: service='{service}', account='{account}'", file=sys.stderr)
+                    result = subprocess.check_output([
+                        'security', 'find-generic-password',
+                        '-w', '-s', service, '-a', account
+                    ], stderr=subprocess.DEVNULL).decode().strip()
+                    key = result.encode()
+                    print(f"Found keychain entry: {service}/{account}", file=sys.stderr)
+                    return key
+                except subprocess.CalledProcessError:
+                    continue
+            
+            print("Warning: Could not find Chrome keychain entry. Trying fallback method.", file=sys.stderr)
+            # Fallback to the Linux method for macOS
+            password = b'peanuts'
+            salt = b'saltysalt'
+            kdf = PBKDF2HMAC(
+                algorithm=hashes.SHA1(),
+                length=16,
+                salt=salt,
+                iterations=1,
+                backend=default_backend()
+            )
+            key = kdf.derive(password)
+            return key
         else:
             # Linux - try default password
             password = b'peanuts'
