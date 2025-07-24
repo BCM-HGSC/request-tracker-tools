@@ -56,19 +56,41 @@ def get_encryption_key(local_state_path):
         with open(local_state_path, 'r', encoding='utf-8') as f:
             local_state = json.load(f)
         
-        # Debug: Show available keys in local_state
-        print(f"Available keys in Local State: {list(local_state.keys())}", file=sys.stderr)
+        # Try different possible locations for the encryption key
+        encrypted_key = None
         
-        # Check if os_crypt exists
-        if 'os_crypt' not in local_state:
-            print("Warning: 'os_crypt' key not found in Local State. Chrome may not be encrypting cookies.", file=sys.stderr)
-            return None
-            
-        if 'encrypted_key' not in local_state['os_crypt']:
-            print("Warning: 'encrypted_key' not found in os_crypt. Chrome may not be encrypting cookies.", file=sys.stderr)
+        # Standard location
+        if 'os_crypt' in local_state and 'encrypted_key' in local_state['os_crypt']:
+            encrypted_key = local_state['os_crypt']['encrypted_key']
+            print("Found encryption key in os_crypt.encrypted_key", file=sys.stderr)
+        
+        # Alternative location (some Chrome versions)
+        elif 'encryption_key' in local_state:
+            encrypted_key = local_state['encryption_key']
+            print("Found encryption key in encryption_key", file=sys.stderr)
+        
+        # Check profile-specific encryption
+        elif 'profile' in local_state and 'encryption_key' in local_state['profile']:
+            encrypted_key = local_state['profile']['encryption_key']
+            print("Found encryption key in profile.encryption_key", file=sys.stderr)
+        
+        if not encrypted_key:
+            print("Warning: No encryption key found in Local State. Trying fallback methods.", file=sys.stderr)
+            # Try Linux/macOS fallback method without key from file
+            if platform.system() == "Linux":
+                print("Trying Linux fallback encryption key", file=sys.stderr)
+                password = b'peanuts'
+                salt = b'saltysalt'
+                kdf = PBKDF2HMAC(
+                    algorithm=hashes.SHA1(),
+                    length=16,
+                    salt=salt,
+                    iterations=1,
+                    backend=default_backend()
+                )
+                return kdf.derive(password)
             return None
         
-        encrypted_key = local_state['os_crypt']['encrypted_key']
         encrypted_key = base64.b64decode(encrypted_key)
         
         # Check for DPAPI prefix
@@ -149,7 +171,7 @@ def decrypt_cookie_value(encrypted_value, key):
         return f"<decrypt_error: {str(e)}>"
 
 
-def extract_cookies(domain, cookie_db_path, encryption_key=None):
+def extract_cookies(domain, cookie_db_path, encryption_key=None, debug=False):
     """Extract cookies for the specified domain from Chrome's cookie database."""
     try:
         # Make a copy of the database to avoid locking issues
@@ -165,25 +187,18 @@ def extract_cookies(domain, cookie_db_path, encryption_key=None):
             cursor = conn.cursor()
             
             # First, let's see what columns are available
-            cursor.execute("PRAGMA table_info(cookies)")
-            columns = [row[1] for row in cursor.fetchall()]
-            print(f"Available columns in cookies table: {columns}", file=sys.stderr)
+            if debug:
+                cursor.execute("PRAGMA table_info(cookies)")
+                columns = [row[1] for row in cursor.fetchall()]
+                print(f"Available columns in cookies table: {columns}", file=sys.stderr)
             
             # Build query based on available columns
-            if 'encrypted_value' in columns:
-                query = """
-                SELECT host_key, name, value, encrypted_value 
-                FROM cookies 
-                WHERE host_key LIKE ?
-                ORDER BY host_key, name
-                """
-            else:
-                query = """
-                SELECT host_key, name, value 
-                FROM cookies 
-                WHERE host_key LIKE ?
-                ORDER BY host_key, name
-                """
+            query = """
+            SELECT host_key, name, value, encrypted_value 
+            FROM cookies 
+            WHERE host_key LIKE ?
+            ORDER BY host_key, name
+            """
             
             domain_pattern = f"%{domain}%"
             cursor.execute(query, (domain_pattern,))
@@ -193,20 +208,20 @@ def extract_cookies(domain, cookie_db_path, encryption_key=None):
             
             # Process cookies and decrypt if necessary
             processed_cookies = []
-            for row in cookies:
-                if len(row) == 4:  # host_key, name, value, encrypted_value
-                    host_key, name, value, encrypted_value = row
-                    if value:
-                        # Plain text value available
-                        final_value = value
-                    elif encrypted_value:
-                        # Need to decrypt
-                        final_value = decrypt_cookie_value(encrypted_value, encryption_key)
-                    else:
-                        final_value = "<empty>"
-                else:  # host_key, name, value (no encrypted_value column)
-                    host_key, name, value = row
-                    final_value = value if value else "<empty>"
+            for host_key, name, value, encrypted_value in cookies:
+                if debug:
+                    print(f"Cookie {name}: value='{value}', encrypted_value length={len(encrypted_value) if encrypted_value else 0}", file=sys.stderr)
+                    if encrypted_value and len(encrypted_value) > 0:
+                        print(f"  Encrypted value starts with: {encrypted_value[:20] if len(encrypted_value) > 20 else encrypted_value}", file=sys.stderr)
+                
+                if value:
+                    # Plain text value available
+                    final_value = value
+                elif encrypted_value:
+                    # Need to decrypt
+                    final_value = decrypt_cookie_value(encrypted_value, encryption_key)
+                else:
+                    final_value = "<empty>"
                 
                 processed_cookies.append((host_key, name, final_value))
             
@@ -245,6 +260,11 @@ def main():
         action="store_true",
         help="Don't attempt to decrypt cookie values"
     )
+    parser.add_argument(
+        "--debug",
+        action="store_true",
+        help="Show debug information including raw encrypted values"
+    )
     
     args = parser.parse_args()
     
@@ -272,7 +292,7 @@ def main():
                 print("Warning: Chrome Local State file not found. Cannot decrypt cookies.", file=sys.stderr)
         
         # Extract cookies for the domain
-        cookies = extract_cookies(args.domain, cookie_db_path, encryption_key)
+        cookies = extract_cookies(args.domain, cookie_db_path, encryption_key, args.debug)
         
         if not cookies:
             print(f"No cookies found for domain: {args.domain}", file=sys.stderr)
