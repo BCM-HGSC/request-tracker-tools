@@ -4,10 +4,11 @@ import argparse
 import subprocess
 import sys
 import requests
+from pprint import pprint as pp
 
 # Constants - modify these as needed
 BASE_URL = "https://httpbin.org/post"
-EXTERNAL_PROGRAM = "/bin/date"
+EXTERNAL_PROGRAM = "/bin/echo"
 ARG1 = "argument1"
 ARG2 = "argument2"
 
@@ -53,7 +54,7 @@ def post_data(url, data):
         response.raise_for_status()
         print(f"Successfully posted to {url}")
         print(f"Response status: {response.status_code}")
-        print(response)
+        pp(response.json())
     except requests.RequestException as e:
         print(f"Failed to POST to {url}: {e}", file=sys.stderr)
         sys.exit(1)
