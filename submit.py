@@ -49,7 +49,8 @@ def post_data(url, data):
         response.raise_for_status()
         print(f"Successfully posted to {url}")
         print(f"Response status: {response.status_code}")
-        pp(response.json())
+        result = response.json()
+        pp(result)
     except RequestException as e:
         print(f"Failed to POST to {url}: {e}", file=stderr)
         exit(1)
