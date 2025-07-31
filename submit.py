@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 from argparse import ArgumentParser
+from getpass import getuser
 from subprocess import run, CalledProcessError
 from sys import stderr, exit
 from requests import post, RequestException
@@ -9,15 +10,24 @@ from pprint import pprint as pp
 # Constants - modify these as needed
 BASE_URL = "https://httpbin.org/post"
 EXTERNAL_PROGRAM = "/bin/echo"
+PARTIAL_EXTERNAL_COMMAND = [
+    "/usr/bin/security",
+    "find-generic-password",
+    "-w",
+    "-s",
+    "foobar",
+    "-a",
+]
 ARG1 = "argument1"
 ARG2 = "argument2"
 
 
 def main():
     id_string = parse_arguments()
+    user = getuser()
+    data = run_external_program(user)
     url = f"{BASE_URL}/{id_string}"
     url = f"{BASE_URL}"
-    data = run_external_program()
     post_data(url, data)
 
 
@@ -27,12 +37,13 @@ def parse_arguments():
     return parser.parse_args().id_string
 
 
-def run_external_program():
+def run_external_program(user: str) -> str:
     try:
-        result = run(
-            [EXTERNAL_PROGRAM, ARG1, ARG2], capture_output=True, text=True, check=True
-        )
-        return result.stdout
+        command = PARTIAL_EXTERNAL_COMMAND + [user]
+        response = run(command, capture_output=True, text=True, check=True)
+        result = response.stdout.rstrip()
+        print(repr(result))
+        return result
     except CalledProcessError as e:
         print(f"External program failed with exit code {e.returncode}", file=stderr)
         print(f"Error output: {e.stderr}", file=stderr)
