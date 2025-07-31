@@ -2,10 +2,11 @@
 
 from argparse import ArgumentParser
 from getpass import getuser
-from subprocess import run, CalledProcessError
-from sys import stderr, exit
-from requests import post, RequestException
 from pprint import pprint as pp
+from subprocess import CalledProcessError, run
+from sys import exit, stderr
+
+from requests import RequestException, post
 
 # Constants - modify these as needed
 BASE_URL = "https://httpbin.org/post"
@@ -42,14 +43,13 @@ def run_external_program(user: str) -> str:
         command = PARTIAL_EXTERNAL_COMMAND + [user]
         response = run(command, capture_output=True, text=True, check=True)
         result = response.stdout.rstrip()
-        print(repr(result))
         return result
     except CalledProcessError as e:
         print(f"External program failed with exit code {e.returncode}", file=stderr)
         print(f"Error output: {e.stderr}", file=stderr)
         exit(1)
     except FileNotFoundError:
-        print(f"External program not found: {EXTERNAL_PROGRAM}", file=stderr)
+        print(f"External program not found: {command[0]}", file=stderr)
         exit(1)
 
 
