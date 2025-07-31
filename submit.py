@@ -12,8 +12,9 @@ from requests import RequestException, post
 BASE_URL = "https://httpbin.org/post"
 EXTERNAL_PROGRAM = "/bin/echo"
 PARTIAL_EXTERNAL_COMMAND = [
-    "/usr/bin/security",
-    "find-generic-password",
+    "/bin/echo",
+    "/usr/bin/qqqsecurity",
+    "find-generic-qqqpassword",
     "-w",
     "-s",
     "foobar",
