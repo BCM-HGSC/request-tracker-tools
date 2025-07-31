@@ -29,10 +29,9 @@ def parse_arguments():
 
 def run_external_program():
     try:
-        result = run([EXTERNAL_PROGRAM, ARG1, ARG2], 
-                     capture_output=True, 
-                     text=True, 
-                     check=True)
+        result = run(
+            [EXTERNAL_PROGRAM, ARG1, ARG2], capture_output=True, text=True, check=True
+        )
         return result.stdout
     except CalledProcessError as e:
         print(f"External program failed with exit code {e.returncode}", file=stderr)
@@ -44,11 +43,7 @@ def run_external_program():
 
 
 def post_data(url, data):
-    form_data = {
-        'arg1': ARG1,
-        'arg2': ARG2,
-        'data': data
-    }
+    form_data = {"arg1": ARG1, "arg2": ARG2, "data": data}
     try:
         response = post(url, data=form_data)
         response.raise_for_status()
