@@ -6,7 +6,7 @@ from pprint import pprint as pp
 from subprocess import CalledProcessError, run
 from sys import exit, stderr
 
-from requests import RequestException, post
+from requests import RequestException, Session
 
 # Constants - modify these as needed
 BASE_URL = "https://httpbin.org/post"
@@ -30,7 +30,9 @@ def main():
     data = run_external_program(user)
     url = f"{BASE_URL}/{id_string}"
     url = f"{BASE_URL}"
-    post_data(url, data)
+    with Session() as session:
+        post_data(session, url, data)
+        print_cookies(session)
 
 
 def parse_arguments():
@@ -54,10 +56,10 @@ def run_external_program(user: str) -> str:
         exit(1)
 
 
-def post_data(url, data):
+def post_data(session, url, data):
     form_data = {"arg1": ARG1, "arg2": ARG2, "data": data}
     try:
-        response = post(url, data=form_data)
+        response = session.post(url, data=form_data)
         response.raise_for_status()
         print(f"Successfully posted to {url}")
         print(f"Response status: {response.status_code}")
@@ -66,6 +68,15 @@ def post_data(url, data):
     except RequestException as e:
         print(f"Failed to POST to {url}: {e}", file=stderr)
         exit(1)
+
+
+def print_cookies(session):
+    if session.cookies:
+        print("\nCookies received:")
+        for cookie in session.cookies:
+            print(f"  {cookie.name}: {cookie.value}")
+    else:
+        print("\nNo cookies received")
 
 
 if __name__ == "__main__":
