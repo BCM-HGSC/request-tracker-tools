@@ -6,8 +6,8 @@ import sys
 import requests
 
 # Constants - modify these as needed
-BASE_URL = "https://example.com/api"
-EXTERNAL_PROGRAM = "path/to/external"
+BASE_URL = "https://httpbin.org/post"
+EXTERNAL_PROGRAM = "/bin/date"
 ARG1 = "argument1"
 ARG2 = "argument2"
 
@@ -15,6 +15,7 @@ ARG2 = "argument2"
 def main():
     id_string = parse_arguments()
     url = f"{BASE_URL}/{id_string}"
+    url = f"{BASE_URL}"
     data = run_external_program()
     post_data(url, data)
 
@@ -52,6 +53,7 @@ def post_data(url, data):
         response.raise_for_status()
         print(f"Successfully posted to {url}")
         print(f"Response status: {response.status_code}")
+        print(response)
     except requests.RequestException as e:
         print(f"Failed to POST to {url}: {e}", file=sys.stderr)
         sys.exit(1)
