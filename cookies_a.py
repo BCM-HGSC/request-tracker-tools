@@ -1,6 +1,5 @@
 import requests
 
-
 session = requests.Session()
 print(session.cookies.get_dict())  # {}
 
