@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 
-import argparse
-import subprocess
-import sys
-import requests
+from argparse import ArgumentParser
+from subprocess import run, CalledProcessError
+from sys import stderr, exit
+from requests import post, RequestException
 from pprint import pprint as pp
 
 # Constants - modify these as needed
@@ -22,25 +22,25 @@ def main():
 
 
 def parse_arguments():
-    parser = argparse.ArgumentParser(description="Submit data to API endpoint")
+    parser = ArgumentParser(description="Submit data to API endpoint")
     parser.add_argument("id_string", help="ID string to append to base URL")
     return parser.parse_args().id_string
 
 
 def run_external_program():
     try:
-        result = subprocess.run([EXTERNAL_PROGRAM, ARG1, ARG2], 
-                              capture_output=True, 
-                              text=True, 
-                              check=True)
+        result = run([EXTERNAL_PROGRAM, ARG1, ARG2], 
+                     capture_output=True, 
+                     text=True, 
+                     check=True)
         return result.stdout
-    except subprocess.CalledProcessError as e:
-        print(f"External program failed with exit code {e.returncode}", file=sys.stderr)
-        print(f"Error output: {e.stderr}", file=sys.stderr)
-        sys.exit(1)
+    except CalledProcessError as e:
+        print(f"External program failed with exit code {e.returncode}", file=stderr)
+        print(f"Error output: {e.stderr}", file=stderr)
+        exit(1)
     except FileNotFoundError:
-        print(f"External program not found: {EXTERNAL_PROGRAM}", file=sys.stderr)
-        sys.exit(1)
+        print(f"External program not found: {EXTERNAL_PROGRAM}", file=stderr)
+        exit(1)
 
 
 def post_data(url, data):
@@ -50,14 +50,14 @@ def post_data(url, data):
         'data': data
     }
     try:
-        response = requests.post(url, data=form_data)
+        response = post(url, data=form_data)
         response.raise_for_status()
         print(f"Successfully posted to {url}")
         print(f"Response status: {response.status_code}")
         pp(response.json())
-    except requests.RequestException as e:
-        print(f"Failed to POST to {url}: {e}", file=sys.stderr)
-        sys.exit(1)
+    except RequestException as e:
+        print(f"Failed to POST to {url}: {e}", file=stderr)
+        exit(1)
 
 
 if __name__ == "__main__":
