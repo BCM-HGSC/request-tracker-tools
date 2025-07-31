@@ -12,6 +12,13 @@ ARG1 = "argument1"
 ARG2 = "argument2"
 
 
+def main():
+    id_string = parse_arguments()
+    url = f"{BASE_URL}/{id_string}"
+    data = run_external_program()
+    post_data(url, data)
+
+
 def parse_arguments():
     parser = argparse.ArgumentParser(description="Submit data to API endpoint")
     parser.add_argument("id_string", help="ID string to append to base URL")
@@ -35,21 +42,19 @@ def run_external_program():
 
 
 def post_data(url, data):
+    form_data = {
+        'arg1': ARG1,
+        'arg2': ARG2,
+        'data': data
+    }
     try:
-        response = requests.post(url, data=data)
+        response = requests.post(url, data=form_data)
         response.raise_for_status()
         print(f"Successfully posted to {url}")
         print(f"Response status: {response.status_code}")
     except requests.RequestException as e:
         print(f"Failed to POST to {url}: {e}", file=sys.stderr)
         sys.exit(1)
-
-
-def main():
-    id_string = parse_arguments()
-    url = f"{BASE_URL}/{id_string}"
-    data = run_external_program()
-    post_data(url, data)
 
 
 if __name__ == "__main__":
