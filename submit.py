@@ -8,11 +8,8 @@ from sys import exit, stderr
 
 from requests import RequestException, Session
 
-# Constants - modify these as needed
-# BASE_URL = "https://httpbin.org/post"
 BASE_URL = "https://rt.hgsc.bcm.edu/REST/1.0/"
 PARTIAL_EXTERNAL_COMMAND = [
-    # "/bin/echo",
     "/usr/bin/security",
     "find-generic-password",
     "-w",
@@ -34,7 +31,7 @@ def main():
         print_cookies(session)
 
 
-def parse_arguments():
+def parse_arguments() -> str:
     parser = ArgumentParser(description="Submit data to API endpoint")
     parser.add_argument("id_string", help="ID string to append to base URL")
     return parser.parse_args().id_string
@@ -55,24 +52,33 @@ def run_external_program(user: str) -> str:
         exit(1)
 
 
-def fetch_auth_cookie(session, url, user, data):
+def fetch_auth_cookie(session: Session, url: str, user: str, data: str) -> None:
     form_data = {"user": user, "pass": data}
+    post(session, url, data=form_data)
+
+
+def post(session: Session, url: str, verbose=False, **kwargs) -> None:
     try:
-        response = session.post(url, data=form_data)
+        response = session.post(url, **kwargs)
         response.raise_for_status()
     except RequestException as e:
         print(f"Failed to POST to {url}: {e}", file=stderr)
         pp(vars(e))
         exit(1)
     else:
-        print(f"Successfully posted to {url}")
-        print(f"Response status: {response.status_code}")
-        print() 
-        for h, v in response.headers.items():
-            print(f"{h}: {v}")
+        if verbose:
+            print_response_summary(response)
 
 
-def print_cookies(session):
+def print_response_summary(response) -> None:
+    print(f"Successfully posted to {response.url}")
+    print(f"Response status: {response.status_code}")
+    print() 
+    for h, v in response.headers.items():
+        print(f"{h}: {v}")
+
+
+def print_cookies(session: Session):
     if session.cookies:
         print("\nCookies received:")
         for cookie in session.cookies:
