@@ -9,19 +9,17 @@ from sys import exit, stderr
 from requests import RequestException, Session
 
 # Constants - modify these as needed
-BASE_URL = "https://httpbin.org/post"
-EXTERNAL_PROGRAM = "/bin/echo"
+# BASE_URL = "https://httpbin.org/post"
+BASE_URL = "https://rt.hgsc.bcm.edu/REST/1.0/"
 PARTIAL_EXTERNAL_COMMAND = [
-    "/bin/echo",
-    "/usr/bin/qqqsecurity",
-    "find-generic-qqqpassword",
+    # "/bin/echo",
+    "/usr/bin/security",
+    "find-generic-password",
     "-w",
     "-s",
     "foobar",
     "-a",
 ]
-ARG1 = "argument1"
-ARG2 = "argument2"
 
 
 def main():
@@ -31,7 +29,8 @@ def main():
     url = f"{BASE_URL}/{id_string}"
     url = f"{BASE_URL}"
     with Session() as session:
-        post_data(session, url, data)
+        session.verify = "rt.hgsc.bcm.edu.pem"
+        fetch_auth_cookie(session, url, user, data)
         print_cookies(session)
 
 
@@ -56,18 +55,21 @@ def run_external_program(user: str) -> str:
         exit(1)
 
 
-def post_data(session, url, data):
-    form_data = {"arg1": ARG1, "arg2": ARG2, "data": data}
+def fetch_auth_cookie(session, url, user, data):
+    form_data = {"user": user, "pass": data}
     try:
         response = session.post(url, data=form_data)
         response.raise_for_status()
-        print(f"Successfully posted to {url}")
-        print(f"Response status: {response.status_code}")
-        result = response.json()
-        pp(result)
     except RequestException as e:
         print(f"Failed to POST to {url}: {e}", file=stderr)
+        pp(vars(e))
         exit(1)
+    else:
+        print(f"Successfully posted to {url}")
+        print(f"Response status: {response.status_code}")
+        print() 
+        for h, v in response.headers.items():
+            print(f"{h}: {v}")
 
 
 def print_cookies(session):
