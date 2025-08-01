@@ -1,15 +1,32 @@
 [project]
 name = "rt-processor"
-version = "0.1.0"
-description = "Add your description here"
+version = "0.0.0+dev"
+description = "RT Processor package for interacting with RT (Request Tracker) systems"
 readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
-    "marimo>=0.14.13",
-    "pytest>=8.4.1",
     "requests>=2.32.4",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.4.1",
     "ruff>=0.12.5",
 ]
+optional = [
+    "anthropic>=0.60.0",
+    "marimo>=0.14.13",
+]
+
+[project.scripts]
+dump-ticket = "rt_processor.cli:dump_ticket"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[build-system]
+requires = ["setuptools", "wheel"]
+build-backend = "setuptools.build_meta"
 
 [tool.ruff.lint]
 select = [
