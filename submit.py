@@ -11,6 +11,70 @@ from sys import exit, stderr
 from requests import RequestException, Session
 
 BASE_URL = "https://rt.hgsc.bcm.edu/REST/1.0/"
+
+
+class RTSession(Session):
+    def __init__(self):
+        super().__init__()
+        self.verify = "rt.hgsc.bcm.edu.pem"
+
+    def fetch_auth_cookie(self, user: str, password: str) -> None:
+        form_data = {"user": user, "pass": password}
+        self.rt_post(BASE_URL, data=form_data)
+
+    def rt_post(self, url: str, verbose=False, **kwargs) -> None:
+        try:
+            response = self.post(url, **kwargs)
+            response.raise_for_status()
+        except RequestException as e:
+            print(f"Failed to POST to {url}: {e}", file=stderr)
+            pp(vars(e))
+            exit(1)
+        else:
+            if verbose:
+                print_response_summary(response)
+
+    def print_cookies(self):
+        if self.cookies:
+            print("Cookies received:")
+            for cookie in self.cookies:
+                print(f"  {cookie.name}: {cookie.value}")
+        else:
+            print("No cookies received")
+
+    def check_authorized(self) -> bool:
+        response = self.get(BASE_URL)
+        response.raise_for_status()
+        # dump_response(response)
+        m = match(r"rt/[.0-9]+\s+200\sok", response.text, IGNORECASE)
+        return bool(m)
+
+    def load_cookies(self):
+        cookie_file = "cookies.txt"
+        cj = cookiejar.MozillaCookieJar(cookie_file)
+        # Try to load existing cookies (if file exists)
+        try:
+            cj.load(ignore_discard=True, ignore_expires=True)
+        except FileNotFoundError:
+            pass
+        self.cookies = cj
+
+    def fetch_and_save_auth_cookie(self, user, password):
+        self.fetch_auth_cookie(user, password)
+        self.cookies.save(ignore_discard=True, ignore_expires=True)
+
+    def authenticate(self):
+        user = getuser()
+        password = fetch_password(user)
+        self.fetch_and_save_auth_cookie(user, password)
+
+    def logout(self) -> None:
+        response = self.get(f"{BASE_URL}/logout")
+        dump_response(response)
+        self.cookies.clear()
+        self.cookies.save()
+
+
 PARTIAL_EXTERNAL_COMMAND = [
     "/usr/bin/security",
     "find-generic-password",
@@ -25,11 +89,9 @@ def main():
     id_string = parse_arguments()
     user = getuser()
     password = fetch_password(user)
-    url = f"{BASE_URL}ticket/{id_string}/show"
-    with Session() as session:
-        session.verify = "rt.hgsc.bcm.edu.pem"
-        fetch_auth_cookie(session, BASE_URL, user, password)
-        print_cookies(session)
+    with RTSession() as session:
+        session.fetch_auth_cookie(user, password)
+        session.print_cookies()
 
 
 def parse_arguments() -> str:
@@ -53,39 +115,12 @@ def fetch_password(user: str) -> str:
         exit(1)
 
 
-def fetch_auth_cookie(session: Session, user: str, password: str) -> None:
-    form_data = {"user": user, "pass": password}
-    post(session, BASE_URL, data=form_data)
-
-
-def post(session: Session, url: str, verbose=False, **kwargs) -> None:
-    try:
-        response = session.post(url, **kwargs)
-        response.raise_for_status()
-    except RequestException as e:
-        print(f"Failed to POST to {url}: {e}", file=stderr)
-        pp(vars(e))
-        exit(1)
-    else:
-        if verbose:
-            print_response_summary(response)
-
-
 def print_response_summary(response) -> None:
     print(f"Successfully posted to {response.url}")
     print(f"Response status: {response.status_code}")
     print()
     for h, v in response.headers.items():
         print(f"{h}: {v}")
-
-
-def print_cookies(session: Session):
-    if session.cookies:
-        print("Cookies received:")
-        for cookie in session.cookies:
-            print(f"  {cookie.name}: {cookie.value}")
-    else:
-        print("No cookies received")
 
 
 def dump_response(response):
@@ -96,43 +131,6 @@ def dump_response(response):
         print(f"{k}: {v}")
     print()
     print(response.text)
-
-
-def check_authorized(session: Session) -> bool:
-    response = session.get(BASE_URL)
-    response.raise_for_status()
-    # dump_response(response)
-    m = match(r"rt/[.0-9]+\s+200\sok", response.text, IGNORECASE)
-    return bool(m)
-
-
-def load_cookies(session):
-    cookie_file = "cookies.txt"
-    cj = cookiejar.MozillaCookieJar(cookie_file)
-    # Try to load existing cookies (if file exists)
-    try:
-        cj.load(ignore_discard=True, ignore_expires=True)
-    except FileNotFoundError:
-        pass
-    session.cookies = cj
-
-
-def fetch_and_save_auth_cookie(session, user, password):
-    fetch_auth_cookie(session, user, password)
-    session.cookies.save(ignore_discard=True, ignore_expires=True)
-
-
-def authenticate(session: Session):
-    user = getuser()
-    password = fetch_password(user)
-    fetch_and_save_auth_cookie(session, user, password)
-
-
-def logout(session: Session) -> None:
-    response = session.get(f"{BASE_URL}/logout")
-    dump_response(response)
-    session.cookies.clear()
-    session.cookies.save()
 
 
 if __name__ == "__main__":
