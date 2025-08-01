@@ -51,9 +51,9 @@ def fetch_password(user: str) -> str:
         exit(1)
 
 
-def fetch_auth_cookie(session: Session, url: str, user: str, password: str) -> None:
+def fetch_auth_cookie(session: Session, user: str, password: str) -> None:
     form_data = {"user": user, "pass": password}
-    post(session, url, data=form_data)
+    post(session, BASE_URL, data=form_data)
 
 
 def post(session: Session, url: str, verbose=False, **kwargs) -> None:
