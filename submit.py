@@ -1,8 +1,10 @@
 #!/usr/bin/env python3
 
+import http.cookiejar as cookiejar
 from argparse import ArgumentParser
 from getpass import getuser
 from pprint import pprint as pp
+from re import IGNORECASE, match
 from subprocess import CalledProcessError, run
 from sys import exit, stderr
 
@@ -72,7 +74,7 @@ def post(session: Session, url: str, verbose=False, **kwargs) -> None:
 def print_response_summary(response) -> None:
     print(f"Successfully posted to {response.url}")
     print(f"Response status: {response.status_code}")
-    print() 
+    print()
     for h, v in response.headers.items():
         print(f"{h}: {v}")
 
@@ -84,6 +86,53 @@ def print_cookies(session: Session):
             print(f"  {cookie.name}: {cookie.value}")
     else:
         print("No cookies received")
+
+
+def dump_response(response):
+    print(response.url)
+    print(response.status_code, response.reason)
+    print()
+    for k, v in response.headers.items():
+        print(f"{k}: {v}")
+    print()
+    print(response.text)
+
+
+def check_authorized(session: Session) -> bool:
+    response = session.get(BASE_URL)
+    response.raise_for_status()
+    # dump_response(response)
+    m = match(r"rt/[.0-9]+\s+200\sok", response.text, IGNORECASE)
+    return bool(m)
+
+
+def load_cookies(session):
+    cookie_file = "cookies.txt"
+    cj = cookiejar.MozillaCookieJar(cookie_file)
+    # Try to load existing cookies (if file exists)
+    try:
+        cj.load(ignore_discard=True, ignore_expires=True)
+    except FileNotFoundError:
+        pass
+    session.cookies = cj
+
+
+def fetch_and_save_auth_cookie(session, user, password):
+    fetch_auth_cookie(session, user, password)
+    session.cookies.save(ignore_discard=True, ignore_expires=True)
+
+
+def authenticate(session: Session):
+    user = getuser()
+    password = fetch_password(user)
+    fetch_and_save_auth_cookie(session, user, password)
+
+
+def logout(session: Session) -> None:
+    response = session.get(f"{BASE_URL}/logout")
+    dump_response(response)
+    session.cookies.clear()
+    session.cookies.save()
 
 
 if __name__ == "__main__":
