@@ -22,22 +22,21 @@ PARTIAL_EXTERNAL_COMMAND = [
 def main():
     id_string = parse_arguments()
     user = getuser()
-    data = run_external_program(user)
-    url = f"{BASE_URL}/{id_string}"
-    url = f"{BASE_URL}"
+    password = fetch_password(user)
+    url = f"{BASE_URL}ticket/{id_string}/show"
     with Session() as session:
         session.verify = "rt.hgsc.bcm.edu.pem"
-        fetch_auth_cookie(session, url, user, data)
+        fetch_auth_cookie(session, BASE_URL, user, password)
         print_cookies(session)
 
 
 def parse_arguments() -> str:
-    parser = ArgumentParser(description="Submit data to API endpoint")
+    parser = ArgumentParser(description="Communicate with RT")
     parser.add_argument("id_string", help="ID string to append to base URL")
     return parser.parse_args().id_string
 
 
-def run_external_program(user: str) -> str:
+def fetch_password(user: str) -> str:
     try:
         command = PARTIAL_EXTERNAL_COMMAND + [user]
         response = run(command, capture_output=True, text=True, check=True)
@@ -52,8 +51,8 @@ def run_external_program(user: str) -> str:
         exit(1)
 
 
-def fetch_auth_cookie(session: Session, url: str, user: str, data: str) -> None:
-    form_data = {"user": user, "pass": data}
+def fetch_auth_cookie(session: Session, url: str, user: str, password: str) -> None:
+    form_data = {"user": user, "pass": password}
     post(session, url, data=form_data)
 
 
@@ -80,11 +79,11 @@ def print_response_summary(response) -> None:
 
 def print_cookies(session: Session):
     if session.cookies:
-        print("\nCookies received:")
+        print("Cookies received:")
         for cookie in session.cookies:
             print(f"  {cookie.name}: {cookie.value}")
     else:
-        print("\nNo cookies received")
+        print("No cookies received")
 
 
 if __name__ == "__main__":
