@@ -8,7 +8,7 @@ from re import IGNORECASE, match
 from subprocess import CalledProcessError, run
 from sys import exit, stderr
 
-from requests import Response, RequestException, Session
+from requests import RequestException, Response, Session
 
 COOKIE_FILE = "cookies.txt"
 BASE_URL = "https://rt.hgsc.bcm.edu/REST/1.0/"
@@ -81,9 +81,7 @@ class RTSession(Session):
         self.cookies.save()
 
     def try_url(self, id_string: str, *parts) -> None:
-        dump_response(
-            self.get(ticket_url(id_string, *parts))
-        )
+        dump_response(self.get(RTSession.ticket_url(id_string, *parts)))
 
     def print_cookies(self):
         if self.cookies:
@@ -93,6 +91,10 @@ class RTSession(Session):
         else:
             print("No cookies received")
 
+    @staticmethod
+    def ticket_url(id_string: str, *parts) -> str:
+        return "/".join([f"{BASE_URL}ticket/{id_string}"] + list(parts))
+        
 
 def load_cookies() -> cookiejar.CookieJar:
     cookie_jar = cookiejar.MozillaCookieJar(COOKIE_FILE)
@@ -116,10 +118,6 @@ def fetch_password(user: str) -> str:
     except FileNotFoundError:
         print(f"External program not found: {command[0]}", file=stderr)
         exit(1)
-
-
-def ticket_url(id_string: str, *parts) -> str:
-    return "/".join([f"{BASE_URL}ticket/{id_string}"] + list(parts))
 
 
 def dump_response(response: Response):
