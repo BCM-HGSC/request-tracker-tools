@@ -1,7 +1,7 @@
 [project]
 name = "rt-processor"
 version = "0.1.0"
-description = "Add your description here"
+description = "RT Processor package for interacting with RT (Request Tracker) systems"
 readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
@@ -11,6 +11,13 @@ dependencies = [
     "requests>=2.32.4",
     "ruff>=0.12.5",
 ]
+
+[project.scripts]
+rt-processor = "rt_processor.cli:main"
+
+[build-system]
+requires = ["uv"]
+build-backend = "uv_build"
 
 [tool.ruff.lint]
 select = [
