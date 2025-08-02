@@ -21,9 +21,12 @@ optional = [
 [project.scripts]
 rt-processor = "rt_processor.cli:main"
 
+[tool.setuptools.packages.find]
+where = ["src"]
+
 [build-system]
-requires = ["uv"]
-build-backend = "uv_build"
+requires = ["setuptools", "wheel"]
+build-backend = "setuptools.build_meta"
 
 [tool.ruff.lint]
 select = [
