@@ -46,7 +46,7 @@ def _(session):
 
 @app.cell
 def _():
-    T1 = "37479"
+    T1 = "37525"
     return (T1,)
 
 
@@ -70,13 +70,13 @@ def _(T1, try_url):
 
 @app.cell
 def _(T1, try_url):
-    try_url(T1, "history/id/1487179")
+    try_url(T1, "history/id/1489286")
     return
 
 
 @app.cell
 def _(T1, try_url):
-    try_url(T1, "attachments/1481673")
+    try_url(T1, "attachments/1483997")
     return
 
 
