@@ -17,21 +17,15 @@ def _():
         RTSession,
         dump_response,
     )
-    return BASE_URL, RTSession, dump_response
+    return (RTSession,)
 
 
 @app.cell
 def _(RTSession):
     session = RTSession()
     session.check_authorized()
-    return (session,)
-
-
-@app.cell
-def _(session):
-    session.authenticate()
-    session.check_authorized()
-    return
+    try_url = session.try_url
+    return session, try_url
 
 
 @app.cell
@@ -44,54 +38,45 @@ def _():
 
 
 @app.cell
-def _(BASE_URL):
-    def ticket_url(id_string: str, *parts) -> str:
-        return "/".join([f"{BASE_URL}ticket/{id_string}"] + list(parts))
-    return (ticket_url,)
-
-
-@app.cell
-def _(dump_response, session, ticket_url):
-    def try_url(id_string: str, *parts) -> None:
-        dump_response(
-            session.get(ticket_url(id_string, *parts))
-        )
-    return (try_url,)
-
-
-@app.cell
-def _(try_url):
-    try_url("37479", "links")
-    return
-
-
-@app.cell
-def _(try_url):
-    try_url("37479", "attachments")
-    return
-
-
-@app.cell
-def _(try_url):
-    try_url("37479", "history")
-    return
-
-
-@app.cell
-def _(try_url):
-    try_url("37479", "history/id/1487179")
-    return
-
-
-@app.cell
-def _(try_url):
-    try_url("37479", "attachments/1481673")
-    return
-
-
-@app.cell
 def _(session):
-    session.print_cookies()
+    session.authenticate()
+    session.check_authorized()
+    return
+
+
+@app.cell
+def _():
+    T1 = "37479"
+    return (T1,)
+
+
+@app.cell
+def _(T1, try_url):
+    try_url(T1, "links")
+    return
+
+
+@app.cell
+def _(T1, try_url):
+    try_url(T1, "attachments")
+    return
+
+
+@app.cell
+def _(T1, try_url):
+    try_url(T1, "history")
+    return
+
+
+@app.cell
+def _(T1, try_url):
+    try_url(T1, "history/id/1487179")
+    return
+
+
+@app.cell
+def _(T1, try_url):
+    try_url(T1, "attachments/1481673")
     return
 
 
