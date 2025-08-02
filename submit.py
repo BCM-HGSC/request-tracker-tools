@@ -24,12 +24,10 @@ PARTIAL_EXTERNAL_COMMAND = [
 
 def main():
     id_string = parse_arguments()
-    # url = f"{BASE_URL}ticket/{id_string}/show"
-    user = getuser()
-    password = fetch_password(user)
     with RTSession() as session:
-        session.fetch_auth_cookie(user, password)
+        session.authenticate()
         session.print_cookies()
+        session.try_url(id_string)
 
 
 def parse_arguments() -> str:
@@ -81,6 +79,11 @@ class RTSession(Session):
         self.cookies.clear()
         self.cookies.save()
 
+    def try_url(self, id_string: str, *parts) -> None:
+        dump_response(
+            self.get(ticket_url(id_string, *parts))
+        )
+
     def print_cookies(self):
         if self.cookies:
             print("Cookies received:")
@@ -112,6 +115,10 @@ def fetch_password(user: str) -> str:
     except FileNotFoundError:
         print(f"External program not found: {command[0]}", file=stderr)
         exit(1)
+
+
+def ticket_url(id_string: str, *parts) -> str:
+    return "/".join([f"{BASE_URL}ticket/{id_string}"] + list(parts))
 
 
 def dump_response(response: Response):
