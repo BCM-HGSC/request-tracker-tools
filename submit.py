@@ -43,7 +43,7 @@ class RTSession(Session):
         self.verify: str = "rt.hgsc.bcm.edu.pem"
         self.cookies: cookiejar.CookieJar = load_cookies()
 
-    def authenticate(self):
+    def authenticate(self) -> None:
         if self.check_authorized():
             return
         user = getuser()
@@ -83,7 +83,7 @@ class RTSession(Session):
     def try_url(self, id_string: str, *parts) -> None:
         dump_response(self.get(RTSession.ticket_url(id_string, *parts)))
 
-    def print_cookies(self):
+    def print_cookies(self) -> None:
         if self.cookies:
             print("Cookies received:")
             for cookie in self.cookies:
@@ -120,7 +120,7 @@ def fetch_password(user: str) -> str:
         exit(1)
 
 
-def dump_response(response: Response):
+def dump_response(response: Response) -> None:
     print(response.url)
     print(response.status_code, response.reason)
     print()
@@ -128,6 +128,12 @@ def dump_response(response: Response):
         print(f"{k}: {v}")
     print()
     print(response.text)
+
+
+def remove_fixed_string(multiline_string: str, fixed_string: str) -> str:
+    lines = multiline_string.splitlines()
+    cleaned_lines = [line.replace(fixed_string, '') for line in lines]
+    return '\n'.join(cleaned_lines)
 
 
 if __name__ == "__main__":
