@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 
 import http.cookiejar as cookiejar
-from argparse import ArgumentParser
+from argparse import ArgumentParser, Namespace
 from getpass import getuser
 from pprint import pprint as pp
 from re import IGNORECASE, match
@@ -23,17 +23,18 @@ PARTIAL_EXTERNAL_COMMAND = [
 
 
 def main():
-    id_string = parse_arguments()
+    args = parse_arguments()
     with RTSession() as session:
         session.authenticate()
         session.print_cookies()
-        session.try_url(id_string)
+        session.try_url(args.id_string, *args.parts)
 
 
-def parse_arguments() -> str:
+def parse_arguments() -> Namespace:
     parser = ArgumentParser(description="Communicate with RT")
     parser.add_argument("id_string", help="ID string to append to base URL")
-    return parser.parse_args().id_string
+    parser.add_argument("parts", nargs="*", help="additional path components")
+    return parser.parse_args()
 
 
 class RTSession(Session):
