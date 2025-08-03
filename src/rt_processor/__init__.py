@@ -9,7 +9,7 @@ try:
     __version__ = version("rt-processor")
 except PackageNotFoundError:
     # Package is not installed, use fallback version
-    __version__ = "0.1.0"
+    __version__ = "UNKNOWN"
 
 __all__ = [
     "RTSession",
