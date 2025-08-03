@@ -47,11 +47,12 @@ def dump_response(response: Response) -> None:
     """Dump full response details including headers and content."""
     print(response.url)
     print(response.status_code, response.reason)
-    print()
+    print("-----------------")
     for k, v in response.headers.items():
         print(f"{k}: {v}")
-    print()
+    print("-----------------")
     print(response.text)
+    print("=================")
 
 
 def remove_fixed_string(multiline_string: str, fixed_string: str) -> str:
