@@ -11,8 +11,7 @@ def main():
     args = parse_main_arguments()
     log_level = logging.DEBUG if args.verbose else logging.INFO
     logging.basicConfig(
-        level=log_level,
-        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+        level=log_level, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
     )
     with RTSession() as session:
         session.authenticate()
