@@ -62,6 +62,6 @@ def remove_fixed_string(multiline_string: str, fixed_string: str) -> str:
     return '\n'.join(cleaned_lines)
 
 
-def err(*objects, sep=' ', end='\n', flush=False) -> None:
+def err(*objects, sep=" ", end="\n", flush=False) -> None:
     """Print to stderr"""
     print(*objects, sep=sep, end=end, flush=flush, file=stderr)
