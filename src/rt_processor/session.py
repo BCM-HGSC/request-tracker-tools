@@ -4,7 +4,7 @@ import http.cookiejar as cookiejar
 from getpass import getuser
 from pprint import pprint as pp
 from re import IGNORECASE, match
-from sys import exit, stderr
+from sys import exit
 
 from requests import RequestException, Session
 
