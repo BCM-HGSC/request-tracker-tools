@@ -16,5 +16,5 @@ __all__ = [
     "dump_response",
     "fetch_password",
     "load_cookies",
-    "remove_fixed_string"
+    "remove_fixed_string",
 ]
