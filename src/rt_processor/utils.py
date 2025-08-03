@@ -35,11 +35,11 @@ def fetch_password(user: str) -> str:
         result = cli_response.stdout.rstrip()
         return result
     except CalledProcessError as e:
-        print(f"External program failed with exit code {e.returncode}", file=stderr)
-        print(f"Error output: {e.stderr}", file=stderr)
+        err(f"External program failed with exit code {e.returncode}")
+        err(f"Error output: {e.stderr}")
         exit(1)
     except FileNotFoundError:
-        print(f"External program not found: {command[0]}", file=stderr)
+        err(f"External program not found: {command[0]}")
         exit(1)
 
 
@@ -59,3 +59,8 @@ def remove_fixed_string(multiline_string: str, fixed_string: str) -> str:
     lines = multiline_string.splitlines()
     cleaned_lines = [line.replace(fixed_string, '') for line in lines]
     return '\n'.join(cleaned_lines)
+
+
+def err(*objects, sep=' ', end='\n', flush=False) -> None:
+    """Print to stderr"""
+    print(*objects, sep=sep, end=end, flush=flush, file=stderr)

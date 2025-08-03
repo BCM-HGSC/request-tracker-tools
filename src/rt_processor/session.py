@@ -8,7 +8,7 @@ from sys import exit, stderr
 
 from requests import RequestException, Session
 
-from .utils import dump_response, fetch_password, load_cookies
+from .utils import dump_response, err, fetch_password, load_cookies
 
 COOKIE_FILE = "cookies.txt"
 BASE_URL = "https://rt.hgsc.bcm.edu/REST/1.0/"
@@ -49,7 +49,7 @@ class RTSession(Session):
             response = self.post(url, **kwargs)
             response.raise_for_status()
         except RequestException as e:
-            print(f"Failed to POST to {url}: {e}", file=stderr)
+            err(f"Failed to POST to {url}: {e}")
             pp(vars(e))
             exit(1)
         else:
