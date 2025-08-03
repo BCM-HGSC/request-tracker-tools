@@ -9,7 +9,15 @@ from .session import RTSession
 def main():
     """Main entry point for the RT processor CLI."""
     args = parse_main_arguments()
-    log_level = logging.DEBUG if args.verbose else logging.INFO
+
+    # Determine log level based on flags
+    if args.quiet:
+        log_level = logging.WARNING
+    elif args.verbose:
+        log_level = logging.DEBUG
+    else:
+        log_level = logging.INFO
+
     logging.basicConfig(
         level=log_level, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
     )
@@ -27,6 +35,9 @@ def parse_main_arguments() -> Namespace:
     parser.add_argument("parts", nargs="*", help="additional path components")
     parser.add_argument(
         "-v", "--verbose", action="store_true", help="Enable verbose output"
+    )
+    parser.add_argument(
+        "-q", "--quiet", action="store_true", help="Suppress INFO and below messages"
     )
     return parser.parse_args()
 
