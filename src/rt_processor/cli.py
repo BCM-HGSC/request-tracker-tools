@@ -19,6 +19,7 @@ def parse_main_arguments() -> Namespace:
     parser = ArgumentParser(description="Communicate with RT")
     parser.add_argument("id_string", help="ID string to append to base URL")
     parser.add_argument("parts", nargs="*", help="additional path components")
+    parser.add_argument("-v", "--verbose", default=False, type=bool)
     return parser.parse_args()
 
 
