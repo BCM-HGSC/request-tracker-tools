@@ -10,7 +10,8 @@ def main():
     args = parse_main_arguments()
     with RTSession() as session:
         session.authenticate()
-        session.print_cookies()
+        if args.verbose:
+            session.print_cookies()
         session.try_url(args.id_string, *args.parts)
 
 
