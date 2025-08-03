@@ -1,10 +1,13 @@
 """Utility functions for RT processor."""
 
 import http.cookiejar as cookiejar
+import logging
 from subprocess import CalledProcessError, run
 from sys import exit, stderr
 
 from requests import Response
+
+logger = logging.getLogger(__name__)
 
 COOKIE_FILE = "cookies.txt"
 PARTIAL_EXTERNAL_COMMAND = [
@@ -22,8 +25,9 @@ def load_cookies() -> cookiejar.CookieJar:
     cookie_jar = cookiejar.MozillaCookieJar(COOKIE_FILE)
     try:  # If file exists, load existing cookies
         cookie_jar.load(ignore_discard=True, ignore_expires=True)
+        logger.debug(f"Loaded existing cookies from {COOKIE_FILE}")
     except FileNotFoundError:
-        pass
+        logger.debug(f"Cookie file {COOKIE_FILE} not found, starting with empty jar")
     return cookie_jar
 
 
@@ -31,26 +35,27 @@ def fetch_password(user: str) -> str:
     """Fetch password from keychain using security command."""
     try:
         command = PARTIAL_EXTERNAL_COMMAND + [user]
+        logger.debug(f"Executing command: {' '.join(command[:3])} ...")
         cli_response = run(command, capture_output=True, text=True, check=True)
         result = cli_response.stdout.rstrip()
+        logger.debug("Password fetched successfully")
         return result
     except CalledProcessError as e:
-        err(f"External program failed with exit code {e.returncode}")
-        err(f"Error output: {e.stderr}")
+        logger.error(f"External program failed with exit code {e.returncode}")
+        logger.error(f"Error output: {e.stderr}")
         exit(1)
     except FileNotFoundError:
-        err(f"External program not found: {command[0]}")
+        logger.error(f"External program not found: {command[0]}")
         exit(1)
 
 
 def dump_response(response: Response) -> None:
     """Dump full response details including headers and content."""
-    print(response.url)
-    print(response.status_code, response.reason)
-    print("-----------------")
+    logger.info(f"Response URL: {response.url}")
+    logger.info(f"Status: {response.status_code} {response.reason}")
+    logger.debug("Response headers:")
     for k, v in response.headers.items():
-        print(f"{k}: {v}")
-    print("-----------------")
+        logger.debug(f"  {k}: {v}")
     print(response.text)
     print("=================")
 
