@@ -10,7 +10,7 @@ from requests import RequestException, Session
 
 from .utils import dump_response, err, fetch_password, load_cookies
 
-COOKIE_FILE = "cookies.txt"
+DEFAULT_COOKIE_FILE = "cookies.txt"
 BASE_URL = "https://rt.hgsc.bcm.edu"
 REST_URL = f"{BASE_URL}/REST/1.0/"
 
@@ -18,10 +18,10 @@ REST_URL = f"{BASE_URL}/REST/1.0/"
 class RTSession(Session):
     """Session class for interacting with RT (Request Tracker) systems."""
 
-    def __init__(self):
+    def __init__(self, cookie_file: str = DEFAULT_COOKIE_FILE):
         super().__init__()
         self.verify: str = "rt.hgsc.bcm.edu.pem"
-        self.cookies: cookiejar.CookieJar = load_cookies()
+        self.cookies: cookiejar.CookieJar = load_cookies(cookie_file)
 
     def authenticate(self) -> None:
         """Authenticate with RT if not already authenticated."""

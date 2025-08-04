@@ -9,7 +9,6 @@ from requests import Response
 
 logger = logging.getLogger(__name__)
 
-COOKIE_FILE = "cookies.txt"
 PARTIAL_EXTERNAL_COMMAND = [
     "/usr/bin/security",
     "find-generic-password",
@@ -20,14 +19,14 @@ PARTIAL_EXTERNAL_COMMAND = [
 ]
 
 
-def load_cookies() -> cookiejar.CookieJar:
+def load_cookies(cookie_file: str) -> cookiejar.CookieJar:
     """Load cookies from file, creating empty jar if file doesn't exist."""
-    cookie_jar = cookiejar.MozillaCookieJar(COOKIE_FILE)
+    cookie_jar = cookiejar.MozillaCookieJar(cookie_file)
     try:  # If file exists, load existing cookies
         cookie_jar.load(ignore_discard=True, ignore_expires=True)
-        logger.debug(f"Loaded existing cookies from {COOKIE_FILE}")
+        logger.debug(f"Loaded existing cookies from {cookie_file}")
     except FileNotFoundError:
-        logger.debug(f"Cookie file {COOKIE_FILE} not found, starting with empty jar")
+        logger.debug(f"Cookie file {cookie_file} not found, starting with empty jar")
     return cookie_jar
 
 
