@@ -30,7 +30,7 @@ def dump_ticket():
 
 def parse_dump_ticket_arguments() -> Namespace:
     """Parse command line arguments."""
-    parser = ArgumentParser(description="Communicate with RT")
+    parser = ArgumentParser(description="Print information from an RT ticket")
     parser.add_argument("id_string", help="ID string to append to base URL")
     parser.add_argument("parts", nargs="*", help="additional path components")
     parser.add_argument(
