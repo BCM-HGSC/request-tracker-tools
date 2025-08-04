@@ -21,6 +21,7 @@ optional = [
 
 [project.scripts]
 dump-ticket = "rt_processor.cli:dump_ticket"
+dump-url = "rt_processor.cli:dump_url"
 
 [tool.setuptools.packages.find]
 where = ["src"]

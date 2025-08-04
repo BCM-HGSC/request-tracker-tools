@@ -43,7 +43,7 @@ Before using RT Processor, you need to set up:
 
 ### Command Line Interface
 
-The main command is `dump-ticket` which retrieves and displays RT ticket information:
+**`dump-ticket`** - Retrieves and displays RT ticket information:
 
 ```bash
 # Basic ticket information
@@ -57,6 +57,20 @@ dump-ticket --verbose 37525
 
 # With quiet mode (only errors and warnings)
 dump-ticket --quiet 37525
+```
+
+**`dump-url`** - Retrieves content from arbitrary RT URLs (relative to server base):
+
+```bash
+# Access REST API directly
+dump-url REST/1.0/
+
+# Access specific RT paths
+dump-url NoAuth/css/base/main.css
+
+# With logging options
+dump-url --verbose REST/1.0/ticket/37525/show
+dump-url --quiet some/path
 ```
 
 ### Python API
