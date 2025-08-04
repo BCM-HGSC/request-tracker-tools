@@ -19,7 +19,7 @@ optional = [
 ]
 
 [project.scripts]
-rt-processor = "rt_processor.cli:main"
+dump-ticket = "rt_processor.cli:dump_ticket"
 
 [tool.setuptools.packages.find]
 where = ["src"]
