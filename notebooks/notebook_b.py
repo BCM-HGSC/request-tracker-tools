@@ -13,7 +13,7 @@ def _():
 @app.cell
 def _():
     from submit import (
-        BASE_URL,
+        REST_URL,
         RTSession,
         dump_response,
     )

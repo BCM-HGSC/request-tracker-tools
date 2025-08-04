@@ -12,7 +12,7 @@ def _():
     from requests import Session
 
     from submit import (
-        BASE_URL,
+        REST_URL,
         fetch_auth_cookie,
         fetch_password,
         getuser,
@@ -21,7 +21,7 @@ def _():
         print_cookies,
     )
     return (
-        BASE_URL,
+        REST_URL,
         IGNORECASE,
         Session,
         cookiejar,
@@ -45,9 +45,9 @@ def dump_response(response):
 
 
 @app.cell
-def _(BASE_URL, IGNORECASE, Session, match):
+def _(REST_URL, IGNORECASE, Session, match):
     def check_authorized(session: Session) -> bool:
-        response = session.get(BASE_URL)
+        response = session.get(REST_URL)
         response.raise_for_status()
         # dump_response(response)
         m = match(r"rt/[.0-9]+\s+200\sok", response.text, IGNORECASE)
@@ -87,9 +87,9 @@ def _(Session, fetch_and_save_auth_cookie, fetch_password, getuser):
 
 
 @app.cell
-def _(BASE_URL, Session, s):
+def _(REST_URL, Session, s):
     def logout(session: Session) -> None:
-        response = session.get(f"{BASE_URL}/logout")
+        response = session.get(f"{REST_URL}/logout")
         dump_response(response)
         s.cookies.clear()
         s.cookies.save()
@@ -120,10 +120,10 @@ def _(Session):
 
 
 @app.cell
-def _(BASE_URL, check_authorized, print_cookies, s):
+def _(REST_URL, check_authorized, print_cookies, s):
     print_cookies(s)
     print()
-    dump_response(s.get(BASE_URL))
+    dump_response(s.get(REST_URL))
     print(check_authorized(s))
     return
 
@@ -141,10 +141,10 @@ def _(load_cookies, s):
 
 
 @app.cell
-def _(BASE_URL, check_authorized, print_cookies, s):
+def _(REST_URL, check_authorized, print_cookies, s):
     print_cookies(s)
     print()
-    dump_response(s.get(BASE_URL))
+    dump_response(s.get(REST_URL))
     print(check_authorized(s))
     return
 
@@ -156,9 +156,9 @@ def _(check_authorized, s):
 
 
 @app.cell
-def _(BASE_URL):
+def _(REST_URL):
     id_string = "37479"
-    url = f"{BASE_URL}ticket/{id_string}/show"
+    url = f"{REST_URL}ticket/{id_string}/show"
     return (url,)
 
 

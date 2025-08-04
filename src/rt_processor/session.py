@@ -11,7 +11,8 @@ from requests import RequestException, Session
 from .utils import dump_response, err, fetch_password, load_cookies
 
 COOKIE_FILE = "cookies.txt"
-BASE_URL = "https://rt.hgsc.bcm.edu/REST/1.0/"
+BASE_URL = "https://rt.hgsc.bcm.edu"
+REST_URL = f"{BASE_URL}/REST/1.0/"
 
 
 class RTSession(Session):
@@ -32,7 +33,7 @@ class RTSession(Session):
 
     def check_authorized(self) -> bool:
         """Check if the session is already authorized."""
-        response = self.get(BASE_URL)
+        response = self.get(REST_URL)
         response.raise_for_status()
         m = match(r"rt/[.0-9]+\s+200\sok", response.text, IGNORECASE)
         return bool(m)
@@ -40,7 +41,7 @@ class RTSession(Session):
     def fetch_and_save_auth_cookie(self, user: str, password: str) -> None:
         """Fetch authentication cookie and save it."""
         form_data = {"user": user, "pass": password}
-        self.rt_post(BASE_URL, data=form_data)
+        self.rt_post(REST_URL, data=form_data)
         self.cookies.save(ignore_discard=True, ignore_expires=True)
 
     def rt_post(self, url: str, verbose=False, **kwargs) -> None:
@@ -58,7 +59,7 @@ class RTSession(Session):
 
     def logout(self) -> None:
         """Logout from RT and clear cookies."""
-        response = self.get(f"{BASE_URL}/logout")
+        response = self.get(f"{REST_URL}/logout")
         dump_response(response)
         self.cookies.clear()
         self.cookies.save()
@@ -84,4 +85,4 @@ class RTSession(Session):
     @staticmethod
     def ticket_url(id_string: str, *parts) -> str:
         """Generate a ticket URL with optional additional path parts."""
-        return "/".join([f"{BASE_URL}ticket/{id_string}"] + list(parts))
+        return "/".join([f"{REST_URL}ticket/{id_string}"] + list(parts))

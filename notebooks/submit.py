@@ -11,7 +11,7 @@ from sys import exit, stderr
 from requests import RequestException, Response, Session
 
 COOKIE_FILE = "cookies.txt"
-BASE_URL = "https://rt.hgsc.bcm.edu/REST/1.0/"
+REST_URL = "https://rt.hgsc.bcm.edu/REST/1.0/"
 PARTIAL_EXTERNAL_COMMAND = [
     "/usr/bin/security",
     "find-generic-password",
@@ -51,7 +51,7 @@ class RTSession(Session):
         self.fetch_and_save_auth_cookie(user, password)
 
     def check_authorized(self) -> bool:
-        response = self.get(BASE_URL)
+        response = self.get(REST_URL)
         response.raise_for_status()
         # dump_response(response)
         m = match(r"rt/[.0-9]+\s+200\sok", response.text, IGNORECASE)
@@ -59,7 +59,7 @@ class RTSession(Session):
 
     def fetch_and_save_auth_cookie(self, user: str, password: str) -> None:
         form_data = {"user": user, "pass": password}
-        self.rt_post(BASE_URL, data=form_data)
+        self.rt_post(REST_URL, data=form_data)
         self.cookies.save(ignore_discard=True, ignore_expires=True)
 
     def rt_post(self, url: str, verbose=False, **kwargs) -> None:
@@ -75,7 +75,7 @@ class RTSession(Session):
                 dump_response(response)
 
     def logout(self) -> None:
-        response = self.get(f"{BASE_URL}/logout")
+        response = self.get(f"{REST_URL}/logout")
         dump_response(response)
         self.cookies.clear()
         self.cookies.save()
@@ -93,7 +93,7 @@ class RTSession(Session):
 
     @staticmethod
     def ticket_url(id_string: str, *parts) -> str:
-        return "/".join([f"{BASE_URL}ticket/{id_string}"] + list(parts))
+        return "/".join([f"{REST_URL}ticket/{id_string}"] + list(parts))
         
 
 def load_cookies() -> cookiejar.CookieJar:
