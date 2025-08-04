@@ -25,7 +25,7 @@ def main():
         session.authenticate()
         if args.verbose:
             session.print_cookies()
-        session.try_url(args.id_string, *args.parts)
+        session.dump_ticket(args.id_string, *args.parts)
 
 
 def parse_main_arguments() -> Namespace:

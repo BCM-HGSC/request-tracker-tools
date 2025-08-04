@@ -24,8 +24,8 @@ def _():
 def _(RTSession):
     session = RTSession()
     session.check_authorized()
-    try_url = session.try_url
-    return session, try_url
+    dump_ticket = session.dump_ticket
+    return session, dump_ticket
 
 
 @app.cell
@@ -51,32 +51,32 @@ def _():
 
 
 @app.cell
-def _(T1, try_url):
-    try_url(T1, "links")
+def _(T1, dump_ticket):
+    dump_ticket(T1, "links")
     return
 
 
 @app.cell
-def _(T1, try_url):
-    try_url(T1, "attachments")
+def _(T1, dump_ticket):
+    dump_ticket(T1, "attachments")
     return
 
 
 @app.cell
-def _(T1, try_url):
-    try_url(T1, "history")
+def _(T1, dump_ticket):
+    dump_ticket(T1, "history")
     return
 
 
 @app.cell
-def _(T1, try_url):
-    try_url(T1, "history/id/1489286")
+def _(T1, dump_ticket):
+    dump_ticket(T1, "history/id/1489286")
     return
 
 
 @app.cell
-def _(T1, try_url):
-    try_url(T1, "attachments/1483997")
+def _(T1, dump_ticket):
+    dump_ticket(T1, "attachments/1483997")
     return
 
 
