@@ -1,7 +1,7 @@
 [project]
-name = "rt-processor"
+name = "rt-tools"
 version = "0.0.0+dev"
-description = "RT Processor package for interacting with RT (Request Tracker) systems"
+description = "RT Tools package for interacting with RT (Request Tracker) systems"
 readme = "README.md"
 license = {text = "MIT"}
 requires-python = ">=3.13"
@@ -20,8 +20,8 @@ optional = [
 ]
 
 [project.scripts]
-dump-ticket = "rt_processor.cli:dump_ticket"
-dump-url = "rt_processor.cli:dump_url"
+dump-ticket = "rt_tools.cli:dump_ticket"
+dump-url = "rt_tools.cli:dump_url"
 
 [tool.setuptools.packages.find]
 where = ["src"]

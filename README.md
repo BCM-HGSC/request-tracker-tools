@@ -1,4 +1,4 @@
-# RT Processor
+# RT Tools
 
 A Python package and command-line tool for interacting with RT (Request Tracker) systems. Provides authenticated access to RT servers for querying ticket information, attachments, and other data.
 
@@ -15,7 +15,7 @@ A Python package and command-line tool for interacting with RT (Request Tracker)
 ```bash
 # Clone the repository
 git clone <repository-url>
-cd rt-processor
+cd rt-tools
 
 # Install in development mode with dev dependencies
 pip install -e .[dev]
@@ -26,12 +26,12 @@ uv pip install -e .[dev]
 
 ### Production Installation
 ```bash
-pip install rt-processor
+pip install rt-tools
 ```
 
 ## Configuration
 
-Before using RT Processor, you need to set up:
+Before using RT Tools, you need to set up:
 
 1. **SSL Certificate**: Place `rt.hgsc.bcm.edu.pem` in your working directory for RT server verification
 2. **Keychain Entry**: Store your RT password in macOS keychain with service name "foobar"
@@ -76,7 +76,7 @@ dump-url --quiet some/path
 ### Python API
 
 ```python
-from rt_processor import RTSession
+from rt_tools import RTSession
 
 # Create an authenticated session
 with RTSession() as session:
@@ -117,10 +117,10 @@ RT URLs are constructed as: `BASE_URL/ticket/{id}/{path_components...}`
 ### Code Quality
 ```bash
 # Run linting
-ruff check src/rt_processor/
+ruff check src/rt_tools/
 
 # Auto-fix issues
-ruff check --fix src/rt_processor/
+ruff check --fix src/rt_tools/
 
 # Run tests
 pytest

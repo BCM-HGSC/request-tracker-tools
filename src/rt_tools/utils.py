@@ -1,4 +1,4 @@
-"""Utility functions for RT processor."""
+"""Utility functions for RT tools."""
 
 import http.cookiejar as cookiejar
 import logging

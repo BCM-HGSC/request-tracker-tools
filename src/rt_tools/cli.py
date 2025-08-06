@@ -1,4 +1,4 @@
-"""Command line interface for RT processor."""
+"""Command line interface for RT tools."""
 
 import logging
 from argparse import ArgumentParser, Namespace

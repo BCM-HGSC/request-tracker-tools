@@ -2,13 +2,13 @@
 
 ## Project Overview
 - This project is a Python package and CLI tool for interacting with RT (Request Tracker) systems, focused on secure, persistent authentication and robust ticket/attachment retrieval.
-- Main code is in `src/rt_processor/`.
+- Main code is in `src/rt_tools/`.
 
 ## Architecture & Key Components
-- `src/rt_processor/cli.py`: CLI entry point. Handles argument parsing, logging, and command dispatch.
-- `src/rt_processor/session.py`: Defines `RTSession`, a subclass of `requests.Session` that manages RT authentication, SSL, and cookies.
-- `src/rt_processor/utils.py`: Utilities for cookie management, password/keychain access, and response parsing.
-- `src/rt_processor/__init__.py`: Package init and dynamic version loading.
+- `src/rt_tools/cli.py`: CLI entry point. Handles argument parsing, logging, and command dispatch.
+- `src/rt_tools/session.py`: Defines `RTSession`, a subclass of `requests.Session` that manages RT authentication, SSL, and cookies.
+- `src/rt_tools/utils.py`: Utilities for cookie management, password/keychain access, and response parsing.
+- `src/rt_tools/__init__.py`: Package init and dynamic version loading.
 
 ### Authentication & Security
 - Auth uses persistent cookies (`cookies.txt`) and macOS keychain for password retrieval (via `/usr/bin/security`).
@@ -24,8 +24,8 @@
   ```
 - **Lint:**
   ```bash
-  ruff check src/rt_processor/
-  ruff check --fix src/rt_processor/
+  ruff check src/rt_tools/
+  ruff check --fix src/rt_tools/
   ```
 - **Test:**
   ```bash

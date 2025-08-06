@@ -4,13 +4,13 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-RT Processor is a Python package for interacting with RT (Request Tracker) systems. The project provides a command-line tool and Python library for authenticating with RT servers and querying ticket information.
+RT Tools is a Python package for interacting with RT (Request Tracker) systems. The project provides a command-line tool and Python library for authenticating with RT servers and querying ticket information.
 
 ## Architecture
 
 The codebase follows a standard Python package structure with src layout:
 
-- **`src/rt_processor/`** - Main package directory
+- **`src/rt_tools/`** - Main package directory
   - **`cli.py`** - Command-line interface with argument parsing and logging configuration
   - **`session.py`** - `RTSession` class that extends `requests.Session` for RT-specific authentication and operations
   - **`utils.py`** - Utility functions for cookie management, password fetching, and response handling
@@ -49,10 +49,10 @@ uv pip install -e .[dev]
 ### Code Quality
 ```bash
 # Run linting (configured with pycodestyle, Pyflakes, isort, flake8-bugbear)
-ruff check src/rt_processor/
+ruff check src/rt_tools/
 
 # Auto-fix linting issues  
-ruff check --fix src/rt_processor/
+ruff check --fix src/rt_tools/
 
 # Run tests
 pytest
@@ -69,11 +69,11 @@ python -m build
 ### Running the CLI
 ```bash
 # After installation, use the console script
-rt-processor <ticket_id> [additional_path_parts]
+rt-tools <ticket_id> [additional_path_parts]
 
 # With logging options
-rt-processor --verbose <ticket_id>   # Debug level logging
-rt-processor --quiet <ticket_id>     # Only warnings/errors
+rt-tools --verbose <ticket_id>   # Debug level logging
+rt-tools --quiet <ticket_id>     # Only warnings/errors
 ```
 
 ## Configuration Requirements
