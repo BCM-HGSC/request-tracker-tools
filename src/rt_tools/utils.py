@@ -3,7 +3,7 @@
 import http.cookiejar as cookiejar
 import logging
 from subprocess import CalledProcessError, run
-from sys import exit, stderr
+from sys import exit, stderr, stdout
 
 from requests import Response
 
@@ -55,8 +55,8 @@ def dump_response(response: Response) -> None:
     logger.debug("Response headers:")
     for k, v in response.headers.items():
         logger.debug(f"  {k}: {v}")
-    print(response.text)
-    print("=================")
+    stdout.buffer.write(response.content)
+    stdout.buffer.flush()
 
 
 def remove_fixed_string(multiline_string: str, fixed_string: str) -> str:
