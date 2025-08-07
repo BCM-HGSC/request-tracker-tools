@@ -67,7 +67,6 @@ class RTSession(Session):
     def dump_ticket(self, id_string: str, *parts) -> None:
         """GET a ticket URL and dump the response."""
         self.dump_url(RTSession.ticket_url(id_string, *parts))
-        # dump_response(self.get(RTSession.ticket_url(id_string, *parts)))
 
     def dump_url(self, url: str) -> None:
         """GET a URL and dump the response."""
