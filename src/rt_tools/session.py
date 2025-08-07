@@ -68,6 +68,10 @@ class RTSession(Session):
         """GET a ticket URL and dump the response."""
         self.dump_url(RTSession.ticket_url(id_string, *parts))
 
+    def dump_rest(self, *parts) -> None:
+        """GET a REST 1.0 URL and dump the response."""
+        self.dump_url(RTSession.rest_url(*parts))
+
     def dump_url(self, url: str) -> None:
         """GET a URL and dump the response."""
         dump_response(self.get(url))
@@ -84,4 +88,9 @@ class RTSession(Session):
     @staticmethod
     def ticket_url(id_string: str, *parts) -> str:
         """Generate a ticket URL with optional additional path parts."""
-        return "/".join([f"{REST_URL}ticket/{id_string}"] + list(parts))
+        return RTSession.rest_url("ticket", id_string, *parts)
+
+    @staticmethod
+    def rest_url(*parts) -> str:
+        """Generate a REST 1.0 URL using any supplied parts."""
+        return "/".join([REST_URL] + list(parts))
