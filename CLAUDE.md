@@ -68,12 +68,13 @@ python -m build
 
 ### Running the CLI
 ```bash
-# After installation, use the console script
-rt-tools <ticket_id> [additional_path_parts]
+# Available console scripts:
+dump-ticket <ticket_id> [additional_path_parts]  # Dump RT ticket information
+dump-url [url_path_parts]                        # Dump content from RT URLs
 
 # With logging options
-rt-tools --verbose <ticket_id>   # Debug level logging
-rt-tools --quiet <ticket_id>     # Only warnings/errors
+dump-ticket --verbose <ticket_id>   # Debug level logging
+dump-ticket --quiet <ticket_id>     # Only warnings/errors
 ```
 
 ## Configuration Requirements
