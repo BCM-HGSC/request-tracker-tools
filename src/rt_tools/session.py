@@ -12,7 +12,7 @@ from .utils import dump_response, err, fetch_password, load_cookies
 
 DEFAULT_COOKIE_FILE = "cookies.txt"
 BASE_URL = "https://rt.hgsc.bcm.edu"
-REST_URL = f"{BASE_URL}/REST/1.0/"
+REST_URL = f"{BASE_URL}/REST/1.0"
 
 
 class RTSession(Session):
@@ -33,7 +33,7 @@ class RTSession(Session):
 
     def check_authorized(self) -> bool:
         """Check if the session is already authorized."""
-        response = self.get(REST_URL)
+        response = self.get(BASE_URL)
         response.raise_for_status()
         m = match(r"rt/[.0-9]+\s+200\sok", response.text, IGNORECASE)
         return bool(m)
@@ -41,7 +41,7 @@ class RTSession(Session):
     def fetch_and_save_auth_cookie(self, user: str, password: str) -> None:
         """Fetch authentication cookie and save it."""
         form_data = {"user": user, "pass": password}
-        self.rt_post(REST_URL, data=form_data)
+        self.rt_post(BASE_URL, data=form_data)
         self.cookies.save(ignore_discard=True, ignore_expires=True)
 
     def rt_post(self, url: str, verbose=False, **kwargs) -> None:
