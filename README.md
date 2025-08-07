@@ -59,20 +59,6 @@ dump-ticket --verbose 37525
 dump-ticket --quiet 37525
 ```
 
-**`dump-url`** - Retrieves content from arbitrary RT URLs (relative to server base):
-
-```bash
-# Access REST API directly
-dump-url REST/1.0/
-
-# Access specific RT paths
-dump-url NoAuth/css/base/main.css
-
-# With logging options
-dump-url --verbose REST/1.0/ticket/37525/show
-dump-url --quiet some/path
-```
-
 **`dump-rest`** - Retrieves content from RT REST API URLs (relative to REST/1.0 endpoint):
 
 ```bash
@@ -88,6 +74,20 @@ dump-rest ticket/37525/attachments
 # With logging options
 dump-rest --verbose ticket/37525/show
 dump-rest --quiet user/username
+```
+
+**`dump-url`** - Retrieves content from arbitrary RT URLs (relative to server base):
+
+```bash
+# Access REST API directly
+dump-url REST/1.0/
+
+# Access specific RT paths
+dump-url NoAuth/css/base/main.css
+
+# With logging options
+dump-url --verbose REST/1.0/ticket/37525/show
+dump-url --quiet some/path
 ```
 
 ### Python API

@@ -70,8 +70,8 @@ python -m build
 ```bash
 # Available console scripts:
 dump-ticket <ticket_id> [additional_path_parts]  # Dump RT ticket information
-dump-url [url_path_parts]                        # Dump content from RT URLs
 dump-rest [rest_path_parts]                      # Dump content from RT REST API URLs
+dump-url [url_path_parts]                        # Dump content from RT URLs
 
 # With logging options
 dump-ticket --verbose <ticket_id>   # Debug level logging
