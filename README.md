@@ -73,6 +73,23 @@ dump-url --verbose REST/1.0/ticket/37525/show
 dump-url --quiet some/path
 ```
 
+**`dump-rest`** - Retrieves content from RT REST API URLs (relative to REST/1.0 endpoint):
+
+```bash
+# List all tickets  
+dump-rest
+
+# Show specific ticket
+dump-rest ticket/37525/show
+
+# Access ticket attachments
+dump-rest ticket/37525/attachments
+
+# With logging options
+dump-rest --verbose ticket/37525/show
+dump-rest --quiet user/username
+```
+
 ### Python API
 
 ```python

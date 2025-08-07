@@ -3,7 +3,7 @@
 import logging
 from argparse import ArgumentParser, Namespace
 
-from .session import BASE_URL, RTSession
+from .session import BASE_URL, REST_URL, RTSession
 
 
 def dump_ticket():
@@ -42,6 +42,26 @@ def parse_dump_url_arguments() -> Namespace:
     parser = make_parser("Print content from an RT URL")
     parser.add_argument(
         "parts", nargs="*", help=f"URL path components relative to {BASE_URL}"
+    )
+    return parser.parse_args()
+
+
+def dump_rest():
+    """Entry point for dumping content from RT REST API URLs."""
+    args = parse_dump_rest_arguments()
+    config_logging(args)
+    with RTSession() as session:
+        session.authenticate()
+        if args.verbose:
+            session.print_cookies()
+        session.dump_rest(*args.parts)
+
+
+def parse_dump_rest_arguments() -> Namespace:
+    """Parse command line arguments for dump-rest."""
+    parser = make_parser("Print content from an RT REST API URL")
+    parser.add_argument(
+        "parts", nargs="*", help=f"URL path components relative to {REST_URL}"
     )
     return parser.parse_args()
 
