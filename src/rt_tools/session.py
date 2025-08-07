@@ -65,12 +65,12 @@ class RTSession(Session):
         self.cookies.save()
 
     def dump_ticket(self, id_string: str, *parts) -> None:
-        """Try accessing a ticket URL and dump the response."""
+        """GET a ticket URL and dump the response."""
         self.dump_url(RTSession.ticket_url(id_string, *parts))
         # dump_response(self.get(RTSession.ticket_url(id_string, *parts)))
 
     def dump_url(self, url: str) -> None:
-        """Try accessing a ticket URL and dump the response."""
+        """GET a URL and dump the response."""
         dump_response(self.get(url))
 
     def print_cookies(self) -> None:
