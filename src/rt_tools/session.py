@@ -6,13 +6,48 @@ from pprint import pprint as pp
 from re import IGNORECASE, match
 from sys import exit
 
-from requests import RequestException, Session
+from requests import RequestException, Response, Session
 
 from .utils import dump_response, err, fetch_password, load_cookies
 
 DEFAULT_COOKIE_FILE = "cookies.txt"
 BASE_URL = "https://rt.hgsc.bcm.edu"
 REST_URL = f"{BASE_URL}/REST/1.0"
+
+
+class RTResponseError(ValueError):
+    """Exception raised when RT API response format is invalid or unexpected."""
+
+    def __init__(self, message: str, response: Response = None):
+        super().__init__(message)
+        self.response = response
+
+
+def validate_rt_response(response: Response) -> None:
+    """Validate RT API response format and raise RTResponseError if invalid.
+
+    RT responses should start with b"RT/x.x.x 200 Ok\n\n" pattern.
+    This function checks for acceptable RT response prefixes.
+
+    Args:
+        response: The requests.Response object to validate
+
+    Raises:
+        RTResponseError: If response doesn't match expected RT format
+    """
+    if not response.content:
+        raise RTResponseError("Empty response content", response)
+
+    # Check for valid RT response prefix pattern
+    # Pattern: RT/{version} {status_code} {status_text}\n\n
+    if not match(rb"^RT/[\d.]+\s+\d+\s+[^\r\n]+\r?\n\r?\n", response.content):
+        # Get first 50 bytes for error message to avoid exposing full content
+        prefix = response.content[:50]
+        raise RTResponseError(
+            f"Invalid RT response format. Expected 'RT/x.x.x status message\\n\\n' "
+            f"but got: {prefix!r}",
+            response
+        )
 
 
 class RTSession(Session):
@@ -70,7 +105,10 @@ class RTSession(Session):
 
     def dump_rest(self, *parts) -> None:
         """GET a REST 1.0 URL and dump the response."""
-        self.dump_url(RTSession.rest_url(*parts))
+        url = RTSession.rest_url(*parts)
+        response = self.get(url)
+        validate_rt_response(response)
+        dump_response(response)
 
     def dump_url(self, url: str) -> None:
         """GET a URL and dump the response."""

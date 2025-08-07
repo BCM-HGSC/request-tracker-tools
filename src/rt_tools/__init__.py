@@ -2,7 +2,7 @@
 
 from importlib.metadata import PackageNotFoundError, version
 
-from .session import RTSession
+from .session import RTResponseError, RTSession
 from .utils import dump_response, fetch_password, load_cookies, remove_fixed_string
 
 try:
@@ -12,6 +12,7 @@ except PackageNotFoundError:
     __version__ = "UNKNOWN"
 
 __all__ = [
+    "RTResponseError",
     "RTSession",
     "dump_response",
     "fetch_password",
