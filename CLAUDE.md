@@ -40,10 +40,10 @@ The codebase follows a standard Python package structure with src layout:
 ### Setup and Installation
 ```bash
 # Install package in development mode with dev dependencies
-uv pip install -e .[dev]
+uv pip install -e '.[dev]'
 
 # Or using pip (slower)
-pip install -e .[dev]
+pip install -e '.[dev]'
 ```
 
 ### Code Quality
