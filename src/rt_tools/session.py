@@ -1,6 +1,7 @@
 """RTSession class for handling RT authentication and requests."""
 
 import http.cookiejar as cookiejar
+from dataclasses import dataclass
 from getpass import getuser
 from pprint import pprint as pp
 from re import IGNORECASE, match
@@ -15,6 +16,16 @@ BASE_URL = "https://rt.hgsc.bcm.edu"
 REST_URL = f"{BASE_URL}/REST/1.0"
 
 
+@dataclass
+class RTResponseData:
+    """Parsed RT response data."""
+    version: str
+    status_code: int
+    status_text: str
+    is_ok: bool
+    payload: bytes
+
+
 class RTResponseError(ValueError):
     """Exception raised when RT API response format is invalid or unexpected."""
 
@@ -23,10 +34,60 @@ class RTResponseError(ValueError):
         self.response = response
 
 
-# TODO: need a function that splits response content into:
-# version, status_code, status_text, is_ok, payload. Should raise exception
-# if the the pattern does not match. The is_ok value should be true only on "200 Ok".
-# Needs pytest unit tests for this.
+def parse_rt_response(response: Response) -> RTResponseData:
+    """Parse RT API response into structured components.
+
+    Splits RT response content into version, status_code, status_text, is_ok,
+    and payload. RT responses follow the format:
+    RT/{version} {status_code} {status_text}\n\n{payload}\n\n\n
+
+    Args:
+        response: The requests.Response object to parse
+
+    Returns:
+        RTResponseData with parsed components
+
+    Raises:
+        RTResponseError: If response doesn't match expected RT format
+    """
+    if not response.content:
+        raise RTResponseError("Empty response content", response)
+
+    # Parse RT header using regex
+    pattern = rb"^RT/([\d.a-zA-Z]+)\s+(\d+)\s+([^\r\n]+)\r?\n\r?\n"
+    header_match = match(pattern, response.content)
+    if not header_match:
+        prefix = response.content[:50]
+        raise RTResponseError(
+            f"Invalid RT response format. Expected 'RT/x.x.x status message\\n\\n' "
+            f"but got: {prefix!r}",
+            response
+        )
+
+    version = header_match.group(1).decode('ascii')
+    status_code = int(header_match.group(2).decode('ascii'))
+    status_text = header_match.group(3).decode('ascii')
+
+    # Extract payload by removing header and trailing suffix (3 newlines)
+    header_end = header_match.end()
+    payload = response.content[header_end:]
+
+    # Remove trailing suffix (3 newlines) if present - handle both \n and \r\n
+    if payload.endswith(b'\r\n\r\n\r\n'):
+        payload = payload[:-6]
+    elif payload.endswith(b'\n\n\n'):
+        payload = payload[:-3]
+
+    # is_ok is True only for "200 Ok" responses
+    is_ok = (status_code == 200 and status_text == "Ok")
+
+    return RTResponseData(
+        version=version,
+        status_code=status_code,
+        status_text=status_text,
+        is_ok=is_ok,
+        payload=payload
+    )
 
 
 def validate_rt_response(response: Response) -> None:
