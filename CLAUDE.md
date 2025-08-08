@@ -40,18 +40,21 @@ The codebase follows a standard Python package structure with src layout:
 ### Setup and Installation
 ```bash
 # Install package in development mode with dev dependencies
-pip install -e .[dev]
-
-# Or using uv
 uv pip install -e .[dev]
+
+# Or using pip (slower)
+pip install -e .[dev]
 ```
 
 ### Code Quality
 ```bash
+# Formatting code (similar to black)
+ruff format src
+
 # Run linting (configured with pycodestyle, Pyflakes, isort, flake8-bugbear)
 ruff check src/rt_tools/
 
-# Auto-fix linting issues  
+# Auto-fix linting issues
 ruff check --fix src/rt_tools/
 
 # Run tests
@@ -92,5 +95,7 @@ The package expects:
 **Error Handling**: Authentication and request failures cause immediate program exit with error logging. The package does not implement retry logic.
 
 **URL Construction**: RT ticket URLs are built using static methods that concatenate base URL with ticket ID and optional path components.
+
+**Response Data**: RT REST API returns attachments surrounded by a prefix and suffix. The prefix is b"RT/x.x.x 200 Ok\n\n", where x.x.x is the RT version. Anything other than this indicates an error. The suffix is 3 newlines: b"\n\n\n". Downloading an attachment requires validating the suffix and removing both suffix and prefix.
 
 **Security**: Passwords are fetched from macOS keychain rather than being stored in code or configuration files. The keychain lookup uses partial command `["/usr/bin/security", "find-generic-password", "-w", "-s", "foobar", "-a"]` with username appended.
