@@ -163,20 +163,21 @@ def test_malformed_rt_header_missing_double_newline():
         parse_rt_response(response)
 
 
-def test_different_version_formats():
-    """Test parsing responses with different version number formats."""
-    test_cases = [
+@pytest.mark.parametrize(
+    "content,expected_version",
+    [
         (b"RT/1.0 200 Ok\n\nData\n\n\n", "1.0"),
         (b"RT/4.4.3 200 Ok\n\nData\n\n\n", "4.4.3"),
         (b"RT/5.0.1.beta 200 Ok\n\nData\n\n\n", "5.0.1.beta"),
-    ]
+    ],
+)
+def test_different_version_formats(content, expected_version):
+    """Test parsing responses with different version number formats."""
+    response = Mock()
+    response.content = content
 
-    for content, expected_version in test_cases:
-        response = Mock()
-        response.content = content
-
-        result = parse_rt_response(response)
-        assert result.version == expected_version
+    result = parse_rt_response(response)
+    assert result.version == expected_version
 
 
 def test_response_error_includes_response_object():
