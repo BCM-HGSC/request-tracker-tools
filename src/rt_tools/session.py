@@ -46,7 +46,7 @@ def validate_rt_response(response: Response) -> None:
         raise RTResponseError(
             f"Invalid RT response format. Expected 'RT/x.x.x status message\\n\\n' "
             f"but got: {prefix!r}",
-            response
+            response,
         )
 
 
