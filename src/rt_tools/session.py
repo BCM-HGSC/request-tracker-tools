@@ -23,6 +23,12 @@ class RTResponseError(ValueError):
         self.response = response
 
 
+# TODO: need a function that splits response content into:
+# version, status_code, status_text, is_ok, payload. Should raise exception
+# if the the pattern does not match. The is_ok value should be true only on "200 Ok".
+# Needs pytest unit tests for this.
+
+
 def validate_rt_response(response: Response) -> None:
     """Validate RT API response format and raise RTResponseError if invalid.
 
