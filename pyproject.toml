@@ -31,6 +31,12 @@ where = ["src"]
 requires = ["setuptools", "wheel"]
 build-backend = "setuptools.build_meta"
 
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py", "*_test.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+
 [tool.ruff.lint]
 select = [
     "E",  # pycodestyle errors
