@@ -19,6 +19,7 @@ REST_URL = f"{BASE_URL}/REST/1.0"
 @dataclass
 class RTResponseData:
     """Parsed RT response data."""
+
     version: str
     status_code: int
     status_text: str
@@ -61,32 +62,32 @@ def parse_rt_response(response: Response) -> RTResponseData:
         raise RTResponseError(
             f"Invalid RT response format. Expected 'RT/x.x.x status message\\n\\n' "
             f"but got: {prefix!r}",
-            response
+            response,
         )
 
-    version = header_match.group(1).decode('ascii')
-    status_code = int(header_match.group(2).decode('ascii'))
-    status_text = header_match.group(3).decode('ascii')
+    version = header_match.group(1).decode("ascii")
+    status_code = int(header_match.group(2).decode("ascii"))
+    status_text = header_match.group(3).decode("ascii")
 
     # Extract payload by removing header and trailing suffix (3 newlines)
     header_end = header_match.end()
     payload = response.content[header_end:]
 
     # Remove trailing suffix (3 newlines) if present - handle both \n and \r\n
-    if payload.endswith(b'\r\n\r\n\r\n'):
+    if payload.endswith(b"\r\n\r\n\r\n"):
         payload = payload[:-6]
-    elif payload.endswith(b'\n\n\n'):
+    elif payload.endswith(b"\n\n\n"):
         payload = payload[:-3]
 
     # is_ok is True only for "200 Ok" responses
-    is_ok = (status_code == 200 and status_text == "Ok")
+    is_ok = status_code == 200 and status_text == "Ok"
 
     return RTResponseData(
         version=version,
         status_code=status_code,
         status_text=status_text,
         is_ok=is_ok,
-        payload=payload
+        payload=payload,
     )
 
 
