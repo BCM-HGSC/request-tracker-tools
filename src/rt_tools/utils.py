@@ -3,9 +3,7 @@
 import http.cookiejar as cookiejar
 import logging
 from subprocess import CalledProcessError, run
-from sys import exit, stderr, stdout
-
-from requests import Response
+from sys import exit, stderr
 
 logger = logging.getLogger(__name__)
 
@@ -46,17 +44,6 @@ def fetch_password(user: str) -> str:
     except FileNotFoundError:
         logger.error(f"External program not found: {command[0]}")
         exit(1)
-
-
-def dump_response(response: Response) -> None:
-    """Dump full response details including headers and content."""
-    logger.info(f"Response URL: {response.url}")
-    logger.info(f"Status: {response.status_code} {response.reason}")
-    logger.debug("Response headers:")
-    for k, v in response.headers.items():
-        logger.debug(f"  {k}: {v}")
-    stdout.buffer.write(response.content)
-    stdout.buffer.flush()
 
 
 def remove_fixed_string(multiline_string: str, fixed_string: str) -> str:

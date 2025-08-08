@@ -1,15 +1,18 @@
 """RTSession class for handling RT authentication and requests."""
 
 import http.cookiejar as cookiejar
+import logging
 from dataclasses import dataclass
 from getpass import getuser
 from pprint import pprint as pp
 from re import IGNORECASE, match
-from sys import exit
+from sys import exit, stdout
 
 from requests import RequestException, Response, Session
 
-from .utils import dump_response, err, fetch_password, load_cookies
+from .utils import err, fetch_password, load_cookies
+
+logger = logging.getLogger(__name__)
 
 DEFAULT_COOKIE_FILE = "cookies.txt"
 BASE_URL = "https://rt.hgsc.bcm.edu"
@@ -200,3 +203,14 @@ class RTSession(Session):
     def rest_url(*parts) -> str:
         """Generate a REST 1.0 URL using any supplied parts."""
         return "/".join([REST_URL] + list(parts))
+
+
+def dump_response(response: Response) -> None:
+    """Dump full response details including headers and content."""
+    logger.info(f"Response URL: {response.url}")
+    logger.info(f"Status: {response.status_code} {response.reason}")
+    logger.debug("Response headers:")
+    for k, v in response.headers.items():
+        logger.debug(f"  {k}: {v}")
+    stdout.buffer.write(response.content)
+    stdout.buffer.flush()

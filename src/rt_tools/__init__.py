@@ -2,8 +2,14 @@
 
 from importlib.metadata import PackageNotFoundError, version
 
-from .session import RTResponseData, RTResponseError, RTSession, parse_rt_response
-from .utils import dump_response, fetch_password, load_cookies, remove_fixed_string
+from .session import (
+    RTResponseData,
+    RTResponseError,
+    RTSession,
+    dump_response,
+    parse_rt_response,
+)
+from .utils import fetch_password, load_cookies, remove_fixed_string
 
 try:
     __version__ = version("rt-tools")
