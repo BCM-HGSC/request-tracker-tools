@@ -2,7 +2,7 @@
 
 from unittest.mock import Mock
 
-import pytest
+from pytest import mark, raises
 
 from rt_tools import RTResponseData, RTResponseError, parse_rt_response
 
@@ -123,7 +123,7 @@ def test_empty_response_content():
     response = Mock()
     response.content = b""
 
-    with pytest.raises(RTResponseError, match="Empty response content"):
+    with raises(RTResponseError, match="Empty response content"):
         parse_rt_response(response)
 
 
@@ -132,7 +132,7 @@ def test_invalid_response_format():
     response = Mock()
     response.content = b"<html><body>Not an RT response</body></html>"
 
-    with pytest.raises(RTResponseError, match="Invalid RT response format"):
+    with raises(RTResponseError, match="Invalid RT response format"):
         parse_rt_response(response)
 
 
@@ -141,7 +141,7 @@ def test_malformed_rt_header_missing_version():
     response = Mock()
     response.content = b"RT/ 200 Ok\n\nData"
 
-    with pytest.raises(RTResponseError, match="Invalid RT response format"):
+    with raises(RTResponseError, match="Invalid RT response format"):
         parse_rt_response(response)
 
 
@@ -150,7 +150,7 @@ def test_malformed_rt_header_missing_status_code():
     response = Mock()
     response.content = b"RT/4.4.3 Ok\n\nData"
 
-    with pytest.raises(RTResponseError, match="Invalid RT response format"):
+    with raises(RTResponseError, match="Invalid RT response format"):
         parse_rt_response(response)
 
 
@@ -159,11 +159,11 @@ def test_malformed_rt_header_missing_double_newline():
     response = Mock()
     response.content = b"RT/4.4.3 200 Ok\nData"
 
-    with pytest.raises(RTResponseError, match="Invalid RT response format"):
+    with raises(RTResponseError, match="Invalid RT response format"):
         parse_rt_response(response)
 
 
-@pytest.mark.parametrize(
+@mark.parametrize(
     "content,expected_version",
     [
         (b"RT/1.0 200 Ok\n\nData\n\n\n", "1.0"),
@@ -185,7 +185,7 @@ def test_response_error_includes_response_object():
     response = Mock()
     response.content = b"Invalid content"
 
-    with pytest.raises(RTResponseError) as exc_info:
+    with raises(RTResponseError) as exc_info:
         parse_rt_response(response)
 
     assert exc_info.value.response is response
