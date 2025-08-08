@@ -172,7 +172,7 @@ class RTSession(Session):
 
     def dump_ticket(self, id_string: str, *parts) -> None:
         """GET a ticket URL and dump the response."""
-        self.dump_url(RTSession.ticket_url(id_string, *parts))
+        self.dump_url(RTSession.rest_url("ticket", id_string, *parts))
 
     def dump_rest(self, *parts) -> None:
         """GET a REST 1.0 URL and dump the response."""
@@ -193,11 +193,6 @@ class RTSession(Session):
                 print(f"  {cookie.name}: {cookie.value}")
         else:
             print("No cookies received")
-
-    @staticmethod
-    def ticket_url(id_string: str, *parts) -> str:
-        """Generate a ticket URL with optional additional path parts."""
-        return RTSession.rest_url("ticket", id_string, *parts)
 
     @staticmethod
     def rest_url(*parts) -> str:
