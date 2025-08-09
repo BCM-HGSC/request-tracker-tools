@@ -8,6 +8,25 @@ from .downloader import download_ticket
 from .session import BASE_URL, REST_URL, RTSession
 
 
+def download_ticket_cli():
+    """Entry point for downloading complete RT ticket data."""
+    args = parse_download_ticket_arguments()
+    config_logging(args)
+    with RTSession() as session:
+        session.authenticate()
+        if args.verbose:
+            session.print_cookies()
+        download_ticket(session, args.ticket_id, args.target_dir)
+
+
+def parse_download_ticket_arguments() -> Namespace:
+    """Parse command line arguments for download-ticket."""
+    parser = make_parser("Download complete RT ticket data to directory")
+    parser.add_argument("ticket_id", help="RT ticket ID (without 'ticket/' prefix)")
+    parser.add_argument("target_dir", type=Path, help="Directory to save ticket data")
+    return parser.parse_args()
+
+
 def dump_ticket():
     """Main entry point for dumping RT ticket information."""
     args = parse_dump_ticket_arguments()
@@ -69,31 +88,12 @@ def dump_url():
         session.dump_url(url)
 
 
-def download_ticket_cli():
-    """Entry point for downloading complete RT ticket data."""
-    args = parse_download_ticket_arguments()
-    config_logging(args)
-    with RTSession() as session:
-        session.authenticate()
-        if args.verbose:
-            session.print_cookies()
-        download_ticket(session, args.ticket_id, args.target_dir)
-
-
 def parse_dump_url_arguments() -> Namespace:
     """Parse command line arguments for dump-url."""
     parser = make_parser("Print content from an RT URL")
     parser.add_argument(
         "parts", nargs="*", help=f"URL path components relative to {BASE_URL}"
     )
-    return parser.parse_args()
-
-
-def parse_download_ticket_arguments() -> Namespace:
-    """Parse command line arguments for download-ticket."""
-    parser = make_parser("Download complete RT ticket data to directory")
-    parser.add_argument("ticket_id", help="RT ticket ID (without 'ticket/' prefix)")
-    parser.add_argument("target_dir", type=Path, help="Directory to save ticket data")
     return parser.parse_args()
 
 
@@ -123,4 +123,4 @@ def config_logging(args) -> None:
 
 
 if __name__ == "__main__":
-    dump_ticket()
+    download_ticket()
