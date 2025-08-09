@@ -14,7 +14,12 @@ def dump_ticket():
         session.authenticate()
         if args.verbose:
             session.print_cookies()
-        session.dump_ticket(args.id_string, *args.parts)
+
+        if args.output:
+            with open(args.output, "wb") as f:
+                session.dump_ticket(args.id_string, *args.parts, file=f)
+        else:
+            session.dump_ticket(args.id_string, *args.parts)
 
 
 def parse_dump_ticket_arguments() -> Namespace:
@@ -22,6 +27,9 @@ def parse_dump_ticket_arguments() -> Namespace:
     parser = make_parser("Print information from an RT ticket")
     parser.add_argument("id_string", help="ID string to append to API URL")
     parser.add_argument("parts", nargs="*", help="additional path components")
+    parser.add_argument(
+        "-o", "--output", help="Write output to file (binary mode) instead of stdout"
+    )
     return parser.parse_args()
 
 
