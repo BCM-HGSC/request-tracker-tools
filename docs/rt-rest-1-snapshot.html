@@ -1,0 +1,1266 @@
+<!DOCTYPE html>
+<html class="client-nojs" lang="en" dir="ltr">
+<head>
+<meta charset="UTF-8">
+<title>REST - Request Tracker Wiki</title>
+<script>document.documentElement.className="client-js";RLCONF={"wgBreakFrames":false,"wgSeparatorTransformTable":["",""],"wgDigitTransformTable":["",""],"wgDefaultDateFormat":"dmy","wgMonthNames":["","January","February","March","April","May","June","July","August","September","October","November","December"],"wgRequestId":"aJeYtwdTT1zCrrJu4T6gLQAAAUs","wgCanonicalNamespace":"","wgCanonicalSpecialPageName":false,"wgNamespaceNumber":0,"wgPageName":"REST","wgTitle":"REST","wgCurRevisionId":27222,"wgRevisionId":27222,"wgArticleId":592,"wgIsArticle":true,"wgIsRedirect":false,"wgAction":"view","wgUserName":null,"wgUserGroups":["*"],"wgCategories":[],"wgPageViewLanguage":"en","wgPageContentLanguage":"en","wgPageContentModel":"wikitext","wgRelevantPageName":"REST","wgRelevantArticleId":592,"wgIsProbablyEditable":false,"wgRelevantPageIsProbablyEditable":false,"wgRestrictionEdit":[],"wgRestrictionMove":[]};RLSTATE={"site.styles":"ready","user.styles":"ready","user":"ready","user.options":"loading",
+"ext.pygments":"ready","skins.vector.styles.legacy":"ready"};RLPAGEMODULES=["site","mediawiki.page.ready","mediawiki.toc","skins.vector.legacy.js"];</script>
+<script>(RLQ=window.RLQ||[]).push(function(){mw.loader.impl(function(){return["user.options@12s5i",function($,jQuery,require,module){mw.user.tokens.set({"patrolToken":"+\\","watchToken":"+\\","csrfToken":"+\\"});
+}];});});</script>
+<link rel="stylesheet" href="/load.php?lang=en&amp;modules=ext.pygments%7Cskins.vector.styles.legacy&amp;only=styles&amp;skin=vector">
+<script async="" src="/load.php?lang=en&amp;modules=startup&amp;only=scripts&amp;raw=1&amp;skin=vector"></script>
+<meta name="generator" content="MediaWiki 1.41.1">
+<meta name="robots" content="max-image-preview:standard">
+<meta name="format-detection" content="telephone=no">
+<meta name="viewport" content="width=1000">
+<link rel="icon" href="https://static.bestpractical.com/favicon.ico">
+<link rel="search" type="application/opensearchdescription+xml" href="/opensearch_desc.php" title="Request Tracker Wiki (en)">
+<link rel="EditURI" type="application/rsd+xml" href="https://rt-wiki.bestpractical.com/api.php?action=rsd">
+<link rel="license" href="/wiki/BPS_Licensing">
+<link rel="alternate" type="application/atom+xml" title="Request Tracker Wiki Atom feed" href="/index.php?title=Special:RecentChanges&amp;feed=atom">
+</head>
+<body class="skin-vector-legacy mediawiki ltr sitedir-ltr mw-hide-empty-elt ns-0 ns-subject page-REST rootpage-REST skin-vector action-view"><div id="mw-page-base" class="noprint"></div>
+<div id="mw-head-base" class="noprint"></div>
+<div id="content" class="mw-body" role="main">
+	<a id="top"></a>
+	<div id="siteNotice"></div>
+	<div class="mw-indicators">
+	</div>
+	<h1 id="firstHeading" class="firstHeading mw-first-heading"><span class="mw-page-title-main">REST</span></h1>
+	<div id="bodyContent" class="vector-body">
+		<div id="siteSub" class="noprint">From Request Tracker Wiki</div>
+		<div id="contentSub"><div id="mw-content-subtitle"></div></div>
+		<div id="contentSub2"></div>
+		
+		<div id="jump-to-nav"></div>
+		<a class="mw-jump-link" href="#mw-head">Jump to navigation</a>
+		<a class="mw-jump-link" href="#searchInput">Jump to search</a>
+		<div id="mw-content-text" class="mw-body-content mw-content-ltr" lang="en" dir="ltr"><!-- PINGDOM OK --><div class="mw-parser-output"><div id="toc" class="toc" role="navigation" aria-labelledby="mw-toc-heading"><input type="checkbox" role="button" id="toctogglecheckbox" class="toctogglecheckbox" style="display:none" /><div class="toctitle" lang="en" dir="ltr"><h2 id="mw-toc-heading">Contents</h2><span class="toctogglespan"><label class="toctogglelabel" for="toctogglecheckbox"></label></span></div>
+<ul>
+<li class="toclevel-1 tocsection-1"><a href="#Abstract"><span class="tocnumber">1</span> <span class="toctext">Abstract</span></a></li>
+<li class="toclevel-1 tocsection-2"><a href="#Interface"><span class="tocnumber">2</span> <span class="toctext">Interface</span></a>
+<ul>
+<li class="toclevel-2 tocsection-3"><a href="#Authentication"><span class="tocnumber">2.1</span> <span class="toctext">Authentication</span></a></li>
+<li class="toclevel-2 tocsection-4"><a href="#Ticket"><span class="tocnumber">2.2</span> <span class="toctext">Ticket</span></a>
+<ul>
+<li class="toclevel-3 tocsection-5"><a href="#Ticket_Properties"><span class="tocnumber">2.2.1</span> <span class="toctext">Ticket Properties</span></a></li>
+<li class="toclevel-3 tocsection-6"><a href="#Ticket_Links"><span class="tocnumber">2.2.2</span> <span class="toctext">Ticket Links</span></a></li>
+<li class="toclevel-3 tocsection-7"><a href="#Ticket_Attachments"><span class="tocnumber">2.2.3</span> <span class="toctext">Ticket Attachments</span></a></li>
+<li class="toclevel-3 tocsection-8"><a href="#Ticket_Attachment"><span class="tocnumber">2.2.4</span> <span class="toctext">Ticket Attachment</span></a></li>
+<li class="toclevel-3 tocsection-9"><a href="#Ticket_Attachment_Content"><span class="tocnumber">2.2.5</span> <span class="toctext">Ticket Attachment Content</span></a></li>
+<li class="toclevel-3 tocsection-10"><a href="#Ticket_History"><span class="tocnumber">2.2.6</span> <span class="toctext">Ticket History</span></a></li>
+<li class="toclevel-3 tocsection-11"><a href="#Ticket_History_Entry"><span class="tocnumber">2.2.7</span> <span class="toctext">Ticket History Entry</span></a></li>
+<li class="toclevel-3 tocsection-12"><a href="#Ticket_Search"><span class="tocnumber">2.2.8</span> <span class="toctext"><b>Ticket Search</b></span></a></li>
+<li class="toclevel-3 tocsection-13"><a href="#Ticket_Create"><span class="tocnumber">2.2.9</span> <span class="toctext"><b>Ticket Create</b></span></a>
+<ul>
+<li class="toclevel-4 tocsection-14"><a href="#curl_example"><span class="tocnumber">2.2.9.1</span> <span class="toctext">curl example</span></a></li>
+</ul>
+</li>
+<li class="toclevel-3 tocsection-15"><a href="#Ticket_Edit"><span class="tocnumber">2.2.10</span> <span class="toctext">Ticket Edit</span></a></li>
+<li class="toclevel-3 tocsection-16"><a href="#Tickets_History_Reply"><span class="tocnumber">2.2.11</span> <span class="toctext">Tickets History Reply</span></a></li>
+<li class="toclevel-3 tocsection-17"><a href="#Ticket_History_Comment"><span class="tocnumber">2.2.12</span> <span class="toctext">Ticket History Comment</span></a></li>
+<li class="toclevel-3 tocsection-18"><a href="#Ticket_Links_Edit"><span class="tocnumber">2.2.13</span> <span class="toctext">Ticket Links Edit</span></a></li>
+<li class="toclevel-3 tocsection-19"><a href="#Ticket_Merge"><span class="tocnumber">2.2.14</span> <span class="toctext">Ticket Merge</span></a></li>
+</ul>
+</li>
+<li class="toclevel-2 tocsection-20"><a href="#User_Properties"><span class="tocnumber">2.3</span> <span class="toctext">User Properties</span></a></li>
+<li class="toclevel-2 tocsection-21"><a href="#User"><span class="tocnumber">2.4</span> <span class="toctext">User</span></a>
+<ul>
+<li class="toclevel-3 tocsection-22"><a href="#User_Create"><span class="tocnumber">2.4.1</span> <span class="toctext">User Create</span></a></li>
+<li class="toclevel-3 tocsection-23"><a href="#User_Edit"><span class="tocnumber">2.4.2</span> <span class="toctext">User Edit</span></a></li>
+</ul>
+</li>
+<li class="toclevel-2 tocsection-24"><a href="#Queue"><span class="tocnumber">2.5</span> <span class="toctext">Queue</span></a>
+<ul>
+<li class="toclevel-3 tocsection-25"><a href="#Single_queue_properties"><span class="tocnumber">2.5.1</span> <span class="toctext">Single queue properties</span></a></li>
+</ul>
+</li>
+<li class="toclevel-2 tocsection-26"><a href="#Logout"><span class="tocnumber">2.6</span> <span class="toctext">Logout</span></a></li>
+</ul>
+</li>
+<li class="toclevel-1 tocsection-27"><a href="#Types"><span class="tocnumber">3</span> <span class="toctext">Types</span></a>
+<ul>
+<li class="toclevel-2 tocsection-28"><a href="#History_entry_type"><span class="tocnumber">3.1</span> <span class="toctext">History entry type</span></a></li>
+</ul>
+</li>
+<li class="toclevel-1 tocsection-29"><a href="#Miscellaneous"><span class="tocnumber">4</span> <span class="toctext">Miscellaneous</span></a>
+<ul>
+<li class="toclevel-2 tocsection-30"><a href="#Data_format"><span class="tocnumber">4.1</span> <span class="toctext">Data format</span></a></li>
+<li class="toclevel-2 tocsection-31"><a href="#Request_status"><span class="tocnumber">4.2</span> <span class="toctext">Request status</span></a></li>
+</ul>
+</li>
+<li class="toclevel-1 tocsection-32"><a href="#Examples"><span class="tocnumber">5</span> <span class="toctext">Examples</span></a>
+<ul>
+<li class="toclevel-2 tocsection-33"><a href="#Perl"><span class="tocnumber">5.1</span> <span class="toctext">Perl</span></a></li>
+<li class="toclevel-2 tocsection-34"><a href="#Java"><span class="tocnumber">5.2</span> <span class="toctext">Java</span></a></li>
+<li class="toclevel-2 tocsection-35"><a href="#Java_(_Based_on_new_Apache_HttpComponents_library_)"><span class="tocnumber">5.3</span> <span class="toctext">Java ( Based on new Apache HttpComponents library )</span></a></li>
+<li class="toclevel-2 tocsection-36"><a href="#Python"><span class="tocnumber">5.4</span> <span class="toctext">Python</span></a></li>
+<li class="toclevel-2 tocsection-37"><a href="#Ruby"><span class="tocnumber">5.5</span> <span class="toctext">Ruby</span></a></li>
+<li class="toclevel-2 tocsection-38"><a href="#PHP"><span class="tocnumber">5.6</span> <span class="toctext">PHP</span></a></li>
+<li class="toclevel-2 tocsection-39"><a href="#C#"><span class="tocnumber">5.7</span> <span class="toctext">C#</span></a></li>
+<li class="toclevel-2 tocsection-40"><a href="#Powershell_(v3)"><span class="tocnumber">5.8</span> <span class="toctext">Powershell (v3)</span></a></li>
+<li class="toclevel-2 tocsection-41"><a href="#VB.NET"><span class="tocnumber">5.9</span> <span class="toctext">VB.NET</span></a></li>
+<li class="toclevel-2 tocsection-42"><a href="#JavaScript"><span class="tocnumber">5.10</span> <span class="toctext">JavaScript</span></a></li>
+</ul>
+</li>
+<li class="toclevel-1 tocsection-43"><a href="#Convenience_libraries"><span class="tocnumber">6</span> <span class="toctext">Convenience libraries</span></a></li>
+</ul>
+</div>
+
+<h2><span class="mw-headline" id="Abstract">Abstract</span></h2>
+<p>The REST Interface gives you access to your RT Database. The complete communication is encapsulated in the HTTP protocol. The interface should be accessible in your installation.
+</p><p>Though you may see references to older 3.x releases of RT below, the REST 1.0 interface has not changed in any significant way in 4.x.
+</p><p>This page is for REST version 1.0. 
+</p><p>The next version of the RT REST interface, version 2.0, is available as an <a rel="nofollow" class="external text" href="https://metacpan.org/pod/RT::Extension::REST2">extension</a> for RT 4.4 and above. 
+</p><p>REST2 is core in RT 5.0.0 and above. See: <a href="/wiki/REST2" title="REST2">REST2</a>
+</p><p><a rel="nofollow" class="external text" href="https://rt-wiki.bestpractical.com/index.php?search=Talk:REST&amp;title=Special:Search">Legacy Comments</a> are available from the previous Wikia instance.
+</p>
+<h2><span class="mw-headline" id="Interface">Interface</span></h2>
+<p>Base URL: <code>.../REST/1.0/</code>. The default response should be:
+</p>
+<pre>   RT/3.4.5 200 Ok
+</pre>
+<pre>   # Invalid object specification: 'index.html'
+</pre>
+<pre>   id: index.html
+</pre>
+<p><br />
+</p>
+<h3><span class="mw-headline" id="Authentication">Authentication</span></h3>
+<p>The REST Interface does not support HTTP-Authentication. So you must get a valid Session-Token and submit the cookie each request. You usually get a Session-Cookie by submitting the default login form. Use variables "<code>user</code>" for login and "<code>pass</code>" for password values. wget doesn't escape any characters in the --post-data option so make sure you properly escape any special characters in the password.
+</p><p>See the wget invocation line below:
+</p>
+<pre>   wget  --keep-session-cookies \
+   --save-cookies cookies.txt \
+   --post-data 'user=UUUU&amp;pass=PPPP' \
+   <a rel="nofollow" class="external free" href="http://my.rt.server">http://my.rt.server</a>
+</pre>
+<p>You need the -keep-session-cookies option to make wget save session cookies.
+</p>
+<h3><span class="mw-headline" id="Ticket">Ticket</span></h3>
+<h4><span class="mw-headline" id="Ticket_Properties">Ticket Properties</span></h4>
+<p>Gets the data for a single ticket, not including the history and comments.
+</p><p>Request: <code>/REST/1.0/ticket/&lt;ticket-id&gt;/show</code>
+</p>
+<pre>RT/3.4.5 200 Ok
+
+id: ticket/&lt;ticket-id&gt;
+Queue: &lt;...&gt;
+Owner: &lt;...&gt;
+Creator: &lt;...&gt;
+Subject: &lt;...&gt;
+Status: &lt;...&gt;
+Priority: &lt;...&gt;
+InitialPriority: &lt;...&gt;
+FinalPriority: &lt;...&gt;
+Requestors: &lt;...&gt;
+Cc: &lt;...&gt;
+AdminCc: &lt;...&gt;
+Created: &lt;...&gt;
+Starts: &lt;...&gt;
+Started: &lt;...&gt;
+Due: &lt;...&gt;
+Resolved: &lt;...&gt;
+Told: &lt;...&gt;
+TimeEstimated: &lt;...&gt;
+TimeWorked: &lt;...&gt;
+TimeLeft: &lt;...&gt;
+</pre>
+<h4><span class="mw-headline" id="Ticket_Links">Ticket Links</span></h4>
+<p>Gets the ticket links for a single ticket.
+</p><p>Request: <code>REST/1.0/ticket/&lt;ticket-id&gt;/links/show</code>
+</p>
+<pre>RT/3.8.2 200 Ok
+
+id: ticket/&lt;ticket-id&gt;/links
+HasMember: fsck.com-rt://your.server.com/ticket/&lt;another-id&gt;
+ReferredToBy: fsck.com-rt://your.server.com/ticket/&lt;another-id&gt;
+DependedOnBy: fsck.com-rt://your.server.com/ticket/&lt;another-id&gt;
+MemberOf: fsck.com-rt://your.server.com/ticket/&lt;another-id&gt;
+RefersTo: fsck.com-rt://your.server.com/ticket/&lt;another-id&gt;
+DependsOn: fsck.com-rt://your.server.com/ticket/&lt;another-id&gt;
+</pre>
+<h4><span class="mw-headline" id="Ticket_Attachments">Ticket Attachments</span></h4>
+<p>Gets a list of all attachments related to the ticket
+</p><p>Request: <code>/REST/1.0/ticket/&lt;ticket-id&gt;/attachments</code>
+</p>
+<h4><span class="mw-headline" id="Ticket_Attachment">Ticket Attachment</span></h4>
+<p>Gets the metadata and content of a specific attachment.
+</p><p>Request: <code>/REST/1.0/ticket/&lt;ticket-id&gt;/attachments/&lt;attachment-id&gt;</code>
+</p>
+<pre>RT/3.8.0 200 Ok
+ 
+id: &lt;attachment-id&gt;
+Subject:
+Creator: &lt;user-id&gt;
+Created: &lt;timestamp&gt;
+Transaction: &lt;transaction-id&gt;
+Parent: &lt;parent-id&gt;
+MessageId:
+Filename: &lt;filename&gt;
+ContentType: application/octet-stream
+ContentEncoding: none
+ 
+Headers: MIME-Version: 1.0
+         X-Mailer: MIME-tools 5.427 (Entity 5.427)
+         Content-Type: application/octet-stream;
+           name="&lt;filename&gt;"
+         Content-Disposition: inline; filename="&lt;filename&gt;"
+         Content-Transfer-Encoding: base64
+         Content-Length: &lt;length in bytes&gt;
+
+Content: ...
+         ...
+         ...
+</pre>
+<p><i>NOTE: RT returns the content indented with 9 spaces on each line, so that it lines up with the "Content:" header. Even if you strip this out with a regexp, the content is still UTF-8, which is probably not what you want. To get the original binary data back, strip out the 9 spaces with a regexp, strip off the 3 carriage returns at the end, and then convert the whole thing from UTF-8 to the native character encoding of the attachment, whatever that is. RT doesn't tell you, so you have know. If the attachments were uploaded by a U.S. Windows system, odds are that Windows-1252 is what you want. If you can't get the binary back intact, see the next method below.</i>
+</p>
+<h4><span class="mw-headline" id="Ticket_Attachment_Content">Ticket Attachment Content</span></h4>
+<p>Gets the attachment data content without additional metadata or whitespace characters
+</p><p>Request: <code>/REST/1.0/ticket/&lt;ticket-id&gt;/attachments/&lt;attachment-id&gt;/content</code>
+</p>
+<pre>RT/3.8.0 200 Ok
+
+...
+...
+...
+</pre>
+<p>So to get the original content you still have to strip the first 2 lines of the response.
+</p>
+<h4><span class="mw-headline" id="Ticket_History">Ticket History</span></h4>
+<p>Gets a list of all the history items for a given ticket.
+</p><p>Request: <code>/REST/1.0/ticket/&lt;ticket-id&gt;/history</code>
+</p>
+<pre>RT/3.4.5 200 Ok
+
+# &lt;history-count&gt;/&lt;history-count&gt; (/total)
+
+&lt;history-id&gt;: &lt;history-name&gt;
+&lt;history-id&gt;: &lt;history-name&gt;
+...
+</pre>
+<p>You will get an additional row, for each history entry found. The first entry is usually: "<code>Ticket created by ...</code>".
+</p><p>There are two ways to get history item detail: you can do one of these and then recursively perform <code>ticket/history/id/&lt;history-id&gt;</code> for each history-id from this REST call, but that is extremely wasteful and will scale horribly. What you really want to do is one REST call but get the long format:
+</p><p>Request: <code>/REST/1.0/ticket/&lt;ticket-id&gt;/history?format=l</code>
+</p>
+<pre>RT/3.8.2 200 Ok
+
+# &lt;n&gt;/&lt;n&gt; (id/&lt;history-id&gt;/total)
+
+id: &lt;history-id&gt;
+Ticket: &lt;ticket-id&gt;
+TimeTaken: &lt;...&gt;
+Type: &lt;...&gt;
+Field: &lt;...&gt;
+OldValue: &lt;...&gt;
+NewValue: &lt;...&gt;
+Data: &lt;...&gt;
+Description: &lt;...&gt;
+Content: &lt;...&gt;
+Creator: &lt;...&gt;
+
+Created: &lt;...&gt;
+
+Attachments:
+             &lt;attachment-id&gt;: &lt;filename&gt; (&lt;size&gt;)
+             &lt;attachment-id&gt;: &lt;filename&gt; (&lt;size&gt;)
+
+--
+
+# &lt;n&gt;/&lt;n&gt; (id/&lt;history-id&gt;/total)
+...
+</pre>
+<p><i>NOTE: the double dash "--" will occur in the long format between each history item. You can split the output on "--" and iterate over it, parsing out the data with an RFC822 parser, such as an email handling library.</i>
+</p>
+<h4><span class="mw-headline" id="Ticket_History_Entry">Ticket History Entry</span></h4>
+<p>Gets the history information for a single history item. Note that the history item must actually correspond to the ticket.
+</p><p>Request: <code>/REST/1.0/ticket/&lt;ticket-id&gt;/history/id/&lt;history-id&gt;</code>
+</p>
+<pre>RT/3.4.5 200 Ok
+
+# 70/70 (id/114856/total)
+
+id: &lt;history-id&gt;
+Ticket: &lt;ticket-id&gt;
+TimeTaken: &lt;...&gt;
+Type: &lt;...&gt;
+Field: &lt;...&gt;
+OldValue: &lt;...&gt;
+NewValue: &lt;...&gt;
+Data: &lt;...&gt;
+Description: &lt;...&gt;
+
+Content: &lt;lin1-0&gt;
+         &lt;line-1&gt;
+         ...
+         &lt;line-n&gt;
+         
+Creator: &lt;...&gt;
+Created: &lt;...&gt;
+Attachments: &lt;...&gt;
+</pre>
+<p><i>IMPORTANT NOTE: At least with RT 3.8.0, when you request a history item with this method AND you have attached a file that has Mime type text/plain to the same item (eg. a comment with an attachement), RT will return the complete content of the attachment for the key "Content:" and not your real comment that you can see in the web frontend. This may lead to some problems if the requestor does not expect to get a comment content that is for example 1.8 MB of text. With other Mime type attachments this however seems to work. I don't know if this is a feature or a bug.</i>
+</p><p><br />
+</p>
+<h4><span class="mw-headline" id="Ticket_Search"><b>Ticket Search</b></span></h4>
+<p>Request: <code>/REST/1.0/search/ticket?query=&lt;query&gt;&amp;orderby=&lt;sort-order&gt;&amp;format=&lt;format&gt;</code>
+</p><p><b>Parameters</b>
+</p><p><b>query</b>
+</p><p>You can use any query generated by the query builder - or feel free to write your own. Here an example that will do the following: Find all tickets that have no owner and the status new or open
+</p><p><code>query= Owner = 'Nobody' AND ( Status = 'new' OR Status = 'open' )</code>
+</p><p>Example: to get all the tickets in "fooQueue" you'd access:
+</p>
+<pre><code>/REST/1.0/search/ticket?query=Queue='fooQueue'</code>
+</pre>
+<p>Example: to get&#160;the tickets&#160;for a custom field&#160;"Contact Name" you'd access:
+</p>
+<pre><code>/REST/1.0/search/ticket?query='CF.{Contact Name}'='Shaun Wallace'</code>
+</pre>
+<p><br />
+<b>orderby</b>
+</p><p>By this parameter you can change the sort field and order of the search result. To sort a list ascending just put a + before the fieldname, otherwise a -. Eg: -Created (will put the newest tickets at the beginning).
+</p><p>Example:
+</p>
+<pre><code>/REST/1.0/search/ticket?query=Queue='fooQueue'&amp;orderby=+Created</code>
+</pre>
+<p><br />
+<b>format</b>
+</p>
+<ul><li>i: ticket/&lt;ticket-id&gt;</li>
+<li>s: &lt;ticket-id&gt;: &lt;ticket-subject&gt;</li>
+<li>l: a multi-line format (Full ticket details without content)</li></ul>
+<p>Example:
+</p>
+<pre><code>/REST/1.0/search/ticket?query=Queue='fooQueue'&amp;orderby=+Created&amp;format=i</code>
+</pre>
+<p><b>fields</b>
+</p><p>A list of fields you would like included in the result set.
+</p><p>Example:
+</p>
+<pre><code>/REST/1.0/search/ticket?query=id=42&amp;format=l&amp;fields=Subject,Status,Priority,CF.\{Category\}</code>
+</pre>
+<p>Note that you may need to escape characters like the curly braces for CFs.
+</p>
+<h4><span class="mw-headline" id="Ticket_Create"><b>Ticket Create</b></span></h4>
+<p>To create a new ticket: post on <code>/REST/1.0/ticket/new</code> with a variable named "<code>content</code>",
+</p><p>containing "<code>key: value</code>" line by line, example:
+</p><p>Testing the new ticket section
+</p>
+<pre>id: ticket/new
+Queue: &lt;queue name&gt;
+Requestor: &lt;requestor email address&gt;
+Subject: &lt;subject&gt;
+Cc: &lt;...&gt;
+AdminCc: &lt;...&gt;
+Owner: &lt;...&gt;
+Status: &lt;...&gt;
+Priority: &lt;...&gt;
+InitialPriority: &lt;...&gt;
+FinalPriority: &lt;...&gt;
+TimeEstimated: &lt;...&gt;
+Starts: &lt;...&gt;
+Due: &lt;...&gt;
+Text: &lt;The ticket content&gt;
+CF-&lt;CustomFieldName&gt;: &lt;CustomFieldValue&gt;
+</pre>
+<p>If there are any "special" characters (Umlauts, dash, ...?) in a custom field's name, you can still access it via its ID:
+</p>
+<pre>CF-$id: &lt;Value&gt;
+</pre>
+<p>If you want to have a multiline Text, prefix every line with a blank.
+</p>
+<pre>Due: &lt;...&gt;
+Text: This is 
+ a 
+ multiline Text
+&#160;!!!
+CF-&lt;CustomFieldName&gt;: &lt;CustomFieldValue&gt;
+</pre>
+<p>The response should look like: 
+</p>
+<pre>RT/4.0.6 200 Ok
+
+# Ticket 775 created.
+</pre>
+<h5><span class="mw-headline" id="curl_example">curl example</span></h5>
+<pre> * Create a file containing the ticket form:
+</pre>
+<pre>id: ticket/new
+Queue: queue1
+Requestor: requestor@email
+Priority: 4
+CF-Type of request: Demande
+Subject: Test REST
+Text: Multi line
+ test with
+ special chars: é
+</pre>
+<pre> * Submit using curl:
+</pre>
+<pre>curl --data-urlencode content@file.name 'https://HOSTNAME/REST/1.0/ticket/new?user=USER&amp;pass=PASSWORD'
+</pre>
+<h4><span class="mw-headline" id="Ticket_Edit">Ticket Edit</span></h4>
+<p>To update an existing ticket: post on <code>/REST/1.0/ticket/&lt;ticket-id&gt;/edit</code> with a variable named "content", containing "key: value" line by line (like the one displayed when issuing <code>ticket/&lt;ticket-id&gt;/show</code>). Example:
+</p>
+<pre>Priority: 5
+TimeWorked: 15
+</pre>
+<ul><li>PHP</li></ul>
+<div class="mw-highlight mw-highlight-lang-php mw-content-ltr" dir="ltr"><pre><span></span><span class="nv">$username</span> <span class="o">=</span> <span class="nx">rt_user</span><span class="p">;</span>
+<span class="nv">$password</span> <span class="o">=</span> <span class="nx">rt_pass</span><span class="p">;</span>
+<span class="nv">$url</span> <span class="o">=</span> <span class="s2">&quot;http://server.domain.tld/REST/1.0/ticket/&lt;ticket id&gt;/edit?user=</span><span class="si">$username</span><span class="s2">&amp;pass=</span><span class="si">$password</span><span class="s2">&quot;</span><span class="p">;</span>
+
+<span class="nv">$request</span> <span class="o">=</span> <span class="k">new</span> <span class="nx">HttpRequest</span><span class="p">(</span><span class="nv">$url</span><span class="p">,</span> <span class="nx">HTTP_METH_POST</span><span class="p">);</span>
+<span class="nv">$post_data</span><span class="o">=</span><span class="k">array</span><span class="p">(</span><span class="s2">&quot;content&quot;</span><span class="o">=&gt;</span><span class="s2">&quot;AdminCc: userX</span><span class="se">\n</span><span class="s2">Text: This is a REST test edit ticket</span><span class="se">\n</span><span class="s2">&quot;</span><span class="p">);</span>
+
+<span class="c1">// add the post fields  </span>
+<span class="nv">$request</span><span class="o">-&gt;</span><span class="na">addPostFields</span><span class="p">(</span><span class="nv">$postData</span><span class="p">);</span>
+
+<span class="c1">// response from RT</span>
+<span class="nv">$response</span> <span class="o">=</span> <span class="nv">$request</span><span class="o">-&gt;</span><span class="na">send</span><span class="p">()</span><span class="o">-&gt;</span><span class="na">getBody</span><span class="p">();</span>
+<span class="nb">print_r</span><span class="p">(</span><span class="nv">$response</span><span class="p">);</span>
+</pre></div>
+<h4><span class="mw-headline" id="Tickets_History_Reply">Tickets History Reply</span></h4>
+<p>Same as comment: post on <code>/REST/1.0/ticket/&lt;ticket-id&gt;/comment</code> with a variable name <code>content</code>, containing "<code>key: value</code>" line by line:
+</p>
+<pre>id: &lt;ticket-id&gt;
+Action: correspond
+Text: the text comment
+Cc: &lt;...&gt;
+Bcc: &lt;...&gt;
+TimeWorked: &lt;...&gt;
+Attachment: an attachment filename/path
+</pre>
+<p><code>Cc</code> and <code>Bcc</code> are for this reply only (<i>I think</i>).
+</p>
+<h4><span class="mw-headline" id="Ticket_History_Comment">Ticket History Comment</span></h4>
+<p>To add a comment to an existing ticket: POST on "<code>/REST/1.0/ticket/&lt;ticket-id&gt;/comment</code>" with a variable name "<code>content</code>", containing "<code>key: value</code>" line by line:
+</p>
+<pre>id: &lt;ticket-id&gt;
+Action: comment
+Text: the text comment
+Attachment: an attachment filename/path
+</pre>
+<p>Action can be "<code>comment</code>" or "<code>correspond</code>". For a list of fields you can use in correspondence, try "<code>/opt/rt3/bin/rt correspond ticket/1</code>"
+</p><p>If your comment contains multiple lines, each new line must be preceded by a space (e.g. "line 1\n line 2").
+</p><p>
+If you want to use HTML replies, use </p><pre>Content-Type: text/html</pre>
+<p>If you used "<code>Attachment</code>", you must add to your POST a variable "<code>attachment_1</code>" that contains the raw attachment in multi-part file object.
+</p><p>You can upload more attachments as well, in this case you have to separate the file names in the "<code style="border-style: initial; border-color: initial;">Attachment</code>" with "\n "(a newline and space, without quotes) and add a new variable "attachment_$i" to your POST where $i is the index of attachment.
+</p><p>You need to send header to post comments
+</p>
+<h4><span class="mw-headline" id="Ticket_Links_Edit">Ticket Links Edit</span></h4>
+<p>To update links on an existing ticket: POST on "<code>/REST/1.0/ticket/&lt;ticket-id&gt;/links</code>" with a variable named "<code>content</code>", containing "<code>key: value</code>" line by line (like the one displayed when issuing "<code>ticket/&lt;ticket-id&gt;/links</code>"). Example:
+</p>
+<pre>DependsOn: 54354
+RefersTo: http://some.external/link
+</pre>
+<h4><span class="mw-headline" id="Ticket_Merge">Ticket Merge</span></h4>
+<p>To merge tickets: POST on "<code>/REST/1.0/ticket/&lt;origin-ticket-id&gt;/merge/&lt;into-ticket-id&gt;</code>". (I don't think any content is required, but I send "id" and "into" anyway.)
+</p>
+<h3><span class="mw-headline" id="User_Properties">User Properties</span></h3>
+<p>Gets the data for a single user.
+</p><p>Request: <code>/REST/1.0/user/&lt;user-id&gt;</code>
+</p>
+<pre>RT/3.8.4 200 Ok
+
+id: user/&lt;user-id&gt;
+Name: &lt;...&gt;
+Password: ********
+EmailAddress: &lt;...&gt;
+RealName: &lt;...&gt;
+Organization: &lt;...&gt;
+Privileged: &lt;...&gt;
+Disabled: &lt;...&gt;
+</pre>
+<p>Also you can use user login instead of user ID.
+</p><p><br />
+</p>
+<h3><span class="mw-headline" id="User">User</span></h3>
+<h4><span class="mw-headline" id="User_Create">User Create</span></h4>
+<p>To create a new user: post on <code>/REST/1.0/user/new</code> with a variable named "<code>content</code>", containing "<code>key: value</code>" line by line, like the response to <code>/user/&lt;ticket-id&gt;</code>
+</p>
+<h4><span class="mw-headline" id="User_Edit">User Edit</span></h4>
+<p>To update an existing user: post on <code>/REST/1.0/user/&lt;user-id&gt;/edit</code> with a variable named "content", containing "key: value" line by line (like the one displayed when issuing <code>user/&lt;user-id&gt;/show</code>).
+</p>
+<h3><span class="mw-headline" id="Queue">Queue</span></h3>
+<p>Search for all queues mail addresses like thist:
+</p>
+<pre> /REST/1.0/search/queue?query=\&amp;fields=CorrespondAddress,CommentAddress
+</pre>
+<h4><span class="mw-headline" id="Single_queue_properties">Single queue properties</span></h4>
+<p>Gets the data for a single queue.
+</p><p>Request: <code>/REST/1.0/queue/&lt;queue-id&gt;</code>
+</p>
+<pre>RT/3.8.4 200 Ok
+
+id: queue/&lt;queue-id&gt;
+Name: &lt;...&gt;
+Description: &lt;...&gt;
+CorrespondAddress: &lt;...&gt;
+CommentAddress: &lt;...&gt;
+InitialPriority: &lt;...&gt;
+FinalPriority: &lt;...&gt;
+DefaultDueIn: &lt;...&gt;
+</pre>
+<h3><span class="mw-headline" id="Logout">Logout</span></h3>
+<p>To logout: post on <code>/REST/1.0/logout</code> with empty content.
+</p>
+<h2><span class="mw-headline" id="Types">Types</span></h2>
+<ul><li>new</li>
+<li>open</li>
+<li>stalled</li>
+<li>resolved</li>
+<li>rejected</li>
+<li>deleted</li></ul>
+<p>+ other custom values defined in you local RT portal.
+</p><p><br />
+</p>
+<h3><span class="mw-headline" id="History_entry_type">History entry type</span></h3>
+<ul><li>Create</li>
+<li>CustomField</li>
+<li>EmailRecord</li>
+<li>Status</li>
+<li>CommentEmailRecord</li>
+<li>Correspond</li>
+<li>Comment</li>
+<li>Priority</li>
+<li>Give</li>
+<li>Steal</li>
+<li>Take</li>
+<li>Untake</li>
+<li>AddWatcher</li>
+<li>DeleteWatcher</li>
+<li>AddLink</li>
+<li>DeleteLink</li>
+<li>AddReminder</li>
+<li>OpenReminder</li>
+<li>ResolveReminder</li>
+<li>Set</li>
+<li>Force</li>
+<li>Subject</li>
+<li>Told</li>
+<li>PurgeTransaction</li></ul>
+<h2><span class="mw-headline" id="Miscellaneous">Miscellaneous</span></h2>
+<h3><span class="mw-headline" id="Data_format">Data format</span></h3>
+<ul><li>History entries time returns in UTC, boolean returns as <code>1</code> (true) and <code>0</code>(false).</li></ul>
+<ul><li>Use only <code>"\n"</code>, not <code>"\r\n"</code>in post content.</li></ul>
+<ul><li>Comments in response body starts with with a hash (<code>#</code>) symbol.</li></ul>
+<h3><span class="mw-headline" id="Request_status">Request status</span></h3>
+<p>To get real request/post status you need to check status code in first line of server response.
+</p>
+<h2><span class="mw-headline" id="Examples">Examples</span></h2>
+<h3><span class="mw-headline" id="Perl">Perl</span></h3>
+<p>To get the results of a single request (without setting the Session-Cookie) - assuming you've set:
+</p>
+<ul><li>$uri to your RT REST URL</li>
+<li>$access_user to your username</li>
+<li>$access_password to your password</li>
+<li>$ticketNumber to the ticket you want to see</li></ul>
+<pre>my $ua = LWP::UserAgent-&gt;new;
+$ua-&gt;timeout(10);
+$ua-&gt;agent("YOURUSERAGENTHERE");
+ 
+my $response = $ua-&gt;post($uri."ticket/$ticketNumber",
+   ['user' =&gt; $access_user, 'pass' =&gt; $access_password],
+    'Content_Type' =&gt; 'form-data');
+
+if ($response-&gt;is_success) {
+   print $response-&gt;decoded_content;
+}
+</pre>
+<h3><span class="mw-headline" id="Java">Java</span></h3>
+<pre>import java.io.IOException;
+import org.apache.commons.httpclient.HttpClient;
+import org.apache.commons.httpclient.methods.PostMethod;
+import org.apache.commons.httpclient.methods.multipart.MultipartRequestEntity;
+import org.apache.commons.httpclient.methods.multipart.Part;
+import org.apache.commons.httpclient.methods.multipart.StringPart;
+  
+public class RtTicketCreator {
+   static final String BASE_URI = "http://rt.xxx.com/REST/1.0";
+ 
+   public static void main(String[] args) throws IOException {
+ 
+      PostMethod mPost = new PostMethod(BASE_URI + "/ticket/new?user=username&amp;pass=password");
+      Part[] parts = { new StringPart("content", "Queue: General\nSubject: 123") };
+      mPost.setRequestEntity(new MultipartRequestEntity(parts, mPost.getParams()));
+      HttpClient cl = new HttpClient();
+      cl.executeMethod(mPost);
+      System.out.println(mPost.getResponseBodyAsString());
+   }
+}
+</pre>
+<h3><span id="Java_.28_Based_on_new_Apache_HttpComponents_library_.29"></span><span class="mw-headline" id="Java_(_Based_on_new_Apache_HttpComponents_library_)">Java ( Based on new Apache HttpComponents library )</span></h3>
+<pre>/*
+* RT ticket creator based on the current Apache HttpComponents library 4.1.3
+* Created by Koustubha Kale, kmkale at youtility dot in
+*/
+import org.apache.http.HttpEntity;
+import org.apache.http.HttpResponse;
+import org.apache.http.auth.AuthScope;
+import org.apache.http.auth.UsernamePasswordCredentials;
+import org.apache.http.client.HttpClient;
+import org.apache.http.client.methods.HttpPost;
+import org.apache.http.entity.mime.MultipartEntity;
+import org.apache.http.entity.mime.content.StringBody;
+import org.apache.http.impl.client.DefaultHttpClient;
+import org.apache.http.util.EntityUtils;
+
+
+public class NewApacheHttpcomponentsRtTicketCreator {
+
+    public static void main(String[] args) throws Exception {
+        
+        DefaultHttpClient httpclient = new DefaultHttpClient();
+	try {
+            
+            HttpPost httppost = new HttpPost("http://rt.xxx.com/rt/REST/1.0" +
+                    "/ticket/new?user=username&amp;pass=password");
+	    StringBody content = new StringBody("Queue: General\nSubject: 123");
+	    MultipartEntity reqEntity = new MultipartEntity();
+	    reqEntity.addPart("content", content);
+	    httppost.setEntity(reqEntity);
+	    System.out.println("executing request " + httppost.getRequestLine());
+            HttpResponse response = httpclient.execute(httppost);
+            HttpEntity resEntity = response.getEntity();
+
+            System.out.println("----------------------------------------");
+            System.out.println(response.getStatusLine());
+            if (resEntity&#160;!= null) {
+                System.out.println("Response content length: " + resEntity.getContentLength());
+            }
+            EntityUtils.consume(resEntity);
+        } finally {
+            try { httpclient.getConnectionManager().shutdown(); } catch (Exception ignore) {}
+        }
+    }
+    
+}
+</pre>
+<h3><span class="mw-headline" id="Python">Python</span></h3>
+<div class="mw-highlight mw-highlight-lang-python mw-content-ltr" dir="ltr"><pre><span></span><span class="kn">import</span> <span class="nn">cookielib</span>
+<span class="kn">import</span> <span class="nn">urllib</span>
+<span class="kn">import</span> <span class="nn">urllib2</span>
+       
+  <span class="c1"># creates a cookie for the rtserver with the credentials given at initialization.</span>
+  <span class="c1"># define your credentials here</span>
+<span class="n">access_user</span> <span class="o">=</span> <span class="s1">&#39;your_login&#39;</span>
+<span class="n">access_password</span> <span class="o">=</span> <span class="s1">&#39;your_password&#39;</span>
+       
+ <span class="c1"># here is the RequestTracker URI we try to access</span>
+<span class="n">uri</span> <span class="o">=</span> <span class="s1">&#39;http://your-rt-instance.com/REST/1.0/&#39;</span>
+       
+ <span class="c1"># trying login on rt server</span>
+<span class="n">cj</span> <span class="o">=</span> <span class="n">cookielib</span><span class="o">.</span><span class="n">LWPCookieJar</span><span class="p">()</span>
+<span class="n">opener</span> <span class="o">=</span> <span class="n">urllib2</span><span class="o">.</span><span class="n">build_opener</span><span class="p">(</span><span class="n">urllib2</span><span class="o">.</span><span class="n">HTTPCookieProcessor</span><span class="p">(</span><span class="n">cj</span><span class="p">))</span>
+<span class="n">urllib2</span><span class="o">.</span><span class="n">install_opener</span><span class="p">(</span><span class="n">opener</span><span class="p">)</span>
+<span class="n">data</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;user&#39;</span><span class="p">:</span> <span class="n">access_user</span><span class="p">,</span> <span class="s1">&#39;pass&#39;</span><span class="p">:</span> <span class="n">access_password</span><span class="p">}</span>
+<span class="n">ldata</span> <span class="o">=</span> <span class="n">urllib</span><span class="o">.</span><span class="n">urlencode</span><span class="p">(</span><span class="n">data</span><span class="p">)</span>
+<span class="n">login</span> <span class="o">=</span> <span class="n">urllib2</span><span class="o">.</span><span class="n">Request</span><span class="p">(</span><span class="n">uri</span><span class="p">,</span> <span class="n">ldata</span><span class="p">)</span>
+<span class="k">try</span><span class="p">:</span>
+   <span class="n">response</span> <span class="o">=</span> <span class="n">urllib2</span><span class="o">.</span><span class="n">urlopen</span><span class="p">(</span><span class="n">login</span><span class="p">)</span>
+   <span class="nb">print</span> <span class="n">response</span><span class="o">.</span><span class="n">read</span><span class="p">()</span>
+   <span class="nb">print</span> <span class="s2">&quot;login successful&quot;</span>
+<span class="k">except</span> <span class="n">urllib2</span><span class="o">.</span><span class="n">URLError</span><span class="p">:</span>
+   <span class="c1"># could not connect to server</span>
+   <span class="nb">print</span> <span class="s2">&quot;Not able to login&quot;</span>
+</pre></div>
+<h3><span class="mw-headline" id="Ruby">Ruby</span></h3>
+<pre>#!/usr/bin/env ruby
+require 'net/http'
+
+user = 'username'
+pass = 'password'
+uri = URI('https://rt.example.com/REST/1.0/ticket/123/show')
+
+req = Net::HTTP::Post.new(uri.path)
+req.set_form_data('user' =&gt; user, 'pass' =&gt; pass)
+
+res = Net::HTTP.start(uri.hostname, uri.port, 
+  :use_ssl =&gt; uri.scheme == 'https', 
+  :set_debug_output =&gt; $stderr) do |http|
+  http.request(req)
+end
+
+case res
+when Net::HTTPSuccess, Net::HTTPRedirection
+  # OK
+  puts "HTTP response code:  #{res.code}"
+  puts "HTTP message: #{res.message}"
+  puts "Response:"
+
+  res.each do |key,val|
+    puts "#{key} =&gt; #{val}"
+  end
+
+  puts "Data:"
+  puts res.body
+else
+  res.value
+end
+</pre>
+<h3><span class="mw-headline" id="PHP">PHP</span></h3>
+<div class="mw-highlight mw-highlight-lang-php mw-content-ltr" dir="ltr"><pre><span></span><span class="nv">$username</span> <span class="o">=</span> <span class="nx">rt_user</span><span class="p">;</span>
+<span class="nv">$password</span> <span class="o">=</span> <span class="nx">rt_pass</span><span class="p">;</span>
+<span class="nv">$url</span> <span class="o">=</span> <span class="s2">&quot;http://server.domain.tld/REST/1.0/ticket/&lt;ticket id&gt;/show?user=</span><span class="si">$username</span><span class="s2">&amp;pass=</span><span class="si">$password</span><span class="s2">&quot;</span><span class="p">;</span>
+<span class="nv">$request</span> <span class="o">=</span> <span class="k">new</span> <span class="nx">HttpRequest</span><span class="p">(</span><span class="nv">$url</span><span class="p">,</span> <span class="nx">HTTP_METH_GET</span><span class="p">);</span>
+<span class="cm">/* if you want&#39;s to pass additional parameters */</span>
+<span class="nv">$request</span><span class="o">-&gt;</span><span class="na">addQueryData</span><span class="p">(</span><span class="k">array</span><span class="p">());</span>
+<span class="nv">$response</span> <span class="o">=</span> <span class="nv">$request</span><span class="o">-&gt;</span><span class="na">send</span><span class="p">();</span>
+<span class="nb">print_r</span><span class="p">(</span><span class="nv">$response</span><span class="p">);</span>
+</pre></div>
+<p>OR
+</p>
+<div class="mw-highlight mw-highlight-lang-php mw-content-ltr" dir="ltr"><pre><span></span><span class="nv">$username</span> <span class="o">=</span> <span class="nx">rt_user</span><span class="p">;</span>
+<span class="nv">$password</span> <span class="o">=</span> <span class="nx">rt_pass</span><span class="p">;</span>
+<span class="nv">$url</span> <span class="o">=</span> <span class="s2">&quot;http://server.domain.tld/REST/1.0/ticket/new?user=</span><span class="si">$username</span><span class="s2">&amp;pass=</span><span class="si">$password</span><span class="s2">&quot;</span><span class="p">;</span>
+<span class="nv">$request</span> <span class="o">=</span> <span class="k">new</span> <span class="nx">HttpRequest</span><span class="p">(</span><span class="nv">$url</span><span class="p">,</span> <span class="nx">HTTP_METH_POST</span><span class="p">);</span>
+<span class="c1">// Note&#160;: to add data in custom fields you need to add element like below example</span>
+<span class="c1">// in $post_data array</span>
+<span class="c1">// Example&#160;: \nCF-customfield1:testdata</span>
+<span class="nv">$post_data</span> <span class="o">=</span> <span class="k">array</span><span class="p">(</span>
+    <span class="s2">&quot;content&quot;</span> <span class="o">=&gt;</span> 
+        <span class="s2">&quot;Queue: General&quot;</span> <span class="o">.</span> <span class="nx">PHP_EOL</span> <span class="o">.</span>
+        <span class="s2">&quot;Requestor: user@domain&quot;</span> <span class="o">.</span> <span class="nx">PHP_EOL</span> <span class="o">.</span>
+        <span class="s2">&quot;Subject: REST test 1&quot;</span> <span class="o">.</span> <span class="nx">PHP_EOL</span> <span class="o">.</span>
+        <span class="s2">&quot;Owner: userX&quot;</span> <span class="o">.</span> <span class="nx">PHP_EOL</span> <span class="o">.</span>
+        <span class="s2">&quot;AdminCc: userX&quot;</span> <span class="o">.</span> <span class="nx">PHP_EOL</span> <span class="o">.</span>
+        <span class="s2">&quot;Text: This is a REST test&quot;</span> <span class="o">.</span> <span class="nx">PHP_EOL</span>
+<span class="p">);</span>
+<span class="nv">$request</span><span class="o">-&gt;</span><span class="na">addPostFields</span><span class="p">(</span><span class="nv">$post_data</span><span class="p">);</span>
+
+<span class="k">try</span>
+<span class="p">{</span>
+    <span class="nx">response</span> <span class="o">=</span> <span class="nv">$request</span><span class="o">-&gt;</span><span class="na">send</span><span class="p">()</span><span class="o">-&gt;</span><span class="na">getBody</span><span class="p">();</span>
+    <span class="nb">print_r</span><span class="p">(</span><span class="nv">$response</span><span class="p">);</span>
+<span class="p">}</span> <span class="k">catch</span> <span class="p">(</span><span class="nx">HttpException</span> <span class="nv">$ex</span><span class="p">)</span> <span class="p">{</span>
+    <span class="k">echo</span> <span class="nv">$ex</span><span class="p">;</span>
+<span class="p">}</span>
+</pre></div>
+<h3><span id="C.23"></span><span class="mw-headline" id="C#">C#</span></h3>
+<pre>// Using "WCF REST Starter Kit" (http://msdn.microsoft.com/en-us/netframework/cc950529.aspx)
+using (var client = new HttpClient("http://rt.site.com/REST/1.0/"))
+{
+   client.TransportSettings.Cookies = new CookieContainer();
+
+   var form = new HttpUrlEncodedForm();
+   form.Add("user", "LOGIN");
+   form.Add("pass", "PASSWORD");
+
+   client.Post(string.Empty, form.CreateHttpContent());
+
+   // 1. Get ticket data
+   using (var request = client.Get("ticket/1234/show"))
+   {
+      string content = request.Content.ReadAsString();
+      // Some logic
+   }
+
+   // 2. Post ticket reply with attachment
+   var formPost = new HttpMultipartMimeForm();
+   byte[] attachment = new byte[];
+   string content = string.Empty;
+         
+   // Store data in attachment
+   // Store data in content string ("Field: Value" line by line)
+   // ...
+         
+   formPost.Add("content", content);
+   formPost.Add("attachment_1", "attachment_1", HttpContent.Create(attachment, "application/octet-stream"));
+                             
+   using (var post = client.Post("ticket/1234/comment"), formPost.CreateHttpContent()))
+      // Some logic
+}</pre>
+<h3><span id="Powershell_.28v3.29"></span><span class="mw-headline" id="Powershell_(v3)">Powershell (v3)</span></h3>
+<ul><li>Escape Powershell reserved chars in user/pass</li>
+<li>If connecting via SSL, use fqdn of server, not cname</li>
+<li>Use `n (newline) when composing new ticket structure</li></ul>
+<p>Read RT queue based on query: 
+</p>
+<pre>$servername="Your Servername here"
+$u="user=Username"
+$p="pass=Password"
+$q="search/ticket?query=(Status='open' OR Status='new') AND (Queue='GENERAL' OR Queue='FOO') AND Owner='Nobody'"
+$uri="https://" + $servername + "/rt/REST/1.0/" + $q + "&amp;" + $u + "&amp;" + $p
+$RT=Invoke-WebRequest -Uri  $uri -SessionVariable sess
+$rt.Content
+</pre>
+<p><br />
+</p>
+<h3><span class="mw-headline" id="VB.NET">VB.NET</span></h3>
+<pre>Public Sub AddAttachmentToRT(ByVal url As String, ByVal fileName As String, ByVal filePath As String)
+
+        Dim dataBoundary As String = "--xYzZY"
+        Dim request As HttpWebRequest
+        Dim fileType As String = "image/jpeg"
+
+        'Create a POST web request to the REST interface using the passed URL
+        request = CType(WebRequest.Create(url), HttpWebRequest)
+        request.ContentType = "multipart/form-data; boundary=xYzZY"
+        request.Method = "POST"
+        request.KeepAlive = True
+
+        'Write the request to the requestStream
+        Using requestStream As IO.Stream = request.GetRequestStream()
+
+            'Create a variable "attachment_1" in the POST, specify the file name and file type
+            Dim preAttachment As String = dataBoundary + vbCrLf _
+            + "Content-Disposition: form-data; name=""attachment_1""; filename=""" + fileName + """" + vbCrLf _
+            + "Content-Type: " + fileType + vbCrLf _
+            + vbCrLf
+
+            'Convert this preAttachment string to bytes
+            Dim preAttachmentBytes As Byte() = System.Text.Encoding.UTF8.GetBytes(preAttachment)
+
+            'Write this preAttachment string to the stream
+            requestStream.Write(preAttachmentBytes, 0, preAttachmentBytes.Length)
+
+            'Write the file as bytes to the stream by passing its exact location
+            Using fileStream As New IO.FileStream(Server.MapPath(filePath + fileName), IO.FileMode.Open, IO.FileAccess.Read)
+
+                Dim buffer(4096) As Byte
+                Dim bytesRead As Int32 = fileStream.Read(buffer, 0, buffer.Length)
+
+                Do While (bytesRead &gt; 0)
+
+                    requestStream.Write(buffer, 0, bytesRead)
+                    bytesRead = fileStream.Read(buffer, 0, buffer.Length)
+
+                Loop
+
+            End Using
+
+            'Create a variable named content in the POST, specify the attachment name and comment text
+            Dim postAttachment As String = vbCrLf _
+            + dataBoundary + vbCrLf _
+            + "Content-Disposition: form-data; name=""content""" + vbCrLf _
+            + vbCrLf _
+            + "Action: comment" + vbLf _
+            + "Attachment: " + fileName + vbCrLf _
+            + "Text: Whatever You Want" + vbCrLf _
+            + vbCrLf _
+            + "--xYzZY--"
+
+            'Convert postAttachment string to bytes
+            Dim postAttachmentBytes As Byte() = System.Text.Encoding.UTF8.GetBytes(postAttachment)
+
+            'Write the postAttachment string to the stream
+            requestStream.Write(postAttachmentBytes, 0, postAttachmentBytes.Length)
+
+        End Using
+
+        Dim response As Net.WebResponse = Nothing
+
+        'Get the response from our REST request to RT
+        'Required to capture response, without this Try-Catch attaching will fail
+        Try
+            response = request.GetResponse()
+
+            Using responseStream As IO.Stream = response.GetResponseStream()
+
+                Using responseReader As New IO.StreamReader(responseStream)
+
+                    Dim responseText = responseReader.ReadToEnd()
+
+                End Using
+
+            End Using
+
+        Catch exception As Net.WebException
+
+            response = exception.Response
+
+            If (response IsNot Nothing) Then
+
+                Using reader As New IO.StreamReader(response.GetResponseStream())
+
+                    Dim responseText = reader.ReadToEnd()
+
+                End Using
+
+                response.Close()
+
+            End If
+
+        Finally
+
+            request = Nothing
+
+        End Try
+
+    End Sub
+</pre>
+<h3><span class="mw-headline" id="JavaScript">JavaScript</span></h3>
+<p>This is an example of updating the RefersTo field for a ticket. Assuming Zepto/jQuery is also being used.
+</p>
+<pre>function link_back(url, ticket_num, rt) {
+    var data, link;
+    link = "refersto: " + url;
+    data = {"content": link};
+
+    $.ajax({
+        type: "POST",
+        url: rt + ticket_num + "/links",
+        data: data,
+        success: function (reply) {
+            console.log(reply);
+        }
+    });
+}
+
+var url = "<a rel="nofollow" class="external free" href="https://www.wikipedia.org/">https://www.wikipedia.org/</a>";
+var ticket_num = "123456";
+var rt = "<a rel="nofollow" class="external free" href="https://some.rt.url/REST/1.0/ticket/">https://some.rt.url/REST/1.0/ticket/</a>";
+
+link_back(url, ticket_num, rt);
+</pre>
+<h2><span class="mw-headline" id="Convenience_libraries">Convenience libraries</span></h2>
+<p>There are libraries which do much of the low-level work shown in the examples below for you, and provide an easier programming interface for dealing with RT:
+</p>
+<table class="wikitable">
+<tbody><tr>
+<th>Language
+</th>
+<th>Package/Module
+</th>
+<th>Source
+</th>
+<th>Example
+</th>
+<th>Note
+</th></tr>
+<tr>
+<td><b>Perl</b>
+</td>
+<td><a rel="nofollow" class="external text" href="http://metacpan.org/module/RT::Client::REST">RT::Client::REST</a>
+</td>
+<td><a rel="nofollow" class="external text" href="http://rt-client-rest.googlecode.com/svn/trunk/">Google Code</a>
+</td>
+<td><code>"perl -MCPAN -e install RT::Client::REST"</code>
+</td>
+<td>
+</td></tr>
+<tr>
+<td><b>Ruby</b>
+</td>
+<td><a rel="nofollow" class="external text" href="http://rubygems.org/gems/rt-client">rt-client</a>
+</td>
+<td><a rel="nofollow" class="external text" href="https://github.com/uidzip/rt-client">GitHub</a>
+</td>
+<td><code>gem install rt-client</code>
+</td>
+<td>
+</td></tr>
+<tr>
+<td><b>Ruby</b>
+</td>
+<td><a rel="nofollow" class="external text" href="http://rubygems.org/gems/roart">Roart</a>
+</td>
+<td><a rel="nofollow" class="external text" href="https://github.com/pjdavis/roart">GitHub</a>
+</td>
+<td><code>gem install roart</code>
+</td>
+<td>
+</td></tr>
+<tr>
+<td><b>Python</b>
+</td>
+<td><a rel="nofollow" class="external text" href="https://github.com/Rickerd0613/rtapi">rtapi</a>
+</td>
+<td><a rel="nofollow" class="external text" href="https://github.com/Rickerd0613/rtapi">GitHub</a>
+</td>
+<td><code>pip install rtapi</code>
+</td>
+<td>
+</td></tr>
+<tr>
+<td><b>Python</b>
+</td>
+<td><a rel="nofollow" class="external text" href="https://github.com/z4r/python-rtkit">rtkit</a>
+</td>
+<td><a rel="nofollow" class="external text" href="https://github.com/z4r/python-rtkit">GitHub</a>
+</td>
+<td><code>pip install python-rtkit</code>
+</td>
+<td>
+</td></tr>
+<tr>
+<td><b>Python</b>
+</td>
+<td><a rel="nofollow" class="external text" href="https://github.com/CZ-NIC/python-rt">python-rt</a>
+</td>
+<td><a rel="nofollow" class="external text" href="https://github.com/CZ-NIC/python-rt">Github</a>
+</td>
+<td><code>pip install rt</code>
+</td>
+<td>
+</td></tr>
+<tr>
+<td><b>Java</b>
+</td>
+<td><a rel="nofollow" class="external text" href="http://projects.boksa.de/RT-REST/">RT-REST</a>
+</td>
+<td><a rel="nofollow" class="external text" href="https://github.com/bboksa/RT-REST">GitHub</a>
+</td>
+<td><code>N/A</code>
+</td>
+<td>
+</td></tr>
+<tr>
+<td><b>PHP</b>
+</td>
+<td><a rel="nofollow" class="external text" href="https://github.com/dersam/RTPHPLib">RTPHPLib</a>
+</td>
+<td><a rel="nofollow" class="external text" href="https://github.com/dersam/RTPHPLib">GitHub</a>
+</td>
+<td>composer require dersam/rt-php-lib
+</td>
+<td>
+</td></tr></tbody></table>
+<!-- 
+NewPP limit report
+Cached time: 20250808213521
+Cache expiry: 86400
+Reduced expiry: false
+Complications: [show‐toc]
+CPU time usage: 0.080 seconds
+Real time usage: 0.093 seconds
+Preprocessor visited node count: 261/1000000
+Post‐expand include size: 42/2097152 bytes
+Template argument size: 0/2097152 bytes
+Highest expansion depth: 2/100
+Expensive parser function count: 4/100
+Unstrip recursion depth: 0/20
+Unstrip post‐expand size: 21806/5000000 bytes
+-->
+<!--
+Transclusion expansion time report (%,ms,calls,template)
+100.00%    0.000      1 -total
+-->
+
+<!-- Saved in parser cache with key bestpractical_mediawiki1459887241:pcache:idhash:592-0!canonical and timestamp 20250808213520 and revision id 27222. Rendering was triggered because: page-view
+ -->
+</div>
+<div class="printfooter" data-nosnippet="">Retrieved from "<a dir="ltr" href="https://rt-wiki.bestpractical.com/index.php?title=REST&amp;oldid=27222">https://rt-wiki.bestpractical.com/index.php?title=REST&amp;oldid=27222</a>"</div></div>
+		<div id="catlinks" class="catlinks catlinks-allhidden" data-mw="interface"></div>
+	</div>
+</div>
+
+<div id="mw-navigation">
+	<h2>Navigation menu</h2>
+	<div id="mw-head">
+		
+<nav id="p-personal" class="vector-menu mw-portlet mw-portlet-personal vector-user-menu-legacy" aria-labelledby="p-personal-label" role="navigation"  >
+	<h3
+		id="p-personal-label"
+		
+		class="vector-menu-heading "
+	>
+		<span class="vector-menu-heading-label">Personal tools</span>
+	</h3>
+	<div class="vector-menu-content">
+		
+		<ul class="vector-menu-content-list">
+			
+			<li id="pt-login" class="mw-list-item"><a href="/index.php?title=Special:UserLogin&amp;returnto=REST" title="You are encouraged to log in; however, it is not mandatory [o]" accesskey="o"><span>Log in</span></a></li><li id="pt-createaccount" class="mw-list-item"><a href="/wiki/Special:RequestAccount" title="You are encouraged to create an account and log in; however, it is not mandatory"><span>Request account</span></a></li>
+		</ul>
+		
+	</div>
+</nav>
+
+		<div id="left-navigation">
+			
+<nav id="p-namespaces" class="vector-menu mw-portlet mw-portlet-namespaces vector-menu-tabs vector-menu-tabs-legacy" aria-labelledby="p-namespaces-label" role="navigation"  >
+	<h3
+		id="p-namespaces-label"
+		
+		class="vector-menu-heading "
+	>
+		<span class="vector-menu-heading-label">Namespaces</span>
+	</h3>
+	<div class="vector-menu-content">
+		
+		<ul class="vector-menu-content-list">
+			
+			<li id="ca-nstab-main" class="selected mw-list-item"><a href="/wiki/REST" title="View the content page [c]" accesskey="c"><span>Page</span></a></li><li id="ca-talk" class="mw-list-item"><a href="/wiki/Talk:REST" rel="discussion" title="Discussion about the content page [t]" accesskey="t"><span>Discussion</span></a></li>
+		</ul>
+		
+	</div>
+</nav>
+
+			
+<nav id="p-variants" class="vector-menu mw-portlet mw-portlet-variants emptyPortlet vector-menu-dropdown" aria-labelledby="p-variants-label" role="navigation"  >
+	<input type="checkbox"
+		id="p-variants-checkbox"
+		role="button"
+		aria-haspopup="true"
+		data-event-name="ui.dropdown-p-variants"
+		class="vector-menu-checkbox"
+		aria-labelledby="p-variants-label"
+	/>
+	<label
+		id="p-variants-label"
+		
+		class="vector-menu-heading "
+	>
+		<span class="vector-menu-heading-label">English</span>
+	</label>
+	<div class="vector-menu-content">
+		
+		<ul class="vector-menu-content-list">
+			
+			
+		</ul>
+		
+	</div>
+</nav>
+
+		</div>
+		<div id="right-navigation">
+			
+<nav id="p-views" class="vector-menu mw-portlet mw-portlet-views vector-menu-tabs vector-menu-tabs-legacy" aria-labelledby="p-views-label" role="navigation"  >
+	<h3
+		id="p-views-label"
+		
+		class="vector-menu-heading "
+	>
+		<span class="vector-menu-heading-label">Views</span>
+	</h3>
+	<div class="vector-menu-content">
+		
+		<ul class="vector-menu-content-list">
+			
+			<li id="ca-view" class="selected mw-list-item"><a href="/wiki/REST"><span>Read</span></a></li><li id="ca-viewsource" class="mw-list-item"><a href="/index.php?title=REST&amp;action=edit" title="This page is protected.&#10;You can view its source [e]" accesskey="e"><span>View source</span></a></li><li id="ca-history" class="mw-list-item"><a href="/index.php?title=REST&amp;action=history" title="Past revisions of this page [h]" accesskey="h"><span>View history</span></a></li>
+		</ul>
+		
+	</div>
+</nav>
+
+			
+<nav id="p-cactions" class="vector-menu mw-portlet mw-portlet-cactions emptyPortlet vector-menu-dropdown" aria-labelledby="p-cactions-label" role="navigation"  title="More options" >
+	<input type="checkbox"
+		id="p-cactions-checkbox"
+		role="button"
+		aria-haspopup="true"
+		data-event-name="ui.dropdown-p-cactions"
+		class="vector-menu-checkbox"
+		aria-labelledby="p-cactions-label"
+	/>
+	<label
+		id="p-cactions-label"
+		
+		class="vector-menu-heading "
+	>
+		<span class="vector-menu-heading-label">More</span>
+	</label>
+	<div class="vector-menu-content">
+		
+		<ul class="vector-menu-content-list">
+			
+			
+		</ul>
+		
+	</div>
+</nav>
+
+			
+<div id="p-search" role="search" class="vector-search-box-vue  vector-search-box-show-thumbnail vector-search-box-auto-expand-width vector-search-box">
+	<h3 >Search</h3>
+	<form action="/index.php" id="searchform" class="vector-search-box-form">
+		<div id="simpleSearch"
+			class="vector-search-box-inner"
+			 data-search-loc="header-navigation">
+			<input class="vector-search-box-input"
+				 type="search" name="search" placeholder="Search Request Tracker Wiki" aria-label="Search Request Tracker Wiki" autocapitalize="sentences" title="Search Request Tracker Wiki [f]" accesskey="f" id="searchInput"
+			>
+			<input type="hidden" name="title" value="Special:Search">
+			<input id="mw-searchButton"
+				 class="searchButton mw-fallbackSearchButton" type="submit" name="fulltext" title="Search the pages for this text" value="Search">
+			<input id="searchButton"
+				 class="searchButton" type="submit" name="go" title="Go to a page with this exact name if it exists" value="Go">
+		</div>
+	</form>
+</div>
+
+		</div>
+	</div>
+	
+<div id="mw-panel" class="vector-legacy-sidebar">
+	<div id="p-logo" role="banner">
+		<a class="mw-wiki-logo" href="/wiki/Main_Page"
+			title="Visit the main page"></a>
+	</div>
+	
+<nav id="p-navigation" class="vector-menu mw-portlet mw-portlet-navigation vector-menu-portal portal" aria-labelledby="p-navigation-label" role="navigation"  >
+	<h3
+		id="p-navigation-label"
+		
+		class="vector-menu-heading "
+	>
+		<span class="vector-menu-heading-label">Navigation</span>
+	</h3>
+	<div class="vector-menu-content">
+		
+		<ul class="vector-menu-content-list">
+			
+			<li id="n-mainpage-description" class="mw-list-item"><a href="/wiki/Main_Page" title="Visit the main page [z]" accesskey="z"><span>Main page</span></a></li><li id="n-recentchanges" class="mw-list-item"><a href="/wiki/Special:RecentChanges" title="A list of recent changes in the wiki [r]" accesskey="r"><span>Recent changes</span></a></li><li id="n-randompage" class="mw-list-item"><a href="/wiki/Special:Random" title="Load a random page [x]" accesskey="x"><span>Random page</span></a></li><li id="n-help-mediawiki" class="mw-list-item"><a href="https://www.mediawiki.org/wiki/Special:MyLanguage/Help:Contents"><span>Help about MediaWiki</span></a></li>
+		</ul>
+		
+	</div>
+</nav>
+
+	
+<nav id="p-tb" class="vector-menu mw-portlet mw-portlet-tb vector-menu-portal portal" aria-labelledby="p-tb-label" role="navigation"  >
+	<h3
+		id="p-tb-label"
+		
+		class="vector-menu-heading "
+	>
+		<span class="vector-menu-heading-label">Tools</span>
+	</h3>
+	<div class="vector-menu-content">
+		
+		<ul class="vector-menu-content-list">
+			
+			<li id="t-whatlinkshere" class="mw-list-item"><a href="/wiki/Special:WhatLinksHere/REST" title="A list of all wiki pages that link here [j]" accesskey="j"><span>What links here</span></a></li><li id="t-recentchangeslinked" class="mw-list-item"><a href="/wiki/Special:RecentChangesLinked/REST" rel="nofollow" title="Recent changes in pages linked from this page [k]" accesskey="k"><span>Related changes</span></a></li><li id="t-specialpages" class="mw-list-item"><a href="/wiki/Special:SpecialPages" title="A list of all special pages [q]" accesskey="q"><span>Special pages</span></a></li><li id="t-print" class="mw-list-item"><a href="javascript:print();" rel="alternate" title="Printable version of this page [p]" accesskey="p"><span>Printable version</span></a></li><li id="t-permalink" class="mw-list-item"><a href="/index.php?title=REST&amp;oldid=27222" title="Permanent link to this revision of this page"><span>Permanent link</span></a></li><li id="t-info" class="mw-list-item"><a href="/index.php?title=REST&amp;action=info" title="More information about this page"><span>Page information</span></a></li>
+		</ul>
+		
+	</div>
+</nav>
+
+	
+</div>
+
+</div>
+
+<footer id="footer" class="mw-footer" role="contentinfo" >
+	<ul id="footer-info">
+	<li id="footer-info-lastmod"> This page was last edited on 6 March 2025, at 14:19.</li>
+	<li id="footer-info-copyright">Content is available under <a href="/wiki/BPS_Licensing" title="BPS Licensing">Creative Commons Attribution-ShareAlike 3.0 Unported</a> unless otherwise noted.</li>
+</ul>
+
+	<ul id="footer-places">
+	<li id="footer-places-privacy"><a href="/wiki/Request_Tracker_Wiki:Privacy_policy">Privacy policy</a></li>
+	<li id="footer-places-about"><a href="/wiki/Request_Tracker_Wiki:About">About Request Tracker Wiki</a></li>
+	<li id="footer-places-disclaimers"><a href="/wiki/Request_Tracker_Wiki:General_disclaimer">Disclaimers</a></li>
+</ul>
+
+	<ul id="footer-icons" class="noprint">
+	<li id="footer-copyrightico"><a href="https://creativecommons.org/licenses/by-sa/3.0/"><img src="https://licensebuttons.net/l/by-sa/3.0/88x31.png" alt="Creative Commons Attribution-ShareAlike 3.0 Unported" width="88" height="31" loading="lazy"></a></li>
+	<li id="footer-poweredbyico"><a href="https://www.mediawiki.org/"><img src="/resources/assets/poweredby_mediawiki_88x31.png" alt="Powered by MediaWiki" srcset="/resources/assets/poweredby_mediawiki_132x47.png 1.5x, /resources/assets/poweredby_mediawiki_176x62.png 2x" width="88" height="31" loading="lazy"></a></li>
+</ul>
+
+</footer>
+
+<script src="https://www.googletagmanager.com/gtag/js?id=G-7FGVCK8FDV" async=""></script><script>
+window.dataLayer = window.dataLayer || [];
+
+function gtag(){dataLayer.push(arguments);}
+gtag('js', new Date());
+gtag('config', 'G-7FGVCK8FDV', {});
+</script>
+
+<script>(RLQ=window.RLQ||[]).push(function(){mw.config.set({"wgBackendResponseTime":457,"wgPageParseReport":{"limitreport":{"cputime":"0.080","walltime":"0.093","ppvisitednodes":{"value":261,"limit":1000000},"postexpandincludesize":{"value":42,"limit":2097152},"templateargumentsize":{"value":0,"limit":2097152},"expansiondepth":{"value":2,"limit":100},"expensivefunctioncount":{"value":4,"limit":100},"unstrip-depth":{"value":0,"limit":20},"unstrip-size":{"value":21806,"limit":5000000},"timingprofile":["100.00%    0.000      1 -total"]},"cachereport":{"timestamp":"20250808213521","ttl":86400,"transientcontent":false}}});});</script>
+</body>
+</html>
