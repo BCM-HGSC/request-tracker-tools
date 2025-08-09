@@ -1,0 +1,5 @@
+RT/4.4.3 200 Ok
+
+PK      ! sample excel file content (binary data would be here)
+This is a mock Excel file for testing purposes.
+The actual binary content would contain the OpenXML structure.

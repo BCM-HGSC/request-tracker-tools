@@ -2,6 +2,7 @@
 
 from importlib.metadata import PackageNotFoundError, version
 
+from .downloader import TicketDownloader, download_ticket
 from .session import (
     RTResponseData,
     RTResponseError,
@@ -21,6 +22,8 @@ __all__ = [
     "RTResponseData",
     "RTResponseError",
     "RTSession",
+    "TicketDownloader",
+    "download_ticket",
     "dump_response",
     "fetch_password",
     "load_cookies",

@@ -1,0 +1,24 @@
+RT/4.4.3 200 Ok
+
+id: ticket/123
+Queue: General
+Owner: user@example.com
+Creator: reporter@example.com
+Subject: Sample ticket for testing automation
+Status: open
+Priority: 3
+InitialPriority: 0
+FinalPriority: 0
+Requestors: reporter@example.com
+Cc: 
+AdminCc: 
+Created: Fri Aug 09 10:30:00 2025
+Starts: Not set
+Started: Not set
+Due: Not set
+Resolved: Not set
+Told: Not set
+LastUpdated: Fri Aug 09 14:22:15 2025
+TimeEstimated: 0
+TimeWorked: 0
+TimeLeft: 0

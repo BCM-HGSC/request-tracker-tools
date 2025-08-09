@@ -1,0 +1,24 @@
+RT/4.4.3 200 Ok
+
+id: 790
+Subject: data_file.xlsx
+Creator: user@example.com
+Created: Fri Aug 09 14:22:15 2025
+Transaction: 457
+Parent: 456
+MessageId: 
+Filename: data_file.xlsx
+ContentType: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet
+ContentEncoding: 
+Headers: Subject: Re: Sample ticket for testing automation
+From: user@example.com
+Reply-To: 
+In-Reply-To: <rt-4.4.3-123-456.456-1-0@rt.example.com>
+References: <rt-4.4.3-123-456.456-1-0@rt.example.com>
+Message-ID: <rt-4.4.3-123-457.457-2-1@rt.example.com>
+Precedence: bulk
+X-RT-Loop-Prevention: rt.example.com
+RT-Ticket: rt.example.com #123
+Managed-by: RT 4.4.3 (https://bestpractical.com/rt/)
+
+Content: Excel file attachment for the ticket.

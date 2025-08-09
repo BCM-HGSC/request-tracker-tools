@@ -1,0 +1,5 @@
+RT/4.4.3 200 Ok
+
+PK\x03\x04Real Excel file content would be binary data here.
+This is mock Excel content for testing the download automation.
+The actual file would contain the OpenXML ZIP structure.

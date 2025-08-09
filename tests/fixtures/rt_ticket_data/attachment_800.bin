@@ -1,0 +1,15 @@
+RT/4.4.3 200 Ok
+
+id: 800
+Subject: document.pdf
+Creator: user@example.com
+Created: Fri Aug 09 15:30:00 2025
+Transaction: 458
+Parent: 457
+MessageId: 
+Filename: document.pdf
+ContentType: application/pdf
+ContentEncoding: 
+Headers: 
+
+Content: PDF file attachment without email headers.

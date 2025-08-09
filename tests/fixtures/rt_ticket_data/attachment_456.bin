@@ -1,0 +1,26 @@
+RT/4.4.3 200 Ok
+
+id: 456
+Subject: (Unnamed)
+Creator: reporter@example.com
+Created: Fri Aug 09 10:30:00 2025
+Transaction: 456
+Parent: 0
+MessageId: 
+Filename: 
+ContentType: text/plain
+ContentEncoding: 
+Headers: Subject: Sample ticket for testing automation
+From: reporter@example.com
+Reply-To: 
+In-Reply-To: 
+References: 
+Message-ID: <rt-4.4.3-123-456.456-1-0@rt.example.com>
+Precedence: bulk
+X-RT-Loop-Prevention: rt.example.com
+RT-Ticket: rt.example.com #123
+Managed-by: RT 4.4.3 (https://bestpractical.com/rt/)
+
+Content: This is a sample ticket created for testing the automation system.
+
+The ticket includes some basic information and will have attachments added.
