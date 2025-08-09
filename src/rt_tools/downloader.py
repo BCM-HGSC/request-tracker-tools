@@ -102,7 +102,7 @@ class TicketDownloader:
             )
             return
 
-        attachment_ids = self._parse_attachment_ids(rt_data.payload.decode('utf-8'))
+        attachment_ids = self._parse_attachment_ids(rt_data.payload.decode("utf-8"))
         if not attachment_ids:
             logger.debug(f"No attachments found for ticket {ticket_id}")
             return
@@ -125,10 +125,10 @@ class TicketDownloader:
         Returns list of attachment IDs as strings.
         """
         attachment_ids = []
-        for line in attachments_text.strip().split('\n'):
-            if ':' in line:
+        for line in attachments_text.strip().split("\n"):
+            if ":" in line:
                 # Extract ID from beginning of line
-                match = re.match(r'^(\d+):', line.strip())
+                match = re.match(r"^(\d+):", line.strip())
                 if match:
                     attachment_ids.append(match.group(1))
 
@@ -142,7 +142,7 @@ class TicketDownloader:
         logger.debug(f"Downloading attachment {attachment_id} for ticket {ticket_id}")
 
         # Get attachment metadata to determine filename
-        url = self.session.rest_url('ticket', ticket_id, 'attachments', attachment_id)
+        url = self.session.rest_url("ticket", ticket_id, "attachments", attachment_id)
         response = self.session.get(url)
         rt_data = parse_rt_response(response)
 
@@ -154,17 +154,17 @@ class TicketDownloader:
             return
 
         filename = self._extract_filename(
-            rt_data.payload.decode('utf-8'), attachment_id
+            rt_data.payload.decode("utf-8"), attachment_id
         )
 
         # Skip if this is an outgoing email (common pattern to exclude)
-        if self._is_outgoing_email(rt_data.payload.decode('utf-8')):
+        if self._is_outgoing_email(rt_data.payload.decode("utf-8")):
             logger.debug(f"Skipping outgoing email attachment {attachment_id}")
             return
 
         # Get attachment content
         url = self.session.rest_url(
-            'ticket', ticket_id, 'attachments', attachment_id, 'content'
+            "ticket", ticket_id, "attachments", attachment_id, "content"
         )
         response = self.session.get(url)
         rt_data = parse_rt_response(response)
@@ -184,19 +184,19 @@ class TicketDownloader:
     def _extract_filename(self, attachment_metadata: str, attachment_id: str) -> str:
         """Extract filename from attachment metadata or generate default name."""
         # Look for Filename: field
-        for line in attachment_metadata.split('\n'):
-            if line.startswith('Filename:'):
-                filename = line.split(':', 1)[1].strip()
-                if filename and filename != '':
+        for line in attachment_metadata.split("\n"):
+            if line.startswith("Filename:"):
+                filename = line.split(":", 1)[1].strip()
+                if filename and filename != "":
                     return filename
 
         # Look for Subject: field as fallback
-        for line in attachment_metadata.split('\n'):
-            if line.startswith('Subject:'):
-                subject = line.split(':', 1)[1].strip()
-                if subject and subject not in ['(Unnamed)', '']:
+        for line in attachment_metadata.split("\n"):
+            if line.startswith("Subject:"):
+                subject = line.split(":", 1)[1].strip()
+                if subject and subject not in ["(Unnamed)", ""]:
                     # Clean subject to be filesystem-safe
-                    safe_subject = re.sub(r'[^\w\-_\.]', '_', subject)
+                    safe_subject = re.sub(r"[^\w\-_\.]", "_", subject)
                     return safe_subject
 
         # Default to attachment ID
@@ -206,13 +206,13 @@ class TicketDownloader:
         """Check if attachment represents an outgoing email to be excluded."""
         # Look for indicators of outgoing emails in headers
         headers_section = False
-        for line in attachment_metadata.split('\n'):
-            if line.startswith('Headers:'):
+        for line in attachment_metadata.split("\n"):
+            if line.startswith("Headers:"):
                 headers_section = True
                 continue
-            if headers_section and line.startswith('Content:'):
+            if headers_section and line.startswith("Content:"):
                 break
-            if headers_section and 'X-RT-Loop-Prevention:' in line:
+            if headers_section and "X-RT-Loop-Prevention:" in line:
                 # This is typically present in RT-generated emails
                 return True
 
@@ -229,4 +229,3 @@ def download_ticket(session: RTSession, ticket_id: str, target_dir: Path) -> Non
     """
     downloader = TicketDownloader(session)
     downloader.download_ticket(ticket_id, target_dir)
-
