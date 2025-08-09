@@ -16,7 +16,10 @@ def dump_ticket():
             session.print_cookies()
 
         if args.output:
-            with open(args.output, "wb") as f:
+            from pathlib import Path
+            output_path = Path(args.output)
+            output_path.parent.mkdir(parents=True, exist_ok=True)
+            with open(output_path, "wb") as f:
                 session.dump_ticket(args.id_string, *args.parts, file=f)
         else:
             session.dump_ticket(args.id_string, *args.parts)

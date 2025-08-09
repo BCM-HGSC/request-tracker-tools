@@ -17,10 +17,8 @@ def test_dump_ticket_file_output(tmp_path):
 
     Requires actual RT server access and valid ticket/attachment.
     """
-    # Create output directory structure
-    output_dir = tmp_path / "37525" / "attachments"
-    output_dir.mkdir(parents=True, exist_ok=True)
-    output_file = output_dir / "1483996.bin"
+    # Define output file path (directories will be created automatically)
+    output_file = tmp_path / "37525" / "attachments" / "1483996.bin"
 
     # Command to test
     cmd = [
@@ -93,7 +91,7 @@ def test_dump_ticket_invalid_attachment(tmp_path):
 
 @pytest.mark.integration
 def test_dump_ticket_output_directory_creation(tmp_path):
-    """Test that dump-ticket can create parent directories."""
+    """Test that dump-ticket automatically creates parent directories."""
     # Use a deeply nested path that doesn't exist
     output_file = tmp_path / "deep" / "nested" / "path" / "attachment.bin"
 
@@ -106,19 +104,26 @@ def test_dump_ticket_output_directory_creation(tmp_path):
         str(output_file),
     ]
 
-    # This should fail because parent directories don't exist
-    # (dump-ticket doesn't create parent dirs - that's expected behavior)
+    # This should succeed because dump-ticket now creates parent directories
     result = subprocess.run(cmd, capture_output=True, text=False, timeout=30)
 
-    # Should fail with file not found or similar error
-    assert result.returncode != 0, (
-        "Command should fail when parent directories don't exist"
+    # Should succeed with automatic directory creation
+    assert result.returncode == 0, (
+        f"dump-ticket command failed with return code {result.returncode}\n"
+        f"stderr: {result.stderr.decode('utf-8', errors='replace')}"
     )
 
-    # File should not be created
-    assert not output_file.exists(), (
-        "Output file should not exist when parent directories missing"
+    # File should be created with parent directories
+    assert output_file.exists(), (
+        "Output file should exist with automatically created parent directories"
     )
+
+    # Verify the nested directories were created
+    assert output_file.parent.exists(), "Parent directories should be created"
+    assert (tmp_path / "deep" / "nested" / "path").exists(), "Nested path should exist"
+
+    # File should have content
+    assert output_file.stat().st_size > 0, "Output file should contain attachment data"
 
 
 @pytest.mark.integration
