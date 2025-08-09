@@ -43,7 +43,11 @@ def parse_rt_response(response: Response) -> RTResponseData:
 
     Splits RT response content into version, status_code, status_text, is_ok,
     and payload. RT responses follow the format:
-    RT/{version} {status_code} {status_text}\n\n{payload}\n\n\n
+    RT/{version} {status_code} {status_text}\n\n{payload}{content_terminator}
+    where
+        content_terminator = (
+            "\n\n\n" if response.url.rstrip("/").endswith("/content") else ""
+        )
 
     Args:
         response: The requests.Response object to parse
@@ -58,7 +62,7 @@ def parse_rt_response(response: Response) -> RTResponseData:
         raise RTResponseError("Empty response content", response)
 
     # Parse RT header using regex
-    pattern = rb"^RT/([\d.a-zA-Z]+)\s+(\d+)\s+([^\r\n]+)\r?\n\r?\n"
+    pattern = rb"^RT/([\d.a-zA-Z]+)\s+(\d+)\s+([^\n]+)\n\n"
     header_match = match(pattern, response.content)
     if not header_match:
         prefix = response.content[:50]
@@ -71,19 +75,28 @@ def parse_rt_response(response: Response) -> RTResponseData:
     version = header_match.group(1).decode("ascii")
     status_code = int(header_match.group(2).decode("ascii"))
     status_text = header_match.group(3).decode("ascii")
+    # is_ok is True only for "200 Ok" responses
+    is_ok = status_code == 200 and status_text == "Ok"
+    # is_ok = False
+    if is_ok:
+        logger.debug(f"RT/{version} {status_code} {status_text}")
+    else:
+        logger.warning(f"RT/{version} {status_code} {status_text}")
 
     # Extract payload by removing header and trailing suffix (3 newlines)
     header_end = header_match.end()
     payload = response.content[header_end:]
 
-    # Remove trailing suffix (3 newlines) if present - handle both \n and \r\n
-    if payload.endswith(b"\r\n\r\n\r\n"):
-        payload = payload[:-6]
-    elif payload.endswith(b"\n\n\n"):
-        payload = payload[:-3]
-
-    # is_ok is True only for "200 Ok" responses
-    is_ok = status_code == 200 and status_text == "Ok"
+    # Remove trailing suffix (3 newlines) if present or note error
+    # Only applies to URLs ending with "/content" or "/content/"
+    if response.url.rstrip("/").endswith("/content"):
+        if payload.endswith(b"\n\n\n"):
+            payload = payload[:-3]
+        else:
+            logger.error(
+                "Abnormal end of content payload. "
+                f"Should be '\\n\\n\\n'; got {payload[-3:]!r}"
+            )
 
     return RTResponseData(
         version=version,
@@ -92,33 +105,6 @@ def parse_rt_response(response: Response) -> RTResponseData:
         is_ok=is_ok,
         payload=payload,
     )
-
-
-def validate_rt_response(response: Response) -> None:
-    """Validate RT API response format and raise RTResponseError if invalid.
-
-    RT responses should start with b"RT/x.x.x 200 Ok\n\n" pattern.
-    This function checks for acceptable RT response prefixes.
-
-    Args:
-        response: The requests.Response object to validate
-
-    Raises:
-        RTResponseError: If response doesn't match expected RT format
-    """
-    if not response.content:
-        raise RTResponseError("Empty response content", response)
-
-    # Check for valid RT response prefix pattern
-    # Pattern: RT/{version} {status_code} {status_text}\n\n
-    if not match(rb"^RT/[\d.]+\s+\d+\s+[^\r\n]+\r?\n\r?\n", response.content):
-        # Get first 50 bytes for error message to avoid exposing full content
-        prefix = response.content[:50]
-        raise RTResponseError(
-            f"Invalid RT response format. Expected 'RT/x.x.x status message\\n\\n' "
-            f"but got: {prefix!r}",
-            response,
-        )
 
 
 class RTSession(Session):
@@ -142,6 +128,9 @@ class RTSession(Session):
         response = self.get(REST_URL)
         response.raise_for_status()
         m = match(r"rt/[.0-9]+\s+200\sok", response.text, IGNORECASE)
+        if not m:
+            logger.debug("not authorized")
+            dump_response(response)
         return bool(m)
 
     def fetch_and_save_auth_cookie(self, user: str, password: str) -> None:
@@ -172,14 +161,18 @@ class RTSession(Session):
 
     def dump_ticket(self, id_string: str, *parts) -> None:
         """GET a ticket URL and dump the response."""
-        self.dump_url(RTSession.rest_url("ticket", id_string, *parts))
+        self.dump_rest("ticket", id_string, *parts)
 
     def dump_rest(self, *parts) -> None:
         """GET a REST 1.0 URL and dump the response."""
         url = RTSession.rest_url(*parts)
         response = self.get(url)
-        validate_rt_response(response)
-        dump_response(response)
+        log_response(response)
+        result = parse_rt_response(response)
+        if result.is_ok:
+            dump_data(result.payload)
+        else:
+            logger.error("payload suppressed")
 
     def dump_url(self, url: str) -> None:
         """GET a URL and dump the response."""
@@ -202,10 +195,19 @@ class RTSession(Session):
 
 def dump_response(response: Response) -> None:
     """Dump full response details including headers and content."""
+    log_response(response)
+    data = response.content
+    dump_data(data)
+
+
+def log_response(response):
     logger.info(f"Response URL: {response.url}")
     logger.info(f"Status: {response.status_code} {response.reason}")
     logger.debug("Response headers:")
     for k, v in response.headers.items():
         logger.debug(f"  {k}: {v}")
-    stdout.buffer.write(response.content)
+
+
+def dump_data(data):
+    stdout.buffer.write(data)
     stdout.buffer.flush()
