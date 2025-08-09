@@ -7,6 +7,7 @@ from getpass import getuser
 from pprint import pprint as pp
 from re import IGNORECASE, match
 from sys import exit, stdout
+from typing import BinaryIO
 
 from requests import RequestException, Response, Session
 
@@ -159,18 +160,24 @@ class RTSession(Session):
         self.cookies.clear()
         self.cookies.save()
 
-    def dump_ticket(self, id_string: str, *parts) -> None:
+    def dump_ticket(self, id_string: str, *parts, file: BinaryIO = None) -> None:
         """GET a ticket URL and dump the response."""
-        self.dump_rest("ticket", id_string, *parts)
+        self.dump_rest("ticket", id_string, *parts, file=file)
 
-    def dump_rest(self, *parts) -> None:
-        """GET a REST 1.0 URL and dump the response."""
+    def dump_rest(self, *parts, file: BinaryIO = None) -> None:
+        """GET a REST 1.0 URL and dump the response.
+
+        Args:
+            *parts: Parts of the REST URL.
+            file: Optional binary file-like object to write payload to.
+                If None, writes to stdout.buffer.
+        """
         url = RTSession.rest_url(*parts)
         response = self.get(url)
         log_response(response)
         result = parse_rt_response(response)
         if result.is_ok:
-            dump_data(result.payload)
+            dump_data(result.payload, file=file)
         else:
             logger.error("payload suppressed")
 
@@ -208,6 +215,15 @@ def log_response(response):
         logger.debug(f"  {k}: {v}")
 
 
-def dump_data(data):
-    stdout.buffer.write(data)
-    stdout.buffer.flush()
+def dump_data(data: bytes, file: BinaryIO = None) -> None:
+    """Write data to a binary file-like object.
+    If file is None, writes to stdout.buffer.
+
+    Args:
+        data: Bytes to write.
+        file: Binary file-like object, or None for stdout.buffer.
+    """
+    if file is None:
+        file = stdout.buffer
+    file.write(data)
+    file.flush()
