@@ -96,6 +96,6 @@ The package expects:
 
 **URL Construction**: RT ticket URLs are built using static methods that concatenate base URL with ticket ID and optional path components.
 
-**Response Data**: RT REST API returns attachments surrounded by a prefix and suffix. The prefix is b"RT/x.x.x 200 Ok\n\n", where x.x.x is the RT version. Anything other than this indicates an error. The suffix is 3 newlines: b"\n\n\n". Downloading an attachment requires validating the suffix and removing both suffix and prefix.
+**Response Data**: RT REST API returns attachments surrounded by a prefix and a possible suffix. The prefix is b"RT/x.x.x 200 Ok\n\n", where x.x.x is the RT version. Anything other than this indicates an error. The suffix is present only when the URL ends with "/content/" or "/content". When present, the suffix is 3 newlines: b"\n\n\n". The three newlines never contain carraige returns. Downloading an attachment uses a content URL and requires validating the suffix and removing both suffix and prefix.
 
 **Security**: Passwords are fetched from macOS keychain rather than being stored in code or configuration files. The keychain lookup uses partial command `["/usr/bin/security", "find-generic-password", "-w", "-s", "foobar", "-a"]` with username appended.
