@@ -10,9 +10,9 @@ from rt_tools import RTSession
 
 
 @fixture
-def fixture_data_path():
+def fixture_data_path(fixtures_dir):
     """Return path to test fixture data."""
-    return Path(__file__).parent / "fixtures" / "rt_ticket_data"
+    return fixtures_dir / "rt_ticket_data"
 
 
 @fixture
