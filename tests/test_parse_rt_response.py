@@ -7,10 +7,22 @@ from pytest import mark, raises
 from rt_tools import RTResponseData, RTResponseError, parse_rt_response
 
 
-def test_valid_200_ok_response():
-    """Test parsing a valid 200 Ok RT response."""
+def create_mock_response(
+    content: bytes, url: str = "https://rt.example.com/REST/1.0/ticket/123"
+) -> Mock:
+    """Create a mock response with content and URL."""
     response = Mock()
-    response.content = b"RT/4.4.3 200 Ok\n\nTicket data here\n\n\n"
+    response.content = content
+    response.url = url
+    return response
+
+
+def test_valid_200_ok_response():
+    """Test parsing a valid 200 Ok RT response (non-content URL)."""
+    response = create_mock_response(
+        b"RT/4.4.3 200 Ok\n\nTicket data here",
+        "https://rt.example.com/REST/1.0/ticket/123",
+    )
 
     result = parse_rt_response(response)
 
@@ -24,8 +36,7 @@ def test_valid_200_ok_response():
 
 def test_valid_404_response():
     """Test parsing a valid 404 Not Found RT response."""
-    response = Mock()
-    response.content = b"RT/5.0.1 404 Not Found\n\nTicket not found\n\n\n"
+    response = create_mock_response(b"RT/5.0.1 404 Not Found\n\nTicket not found")
 
     result = parse_rt_response(response)
 
@@ -38,9 +49,8 @@ def test_valid_404_response():
 
 def test_valid_500_response():
     """Test parsing a valid 500 Internal Server Error RT response."""
-    response = Mock()
-    response.content = (
-        b"RT/3.8.10 500 Internal Server Error\n\nServer error details\n\n\n"
+    response = create_mock_response(
+        b"RT/3.8.10 500 Internal Server Error\n\nServer error details"
     )
 
     result = parse_rt_response(response)
@@ -53,9 +63,8 @@ def test_valid_500_response():
 
 
 def test_response_without_trailing_suffix():
-    """Test parsing RT response without the 3-newline suffix."""
-    response = Mock()
-    response.content = b"RT/4.4.3 200 Ok\n\nTicket data without suffix"
+    """Test parsing RT response without the 3-newline suffix (non-content URL)."""
+    response = create_mock_response(b"RT/4.4.3 200 Ok\n\nTicket data without suffix")
 
     result = parse_rt_response(response)
 
@@ -66,10 +75,12 @@ def test_response_without_trailing_suffix():
     assert result.payload == b"Ticket data without suffix"
 
 
-def test_response_with_crlf_line_endings():
-    """Test parsing RT response with Windows CRLF line endings."""
-    response = Mock()
-    response.content = b"RT/4.4.3 200 Ok\r\n\r\nTicket data\r\n\r\n\r\n"
+def test_content_url_with_trailing_suffix():
+    """Test parsing RT response from /content URL with 3-newline suffix."""
+    response = create_mock_response(
+        b"RT/4.4.3 200 Ok\n\nAttachment content\n\n\n",
+        "https://rt.example.com/REST/1.0/ticket/123/attachments/456/content",
+    )
 
     result = parse_rt_response(response)
 
@@ -77,13 +88,12 @@ def test_response_with_crlf_line_endings():
     assert result.status_code == 200
     assert result.status_text == "Ok"
     assert result.is_ok is True
-    assert result.payload == b"Ticket data"  # Trailing suffix is stripped
+    assert result.payload == b"Attachment content"
 
 
 def test_response_200_with_different_status_text():
     """Test that is_ok is False for 200 status with non-'Ok' text."""
-    response = Mock()
-    response.content = b"RT/4.4.3 200 Success\n\nTicket data\n\n\n"
+    response = create_mock_response(b"RT/4.4.3 200 Success\n\nTicket data")
 
     result = parse_rt_response(response)
 
@@ -96,8 +106,7 @@ def test_response_200_with_different_status_text():
 
 def test_empty_payload():
     """Test parsing RT response with empty payload."""
-    response = Mock()
-    response.content = b"RT/4.4.3 200 Ok\n\n\n\n\n"
+    response = create_mock_response(b"RT/4.4.3 200 Ok\n\n")
 
     result = parse_rt_response(response)
 
@@ -110,8 +119,7 @@ def test_empty_payload():
 
 def test_multiline_payload():
     """Test parsing RT response with multiline payload."""
-    response = Mock()
-    response.content = b"RT/4.4.3 200 Ok\n\nLine 1\nLine 2\nLine 3\n\n\n"
+    response = create_mock_response(b"RT/4.4.3 200 Ok\n\nLine 1\nLine 2\nLine 3")
 
     result = parse_rt_response(response)
 
@@ -120,8 +128,7 @@ def test_multiline_payload():
 
 def test_empty_response_content():
     """Test that empty response content raises RTResponseError."""
-    response = Mock()
-    response.content = b""
+    response = create_mock_response(b"")
 
     with raises(RTResponseError, match="Empty response content"):
         parse_rt_response(response)
@@ -129,8 +136,7 @@ def test_empty_response_content():
 
 def test_invalid_response_format():
     """Test that invalid response format raises RTResponseError."""
-    response = Mock()
-    response.content = b"<html><body>Not an RT response</body></html>"
+    response = create_mock_response(b"<html><body>Not an RT response</body></html>")
 
     with raises(RTResponseError, match="Invalid RT response format"):
         parse_rt_response(response)
@@ -138,8 +144,7 @@ def test_invalid_response_format():
 
 def test_malformed_rt_header_missing_version():
     """Test malformed RT header missing version number."""
-    response = Mock()
-    response.content = b"RT/ 200 Ok\n\nData"
+    response = create_mock_response(b"RT/ 200 Ok\n\nData")
 
     with raises(RTResponseError, match="Invalid RT response format"):
         parse_rt_response(response)
@@ -147,8 +152,7 @@ def test_malformed_rt_header_missing_version():
 
 def test_malformed_rt_header_missing_status_code():
     """Test malformed RT header missing status code."""
-    response = Mock()
-    response.content = b"RT/4.4.3 Ok\n\nData"
+    response = create_mock_response(b"RT/4.4.3 Ok\n\nData")
 
     with raises(RTResponseError, match="Invalid RT response format"):
         parse_rt_response(response)
@@ -156,8 +160,7 @@ def test_malformed_rt_header_missing_status_code():
 
 def test_malformed_rt_header_missing_double_newline():
     """Test malformed RT header missing double newline separator."""
-    response = Mock()
-    response.content = b"RT/4.4.3 200 Ok\nData"
+    response = create_mock_response(b"RT/4.4.3 200 Ok\nData")
 
     with raises(RTResponseError, match="Invalid RT response format"):
         parse_rt_response(response)
@@ -166,24 +169,47 @@ def test_malformed_rt_header_missing_double_newline():
 @mark.parametrize(
     "content,expected_version",
     [
-        (b"RT/1.0 200 Ok\n\nData\n\n\n", "1.0"),
-        (b"RT/4.4.3 200 Ok\n\nData\n\n\n", "4.4.3"),
-        (b"RT/5.0.1.beta 200 Ok\n\nData\n\n\n", "5.0.1.beta"),
+        (b"RT/1.0 200 Ok\n\nData", "1.0"),
+        (b"RT/4.4.3 200 Ok\n\nData", "4.4.3"),
+        (b"RT/5.0.1.beta 200 Ok\n\nData", "5.0.1.beta"),
     ],
 )
 def test_different_version_formats(content, expected_version):
     """Test parsing responses with different version number formats."""
-    response = Mock()
-    response.content = content
+    response = create_mock_response(content)
 
     result = parse_rt_response(response)
     assert result.version == expected_version
 
 
+def test_content_url_missing_suffix_logs_error(caplog):
+    """Test that /content URL missing suffix logs an error but still works."""
+    response = create_mock_response(
+        b"RT/4.4.3 200 Ok\n\nAttachment without suffix",
+        "https://rt.example.com/REST/1.0/ticket/123/attachments/456/content",
+    )
+
+    result = parse_rt_response(response)
+
+    assert result.payload == b"Attachment without suffix"
+    assert "Abnormal end of content payload" in caplog.text
+
+
+def test_content_url_with_trailing_slash():
+    """Test that /content/ URL with trailing slash works."""
+    response = create_mock_response(
+        b"RT/4.4.3 200 Ok\n\nAttachment content\n\n\n",
+        "https://rt.example.com/REST/1.0/ticket/123/attachments/456/content/",
+    )
+
+    result = parse_rt_response(response)
+
+    assert result.payload == b"Attachment content"
+
+
 def test_response_error_includes_response_object():
     """Test that RTResponseError includes the original response object."""
-    response = Mock()
-    response.content = b"Invalid content"
+    response = create_mock_response(b"Invalid content")
 
     with raises(RTResponseError) as exc_info:
         parse_rt_response(response)
