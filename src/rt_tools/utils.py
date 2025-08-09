@@ -3,7 +3,7 @@
 import http.cookiejar as cookiejar
 import logging
 from subprocess import CalledProcessError, run
-from sys import exit, stderr
+from sys import exit
 
 logger = logging.getLogger(__name__)
 
@@ -51,8 +51,3 @@ def remove_fixed_string(multiline_string: str, fixed_string: str) -> str:
     lines = multiline_string.splitlines()
     cleaned_lines = [line.replace(fixed_string, "") for line in lines]
     return "\n".join(cleaned_lines)
-
-
-def err(*objects, sep=" ", end="\n", flush=False) -> None:
-    """Print to stderr"""
-    print(*objects, sep=sep, end=end, flush=flush, file=stderr)

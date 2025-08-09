@@ -10,7 +10,7 @@ from sys import exit, stdout
 
 from requests import RequestException, Response, Session
 
-from .utils import err, fetch_password, load_cookies
+from .utils import fetch_password, load_cookies
 
 logger = logging.getLogger(__name__)
 
@@ -156,7 +156,7 @@ class RTSession(Session):
             response = self.post(url, **kwargs)
             response.raise_for_status()
         except RequestException as e:
-            err(f"Failed to POST to {url}: {e}")
+            logger.error(f"Failed to POST to {url}: {e}")
             pp(vars(e))
             exit(1)
         else:
