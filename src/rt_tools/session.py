@@ -139,7 +139,7 @@ class RTSession(Session):
 
     def check_authorized(self) -> bool:
         """Check if the session is already authorized."""
-        response = self.get(BASE_URL)
+        response = self.get(REST_URL)
         response.raise_for_status()
         m = match(r"rt/[.0-9]+\s+200\sok", response.text, IGNORECASE)
         return bool(m)
