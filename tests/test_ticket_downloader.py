@@ -6,7 +6,7 @@ from unittest.mock import Mock
 
 from pytest import fixture
 
-from rt_tools import RTSession
+from rt_tools import RTSession, download_ticket
 
 
 @fixture
@@ -157,8 +157,6 @@ def test_mock_session_get_requests(mock_session):
 
 def test_download_ticket_automation(mock_session):
     """Test the complete ticket download automation functionality."""
-    from rt_tools import download_ticket
-
     with tempfile.TemporaryDirectory() as temp_dir:
         target_dir = Path(temp_dir) / "ticket_123"
 

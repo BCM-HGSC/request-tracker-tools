@@ -2,6 +2,7 @@
 
 import logging
 from argparse import ArgumentParser, Namespace
+from pathlib import Path
 
 from .session import BASE_URL, REST_URL, RTSession
 
@@ -16,7 +17,6 @@ def dump_ticket():
             session.print_cookies()
 
         if args.output:
-            from pathlib import Path
             output_path = Path(args.output)
             output_path.parent.mkdir(parents=True, exist_ok=True)
             with open(output_path, "wb") as f:
