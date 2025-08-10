@@ -4,10 +4,13 @@ A Python package and command-line tool for interacting with RT (Request Tracker)
 
 ## Features
 
+- **Complete Ticket Downloads**: Download entire tickets with metadata, history, and attachments
+- **Smart Attachment Processing**: Automatically skips zero-byte attachments and outgoing emails
+- **Recursive History Fetching**: Handles broken RT API parameters with robust fallback methods
 - **Persistent Authentication**: Automatically manages RT session cookies with secure keychain integration
 - **SSL Certificate Verification**: Custom certificate support for secure RT server connections
 - **Flexible Logging**: Configurable log levels (quiet, normal, verbose) for debugging and production use
-- **Command-line Interface**: Simple CLI for accessing RT ticket data and attachments
+- **Command-line Interface**: Multiple CLI tools for accessing RT ticket data and attachments
 
 ## Installation
 
@@ -42,6 +45,25 @@ Before using RT Tools, you need to set up:
 ## Usage
 
 ### Command Line Interface
+
+**`download-ticket`** - Downloads complete tickets with metadata, history, and attachments:
+
+```bash
+# Download complete ticket to local directory
+download-ticket 37525 local/output
+
+# With verbose logging to see download progress
+download-ticket --verbose 37525 local/output
+
+# With quiet mode for minimal output
+download-ticket --quiet 37525 local/output
+```
+
+Features:
+- Automatically skips zero-byte attachments and outgoing emails
+- Uses recursive history fetching to handle broken RT API parameters
+- Downloads attachments with format: `{history_id}-{attachment_id}.{extension}`
+- Creates comprehensive ticket metadata and history files
 
 **`dump-ticket`** - Retrieves and displays RT ticket information:
 
@@ -141,7 +163,23 @@ ruff check --fix src/rt_tools/
 
 # Run tests
 pytest
+
+# Install pre-commit hooks (one-time setup)
+uv pip install pre-commit
+pre-commit install
+
+# Run pre-commit on all files
+pre-commit run --all-files
 ```
+
+Pre-commit hooks are configured to run:
+- Ruff linting and formatting
+- MyPy type checking
+- Basic file hygiene (trailing whitespace, end-of-file fixes)
+- YAML/TOML validation
+- Large file detection
+
+Binary test fixtures (`.bin` files) are excluded from text processing hooks.
 
 ### Building
 ```bash
