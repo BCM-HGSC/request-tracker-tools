@@ -92,8 +92,8 @@ th {
 <h2 id="Abstract">Abstract</h2>
 <p>The REST Interface gives you access to your RT Database. The complete communication is encapsulated in the HTTP protocol. The interface should be accessible in your installation.
 </p><p>Though you may see references to older 3.x releases of RT below, the REST 1.0 interface has not changed in any significant way in 4.x.
-</p><p>This page is for REST version 1.0. 
-</p><p>The next version of the RT REST interface, version 2.0, is available as an extension for RT 4.4 and above. 
+</p><p>This page is for REST version 1.0.
+</p><p>The next version of the RT REST interface, version 2.0, is available as an extension for RT 4.4 and above.
 </p><p>REST2 is core in RT 5.0.0 and above.
 </p>
 
@@ -174,7 +174,7 @@ DependsOn: fsck.com-rt://your.server.com/ticket/&lt;another-id&gt;
 </p><p>Request: <code>/REST/1.0/ticket/&lt;ticket-id&gt;/attachments/&lt;attachment-id&gt;</code>
 </p>
 <pre>RT/3.8.0 200 Ok
- 
+
 id: &lt;attachment-id&gt;
 Subject:
 Creator: &lt;user-id&gt;
@@ -185,7 +185,7 @@ MessageId:
 Filename: &lt;filename&gt;
 ContentType: application/octet-stream
 ContentEncoding: none
- 
+
 Headers: MIME-Version: 1.0
          X-Mailer: MIME-tools 5.427 (Entity 5.427)
          Content-Type: application/octet-stream;
@@ -282,7 +282,7 @@ Content: &lt;lin1-0&gt;
          &lt;line-1&gt;
          ...
          &lt;line-n&gt;
-         
+
 Creator: &lt;...&gt;
 Created: &lt;...&gt;
 Attachments: &lt;...&gt;
@@ -359,13 +359,13 @@ CF-&lt;CustomFieldName&gt;: &lt;CustomFieldValue&gt;
 <p>If you want to have a multiline Text, prefix every line with a blank.
 </p>
 <pre>Due: &lt;...&gt;
-Text: This is 
- a 
+Text: This is
+ a
  multiline Text
 !!!
 CF-&lt;CustomFieldName&gt;: &lt;CustomFieldValue&gt;
 </pre>
-<p>The response should look like: 
+<p>The response should look like:
 </p>
 <pre>RT/4.0.6 200 Ok
 
@@ -547,7 +547,7 @@ DefaultDueIn: &lt;...&gt;
 <pre>my $ua = LWP::UserAgent-&gt;new;
 $ua-&gt;timeout(10);
 $ua-&gt;agent("YOURUSERAGENTHERE");
- 
+
 my $response = $ua-&gt;post($uri."ticket/$ticketNumber",
    ['user' =&gt; $access_user, 'pass' =&gt; $access_password],
     'Content_Type' =&gt; 'form-data');
@@ -564,12 +564,12 @@ import org.apache.commons.httpclient.methods.PostMethod;
 import org.apache.commons.httpclient.methods.multipart.MultipartRequestEntity;
 import org.apache.commons.httpclient.methods.multipart.Part;
 import org.apache.commons.httpclient.methods.multipart.StringPart;
-  
+
 public class RtTicketCreator {
    static final String BASE_URI = "http://rt.xxx.com/REST/1.0";
- 
+
    public static void main(String[] args) throws IOException {
- 
+
       PostMethod mPost = new PostMethod(BASE_URI + "/ticket/new?user=username&amp;pass=password");
       Part[] parts = { new StringPart("content", "Queue: General\nSubject: 123") };
       mPost.setRequestEntity(new MultipartRequestEntity(parts, mPost.getParams()));
@@ -584,15 +584,15 @@ public class RtTicketCreator {
 <pre>import cookielib
 import urllib
 import urllib2
-       
+
   # creates a cookie for the rtserver with the credentials given at initialization.
   # define your credentials here
 access_user = 'your_login'
 access_password = 'your_password'
-       
+
  # here is the RequestTracker URI we try to access
 uri = 'http://your-rt-instance.com/REST/1.0/'
-       
+
  # trying login on rt server
 cj = cookielib.LWPCookieJar()
 opener = urllib2.build_opener(urllib2.HTTPCookieProcessor(cj))
@@ -620,8 +620,8 @@ uri = URI('https://rt.example.com/REST/1.0/ticket/123/show')
 req = Net::HTTP::Post.new(uri.path)
 req.set_form_data('user' =&gt; user, 'pass' =&gt; pass)
 
-res = Net::HTTP.start(uri.hostname, uri.port, 
-  :use_ssl =&gt; uri.scheme == 'https', 
+res = Net::HTTP.start(uri.hostname, uri.port,
+  :use_ssl =&gt; uri.scheme == 'https',
   :set_debug_output =&gt; $stderr) do |http|
   http.request(req)
 end

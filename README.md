@@ -62,7 +62,7 @@ dump-ticket --quiet 37525
 **`dump-rest`** - Retrieves content from RT REST API URLs (relative to REST/1.0 endpoint):
 
 ```bash
-# List all tickets  
+# List all tickets
 dump-rest
 
 # Show specific ticket
@@ -98,7 +98,7 @@ from rt_tools import RTSession
 # Create an authenticated session
 with RTSession() as session:
     session.authenticate()
-    
+
     # Access ticket data programmatically
     response = session.get("https://rt.hgsc.bcm.edu/REST/1.0/ticket/37525/show")
     print(response.text)
