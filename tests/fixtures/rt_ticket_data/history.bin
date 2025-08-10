@@ -44,3 +44,25 @@ Creator: user@example.com
 Created: Fri Aug 09 14:22:15 2025
 Attachments: 789: sample_document.pdf (application/pdf / 45KB),
              790: data_file.xlsx (application/vnd.openxmlformats-officedocument.spreadsheetml.sheet / 23KB)
+
+--
+
+# 458/458 (id/trans/parent/child)
+
+id: 458
+Ticket: 123
+TimeTaken: 0
+Type: AddWatcher
+Field: 
+OldValue: 
+NewValue: 
+Data: 
+
+Description: Files added by support@example.com
+
+Content: Adding support documentation files to this ticket.
+
+Creator: support@example.com
+Created: Fri Aug 09 15:30:00 2025
+Attachments: 800: document.pdf (application/pdf / 12KB),
+             801: spreadsheet.xlsx (application/vnd.openxmlformats-officedocument.spreadsheetml.sheet / 8KB)

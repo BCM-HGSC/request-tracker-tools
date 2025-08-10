@@ -31,6 +31,7 @@ def mock_rt_responses(fixture_data_path):
             responses["ticket/123"] = content
         elif filename == "history":
             responses["ticket/123/history"] = content
+            responses["ticket/123/history?format=l"] = content
         elif filename == "attachments":
             responses["ticket/123/attachments"] = content
         elif filename.startswith("attachment_") and not filename.endswith("_content"):
@@ -55,10 +56,22 @@ def mock_session(mock_rt_responses):
         # Extract endpoint from URL
         if "/REST/1.0/" in url:
             endpoint = url.split("/REST/1.0/")[1]
+            # Handle query parameters by checking if base endpoint exists
             if endpoint in mock_rt_responses:
                 response.content = mock_rt_responses[endpoint]
                 response.url = url
                 response.status_code = 200
+            elif "?" in endpoint:
+                # Try without query parameters
+                base_endpoint = endpoint.split("?")[0]
+                if base_endpoint in mock_rt_responses:
+                    response.content = mock_rt_responses[base_endpoint]
+                    response.url = url
+                    response.status_code = 200
+                else:
+                    response.content = b"RT/4.4.3 404 Not Found\n\nEndpoint not found"
+                    response.url = url
+                    response.status_code = 404
             else:
                 response.content = b"RT/4.4.3 404 Not Found\n\nEndpoint not found"
                 response.url = url
@@ -139,6 +152,11 @@ def test_mock_session_get_requests(mock_session):
     response = mock_session.get("https://rt.example.com/REST/1.0/ticket/123/history")
     assert response.status_code == 200
     assert b"# 456/456" in response.content
+    
+    # Test ticket history with long format
+    response = mock_session.get("https://rt.example.com/REST/1.0/ticket/123/history?format=l")
+    assert response.status_code == 200
+    assert b"# 456/456" in response.content
 
     # Test attachments list
     response = mock_session.get(
@@ -183,25 +201,26 @@ def test_download_ticket_automation(mock_session):
         attachments_dir = target_dir / "attachments"
         attachment_files = list(attachments_dir.glob("*"))
 
-        # Should have 2 non-email attachments (456, 789, 790 are excluded as
-        # outgoing emails). Only 800 and 801 should be downloaded as they
-        # don't have X-RT-Loop-Prevention headers
+        # Should have 2 non-email attachments:
+        # - History 457 (Correspond) attachments 789, 790 are skipped (X-RT-Loop-Prevention)
+        # - History 458 (AddWatcher) attachments 800, 801 are downloaded
+        # Expected filenames: 458-800.pdf and 458-801.xlsx
         assert len(attachment_files) == 2
 
-        # Check that we have the correct filenames based on the fixture data
+        # Check that we have the correct filenames based on history-attachment format
         filenames = [f.name for f in attachment_files]
-        assert "document.pdf" in filenames
-        assert "spreadsheet.xlsx" in filenames
+        assert "458-800.pdf" in filenames
+        assert "458-801.xlsx" in filenames
 
         # Verify PDF content
-        pdf_file = attachments_dir / "document.pdf"
+        pdf_file = attachments_dir / "458-800.pdf"
         assert pdf_file.exists()
         pdf_content = pdf_file.read_bytes()
         assert b"%PDF-1.4" in pdf_content
         assert b"Real PDF Document Content" in pdf_content
 
         # Verify Excel content
-        xlsx_file = attachments_dir / "spreadsheet.xlsx"
+        xlsx_file = attachments_dir / "458-801.xlsx"
         assert xlsx_file.exists()
         xlsx_content = xlsx_file.read_text()
         assert "Real Excel file content" in xlsx_content
