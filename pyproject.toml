@@ -39,11 +39,11 @@ python_functions = ["test_*"]
 
 [tool.ruff.lint]
 select = [
-    "E",  # pycodestyle errors
-    "W",  # pycodestyle warnings
-    "F",  # Pyflakes
-    "I",  # isort
     "B",  # flake8-bugbear
     "C4", # flake8-comprehensions
+    "E",  # pycodestyle errors
+    "F",  # Pyflakes
+    "I",  # isort
     "UP", # pyupgrade
+    "W",  # pycodestyle warnings
 ]
