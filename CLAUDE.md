@@ -100,6 +100,13 @@ The package expects:
 
 **Security**: Passwords are fetched from macOS keychain rather than being stored in code or configuration files. The keychain lookup uses partial command `["/usr/bin/security", "find-generic-password", "-w", "-s", "foobar", "-a"]` with username appended.
 
-## Documentation
+## RT REST API Documentation
 
-- A snapshot of the API documentation is stored in docs/rt-rest-1-snapshot.html
+**Primary Reference**: `docs/rt-rest-1-subset.md` - Documents only the RT REST API endpoints used by this project, including:
+- Authentication endpoints and session management
+- Ticket metadata retrieval (`/REST/1.0/ticket/{id}`)
+- History operations with long format (`/REST/1.0/ticket/{id}/history?format=l`)
+- Attachment list, metadata, and content endpoints
+- Response formats and parsing requirements
+
+**Complete Reference**: `docs/rt-rest-1-snapshot.html` - Full RT REST 1.0 API documentation snapshot for reference
