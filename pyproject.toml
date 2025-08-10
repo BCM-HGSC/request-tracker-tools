@@ -37,6 +37,11 @@ python_files = ["test_*.py", "*_test.py"]
 python_classes = ["Test*"]
 python_functions = ["test_*"]
 
+[tool.ruff]
+required-version = ">=0.12.8,<0.12.9"
+src = ["src", "tests"]
+target-version = "py313"
+
 [tool.ruff.lint]
 select = [
     "B",  # flake8-bugbear
