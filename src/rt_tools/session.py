@@ -59,8 +59,19 @@ def parse_rt_response(response: Response) -> RTResponseData:
     Raises:
         RTResponseError: If response doesn't match expected RT format
     """
+    # Handle completely empty responses for /content endpoints (zero-byte attachments)
     if not response.content:
-        raise RTResponseError("Empty response content", response)
+        if response.url.rstrip("/").endswith("/content"):
+            # Empty response for content endpoints indicates zero-byte attachment
+            return RTResponseData(
+                version="unknown",
+                status_code=response.status_code,
+                status_text=response.reason or "OK",
+                is_ok=response.status_code == 200,
+                payload=b"",
+            )
+        else:
+            raise RTResponseError("Empty response content", response)
 
     # Parse RT header using regex
     pattern = rb"^RT/([\d.a-zA-Z]+)\s+(\d+)\s+([^\n]+)\n\n"

@@ -5,7 +5,7 @@ import subprocess
 import pytest
 
 
-@pytest.mark.integration
+# @pytest.mark.integration
 def test_dump_ticket_file_output(tmp_path):
     """Integration test for dump-ticket command with -o option.
 

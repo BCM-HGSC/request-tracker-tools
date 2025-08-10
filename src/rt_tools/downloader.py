@@ -152,24 +152,32 @@ class TicketDownloader:
         456: (Unnamed) (text/plain / 0.2k)
         789: sample_document.pdf (application/pdf / 45k)
 
-        Returns dict mapping attachment_id -> {filename, mime_type}
+        Returns dict mapping attachment_id -> {filename, mime_type, size}
         """
         cache = {}
         for line in attachments_text.strip().split("\n"):
-            if ":" in line:
-                # Extract ID, filename, and mime type
-                pattern = r"^(\d+):\s*([^(]+?)\s*\(([^)]+)\)"
-                match = re.match(pattern, line.strip())
+            # Remove "Attachments: " prefix if present, and trailing comma
+            line = line.strip().rstrip(",")
+            if line.startswith("Attachments: "):
+                line = line[13:]  # Remove "Attachments: " prefix
+
+            if ":" in line and re.match(r"^\d+:", line):
+                # Extract ID, filename, and mime type - match last parentheses
+                pattern = r"^(\d+):\s*(.*?)\s*\(([^)]+)\)$"
+                match = re.match(pattern, line)
                 if match:
                     attachment_id = match.group(1)
                     filename = match.group(2).strip()
                     type_and_size = match.group(3).strip()
 
-                    # Extract MIME type from "mime/type / size" format
-                    if "/" in type_and_size:
-                        mime_type = type_and_size.split(" / ")[0].strip()
+                    # Extract MIME type and size from "mime/type / size" format
+                    if " / " in type_and_size:
+                        parts = type_and_size.split(" / ")
+                        mime_type = parts[0].strip()
+                        size_str = parts[1].strip() if len(parts) > 1 else ""
                     else:
                         mime_type = "application/octet-stream"
+                        size_str = ""
 
                     # Clean up filename
                     if filename == "(Unnamed)" or not filename:
@@ -178,6 +186,7 @@ class TicketDownloader:
                     cache[attachment_id] = {
                         "filename": filename,
                         "mime_type": mime_type,
+                        "size": size_str,
                     }
 
         logger.debug(f"Built attachment cache: {cache}")
@@ -338,6 +347,13 @@ class TicketDownloader:
             f"for ticket {ticket_id}"
         )
 
+        # Check if this attachment is zero-byte based on cached size info
+        attachment_info = attachment_cache.get(attachment_id, {})
+        size_str = attachment_info.get("size", "")
+        if size_str == "0b":
+            logger.debug(f"Skipping zero-byte attachment {attachment_id}")
+            return
+
         # Check if this attachment is an outgoing email by examining its metadata
         if self._is_outgoing_attachment(ticket_id, attachment_id):
             logger.debug(f"Skipping outgoing email attachment {attachment_id}")
@@ -386,7 +402,12 @@ class TicketDownloader:
             logger.debug(f"Could not get metadata for attachment {attachment_id}")
             return False
 
-        attachment_metadata = rt_data.payload.decode("utf-8")
+        try:
+            attachment_metadata = rt_data.payload.decode("utf-8")
+        except UnicodeDecodeError:
+            # If metadata contains non-UTF-8 data, it's likely binary content
+            logger.debug(f"Attachment {attachment_id} metadata contains binary data")
+            return False
 
         # Look for indicators of outgoing emails in headers
         headers_section = False
