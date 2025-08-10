@@ -184,41 +184,81 @@ class TicketDownloader:
         return cache
 
     def _get_history_entries(self, ticket_id: str) -> list[dict]:
-        """Get detailed history entries with attachment information."""
+        """Get detailed history entries with attachment information.
+
+        Uses recursive fetching due to broken format=l parameter.
+        Fetches basic history list first, then individual entries.
+        """
+        # Get basic history list first
         response = self.session.get(
-            f"{self.session.rest_url('ticket', ticket_id, 'history')}?format=l"
+            f"{self.session.rest_url('ticket', ticket_id, 'history')}"
         )
         rt_data = parse_rt_response(response)
 
         if not rt_data.is_ok:
             logger.error(
-                f"Failed to get detailed history for ticket {ticket_id}: "
+                f"Failed to get history list for ticket {ticket_id}: "
                 f"{rt_data.status_code} {rt_data.status_text}"
             )
             return []
 
-        return self._parse_history_entries(rt_data.payload.decode("utf-8"))
+        # Parse history IDs from the basic list
+        history_ids = self._parse_history_ids(rt_data.payload.decode("utf-8"))
+        logger.debug(f"Found {len(history_ids)} history entries to fetch")
 
-    def _parse_history_entries(self, history_text: str) -> list[dict]:
-        """Parse detailed history entries from long format response."""
-        entries = []
-
-        # Split on '--' separators
-        raw_entries = history_text.split("--")
-
-        for raw_entry in raw_entries:
-            if not raw_entry.strip():
-                continue
-
-            entry = self._parse_single_history_entry(raw_entry.strip())
+        # Recursively fetch detailed information for each history entry
+        detailed_entries = []
+        for history_id in history_ids:
+            entry = self._get_single_history_entry(ticket_id, history_id)
             if entry:
-                entries.append(entry)
+                detailed_entries.append(entry)
 
-        logger.debug(f"Parsed {len(entries)} history entries")
-        return entries
+        logger.debug(
+            f"Successfully fetched {len(detailed_entries)} detailed history entries"
+        )
+        return detailed_entries
+
+    def _parse_history_ids(self, history_text: str) -> list[str]:
+        """Parse history IDs from basic history list response.
+
+        Parses text like:
+        # 3/3 (/total)
+        456: Ticket created by user@example.com
+        457: Correspondence added by user@example.com
+        458: Files added by support@example.com
+        """
+        history_ids = []
+        for line in history_text.strip().split("\n"):
+            if ":" in line and not line.strip().startswith("#"):
+                # Extract ID from beginning of line
+                match = re.match(r"^(\d+):", line.strip())
+                if match:
+                    history_ids.append(match.group(1))
+
+        logger.debug(f"Parsed history IDs: {history_ids}")
+        return history_ids
+
+    def _get_single_history_entry(self, ticket_id: str, history_id: str) -> dict:
+        """Get detailed information for a single history entry."""
+        response = self.session.get(
+            f"{self.session.rest_url('ticket', ticket_id, 'history', 'id', history_id)}"
+        )
+        rt_data = parse_rt_response(response)
+
+        if not rt_data.is_ok:
+            logger.warning(
+                f"Failed to get history entry {history_id} for ticket {ticket_id}: "
+                f"{rt_data.status_code} {rt_data.status_text}"
+            )
+            return None
+
+        return self._parse_single_history_entry(rt_data.payload.decode("utf-8"))
 
     def _parse_single_history_entry(self, entry_text: str) -> dict:
-        """Parse a single history entry from detailed format."""
+        """Parse a single history entry from detailed format.
+
+        Handles responses from /REST/1.0/ticket/{id}/history/id/{history_id}
+        """
         entry = {"attachment_ids": []}
 
         lines = entry_text.split("\n")
@@ -254,7 +294,17 @@ class TicketDownloader:
                     attachment_ids = self._extract_attachment_ids_from_line(line)
                     entry["attachment_ids"].extend(attachment_ids)
 
-        return entry
+        # Ensure we have an ID - if not, try to extract from header comment
+        if "id" not in entry and "#" in entry_text:
+            # Look for header like "# 70/70 (id/114856/total)"
+            for line in lines:
+                if line.strip().startswith("#") and "id/" in line:
+                    match = re.search(r"id/(\d+)/", line)
+                    if match:
+                        entry["id"] = match.group(1)
+                        break
+
+        return entry if "id" in entry else None
 
     def _extract_attachment_ids_from_line(self, line: str) -> list[str]:
         """Extract attachment IDs from an attachment line."""

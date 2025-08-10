@@ -1,0 +1,21 @@
+RT/4.4.3 200 Ok
+
+# 458/458 (id/458/total)
+
+id: 458
+Ticket: 123
+TimeTaken: 0
+Type: AddWatcher
+Field: 
+OldValue: 
+NewValue: 
+Data: 
+
+Description: Files added by support@example.com
+
+Content: Adding support documentation files to this ticket.
+
+Creator: support@example.com
+Created: Fri Aug 09 15:30:00 2025
+Attachments: 800: document.pdf (application/pdf / 12KB),
+             801: spreadsheet.xlsx (application/vnd.openxmlformats-officedocument.spreadsheetml.sheet / 8KB)

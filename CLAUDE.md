@@ -24,14 +24,14 @@ The codebase follows a standard Python package structure with src layout:
 - Cookie persistence using Mozilla cookie jar format
 - Authentication status checking via RT API responses
 
-**Authentication Flow**: 
+**Authentication Flow**:
 1. Attempts to load existing cookies from `cookies.txt`
 2. Checks authorization status by parsing RT server response
 3. If unauthorized, fetches password from macOS keychain using `/usr/bin/security`
 4. Performs authentication POST and saves new cookies
 
 **Logging**: Uses Python's logging module with three levels controlled by CLI flags:
-- Default: INFO level 
+- Default: INFO level
 - `--verbose`: DEBUG level (shows detailed request/response info)
 - `--quiet`: WARNING level (suppresses routine messages)
 
@@ -105,7 +105,7 @@ The package expects:
 **Primary Reference**: `docs/rt-rest-1-subset.md` - Documents only the RT REST API endpoints used by this project, including:
 - Authentication endpoints and session management
 - Ticket metadata retrieval (`/REST/1.0/ticket/{id}`)
-- History operations with long format (`/REST/1.0/ticket/{id}/history?format=l`)
+- History operations (recursive fetching due to broken `format=l` parameter)
 - Attachment list, metadata, and content endpoints
 - Response formats and parsing requirements
 

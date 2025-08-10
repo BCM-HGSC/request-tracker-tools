@@ -1,0 +1,23 @@
+RT/4.4.3 200 Ok
+
+# 456/456 (id/456/total)
+
+id: 456
+Ticket: 123
+TimeTaken: 0
+Type: Create
+Field: 
+OldValue: 
+NewValue: 
+Data: 
+
+Description: Ticket created by reporter@example.com
+
+Content: This is a sample ticket created for testing the automation system.
+
+The ticket includes some basic information and will have attachments added.
+
+Creator: reporter@example.com
+Created: Fri Aug 09 10:30:00 2025
+Attachments: 
+

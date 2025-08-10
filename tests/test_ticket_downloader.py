@@ -40,6 +40,9 @@ def mock_rt_responses(fixture_data_path):
         elif filename.endswith("_content"):
             attachment_id = filename.split("_")[1]
             responses[f"ticket/123/attachments/{attachment_id}/content"] = content
+        elif filename.startswith("history_"):
+            history_id = filename.split("_")[1]
+            responses[f"ticket/123/history/id/{history_id}"] = content
 
     return responses
 
@@ -97,6 +100,9 @@ def test_fixture_data_exists(fixture_data_path):
     required_files = [
         "metadata.bin",
         "history.bin",
+        "history_456.bin",
+        "history_457.bin",
+        "history_458.bin",
         "attachments.bin",
         "attachment_456.bin",
         "attachment_456_content.bin",
@@ -121,6 +127,9 @@ def test_mock_rt_responses_structure(mock_rt_responses):
     expected_endpoints = [
         "ticket/123",
         "ticket/123/history",
+        "ticket/123/history/id/456",
+        "ticket/123/history/id/457",
+        "ticket/123/history/id/458",
         "ticket/123/attachments",
         "ticket/123/attachments/456",
         "ticket/123/attachments/456/content",
@@ -151,14 +160,15 @@ def test_mock_session_get_requests(mock_session):
     # Test ticket history
     response = mock_session.get("https://rt.example.com/REST/1.0/ticket/123/history")
     assert response.status_code == 200
-    assert b"# 456/456" in response.content
+    assert b"# 3/3" in response.content
+    assert b"456: Ticket created by" in response.content
 
-    # Test ticket history with long format
+    # Test ticket history with long format (now returns same as basic)
     response = mock_session.get(
         "https://rt.example.com/REST/1.0/ticket/123/history?format=l"
     )
     assert response.status_code == 200
-    assert b"# 456/456" in response.content
+    assert b"# 3/3" in response.content
 
     # Test attachments list
     response = mock_session.get(
@@ -196,8 +206,8 @@ def test_download_ticket_automation(mock_session):
 
         # Verify history content
         history_content = (target_dir / "history.txt").read_text()
-        assert "# 456/456" in history_content
-        assert "This is a sample ticket created for testing" in history_content
+        assert "# 3/3" in history_content
+        assert "456: Ticket created by reporter@example.com" in history_content
 
         # Verify attachments were downloaded
         attachments_dir = target_dir / "attachments"

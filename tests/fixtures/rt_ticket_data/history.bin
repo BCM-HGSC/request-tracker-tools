@@ -1,68 +1,7 @@
 RT/4.4.3 200 Ok
 
-# 456/456 (id/trans/parent/child)
+# 3/3 (/total)
 
-id: 456
-Ticket: 123
-TimeTaken: 0
-Type: Create
-Field: 
-OldValue: 
-NewValue: 
-Data: 
-
-Description: Ticket created by reporter@example.com
-
-Content: This is a sample ticket created for testing the automation system.
-
-The ticket includes some basic information and will have attachments added.
-
-Creator: reporter@example.com
-Created: Fri Aug 09 10:30:00 2025
-Attachments: 
-
---
-
-# 457/457 (id/trans/parent/child)
-
-id: 457
-Ticket: 123
-TimeTaken: 0
-Type: Correspond
-Field: 
-OldValue: 
-NewValue: 
-Data: 
-
-Description: Correspondence added by user@example.com
-
-Content: Adding some additional information to this ticket.
-
-Please see the attached files for more details.
-
-Creator: user@example.com
-Created: Fri Aug 09 14:22:15 2025
-Attachments: 789: sample_document.pdf (application/pdf / 45KB),
-             790: data_file.xlsx (application/vnd.openxmlformats-officedocument.spreadsheetml.sheet / 23KB)
-
---
-
-# 458/458 (id/trans/parent/child)
-
-id: 458
-Ticket: 123
-TimeTaken: 0
-Type: AddWatcher
-Field: 
-OldValue: 
-NewValue: 
-Data: 
-
-Description: Files added by support@example.com
-
-Content: Adding support documentation files to this ticket.
-
-Creator: support@example.com
-Created: Fri Aug 09 15:30:00 2025
-Attachments: 800: document.pdf (application/pdf / 12KB),
-             801: spreadsheet.xlsx (application/vnd.openxmlformats-officedocument.spreadsheetml.sheet / 8KB)
+456: Ticket created by reporter@example.com
+457: Correspondence added by user@example.com  
+458: Files added by support@example.com
