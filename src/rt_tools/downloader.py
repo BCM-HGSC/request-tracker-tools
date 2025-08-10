@@ -110,15 +110,18 @@ class TicketDownloader:
         # Process each history entry
         for history_entry in history_entries:
             if self._is_outgoing_email_history(history_entry):
-                entry_id = history_entry.get('id', 'unknown')
+                entry_id = history_entry.get("id", "unknown")
                 logger.debug(f"Skipping outgoing email history entry {entry_id}")
                 continue
 
             # Download attachments for this history entry
-            for attachment_id in history_entry.get('attachment_ids', []):
+            for attachment_id in history_entry.get("attachment_ids", []):
                 self._download_history_attachment(
-                    ticket_id, history_entry['id'], attachment_id,
-                    attachment_cache, attachments_dir
+                    ticket_id,
+                    history_entry["id"],
+                    attachment_id,
+                    attachment_cache,
+                    attachments_dir,
                 )
 
     def _build_attachment_cache(self, ticket_id: str) -> dict[str, dict[str, str]]:
@@ -163,18 +166,18 @@ class TicketDownloader:
                     type_and_size = match.group(3).strip()
 
                     # Extract MIME type from "mime/type / size" format
-                    if '/' in type_and_size:
-                        mime_type = type_and_size.split(' / ')[0].strip()
+                    if "/" in type_and_size:
+                        mime_type = type_and_size.split(" / ")[0].strip()
                     else:
-                        mime_type = 'application/octet-stream'
+                        mime_type = "application/octet-stream"
 
                     # Clean up filename
                     if filename == "(Unnamed)" or not filename:
                         filename = ""
 
                     cache[attachment_id] = {
-                        'filename': filename,
-                        'mime_type': mime_type
+                        "filename": filename,
+                        "mime_type": mime_type,
                     }
 
         logger.debug(f"Built attachment cache: {cache}")
@@ -201,7 +204,7 @@ class TicketDownloader:
         entries = []
 
         # Split on '--' separators
-        raw_entries = history_text.split('--')
+        raw_entries = history_text.split("--")
 
         for raw_entry in raw_entries:
             if not raw_entry.strip():
@@ -216,9 +219,9 @@ class TicketDownloader:
 
     def _parse_single_history_entry(self, entry_text: str) -> dict:
         """Parse a single history entry from detailed format."""
-        entry = {'attachment_ids': []}
+        entry = {"attachment_ids": []}
 
-        lines = entry_text.split('\n')
+        lines = entry_text.split("\n")
         in_attachments_section = False
 
         for original_line in lines:
@@ -226,30 +229,30 @@ class TicketDownloader:
             if not line:
                 continue
 
-            if line.startswith('id:'):
-                entry['id'] = line.split(':', 1)[1].strip()
-            elif line.startswith('Type:'):
-                entry['type'] = line.split(':', 1)[1].strip()
-            elif line.startswith('Content:'):
-                entry['content'] = line.split(':', 1)[1].strip()
-            elif line.startswith('Attachments:'):
+            if line.startswith("id:"):
+                entry["id"] = line.split(":", 1)[1].strip()
+            elif line.startswith("Type:"):
+                entry["type"] = line.split(":", 1)[1].strip()
+            elif line.startswith("Content:"):
+                entry["content"] = line.split(":", 1)[1].strip()
+            elif line.startswith("Attachments:"):
                 in_attachments_section = True
                 # Parse attachment info on same line if present
-                attachments_part = line.split(':', 1)[1].strip()
+                attachments_part = line.split(":", 1)[1].strip()
                 if attachments_part:
                     attachment_ids = self._extract_attachment_ids_from_line(
                         attachments_part
                     )
-                    entry['attachment_ids'].extend(attachment_ids)
+                    entry["attachment_ids"].extend(attachment_ids)
             elif in_attachments_section:
                 # Check if this line starts a new field (not indented)
-                if not original_line.startswith((' ', '\t')):
+                if not original_line.startswith((" ", "\t")):
                     # This line starts a new field, end attachments section
                     in_attachments_section = False
                 else:
                     # Parse attachment line: "123: filename (size)"
                     attachment_ids = self._extract_attachment_ids_from_line(line)
-                    entry['attachment_ids'].extend(attachment_ids)
+                    entry["attachment_ids"].extend(attachment_ids)
 
         return entry
 
@@ -257,7 +260,7 @@ class TicketDownloader:
         """Extract attachment IDs from an attachment line."""
         ids = []
         # Look for patterns like "123: filename" or just "123:"
-        matches = re.finditer(r'(\d+):', line)
+        matches = re.finditer(r"(\d+):", line)
         for match in matches:
             ids.append(match.group(1))
         return ids
@@ -272,8 +275,12 @@ class TicketDownloader:
         return False
 
     def _download_history_attachment(
-        self, ticket_id: str, history_id: str, attachment_id: str,
-        attachment_cache: dict, attachments_dir: Path
+        self,
+        ticket_id: str,
+        history_id: str,
+        attachment_id: str,
+        attachment_cache: dict,
+        attachments_dir: Path,
     ) -> None:
         """Download attachment using history-based filename format."""
         logger.debug(
@@ -307,7 +314,7 @@ class TicketDownloader:
 
         # Determine file extension from cached mime type
         attachment_info = attachment_cache.get(attachment_id, {})
-        mime_type = attachment_info.get('mime_type', 'application/octet-stream')
+        mime_type = attachment_info.get("mime_type", "application/octet-stream")
         extension = self._mime_type_to_extension(mime_type)
 
         # Create filename: {history_id}-{attachment_id}.{extension}
@@ -348,32 +355,31 @@ class TicketDownloader:
     def _mime_type_to_extension(self, mime_type: str) -> str:
         """Convert MIME type to file extension."""
         mime_to_ext = {
-            'text/plain': 'txt',
-            'text/html': 'html',
-            'text/csv': 'csv',
-            'application/pdf': 'pdf',
-            'application/msword': 'doc',
-            'application/vnd.openxmlformats-officedocument.wordprocessingml.document': 'docx',  # noqa: E501
-            'application/vnd.ms-excel': 'xls',
-            'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': 'xlsx',  # noqa: E501
-            'application/vnd.ms-powerpoint': 'ppt',
-            'application/vnd.openxmlformats-officedocument.presentationml.presentation': 'pptx',  # noqa: E501
-            'application/zip': 'zip',
-            'application/x-zip-compressed': 'zip',
-            'application/gzip': 'gz',
-            'application/x-tar': 'tar',
-            'application/json': 'json',
-            'application/xml': 'xml',
-            'image/png': 'png',
-            'image/jpeg': 'jpg',
-            'image/gif': 'gif',
-            'image/svg+xml': 'svg',
-            'image/tiff': 'tiff',
-            'application/octet-stream': 'bin',
+            "text/plain": "txt",
+            "text/html": "html",
+            "text/csv": "csv",
+            "application/pdf": "pdf",
+            "application/msword": "doc",
+            "application/vnd.openxmlformats-officedocument.wordprocessingml.document": "docx",  # noqa: E501
+            "application/vnd.ms-excel": "xls",
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": "xlsx",  # noqa: E501
+            "application/vnd.ms-powerpoint": "ppt",
+            "application/vnd.openxmlformats-officedocument.presentationml.presentation": "pptx",  # noqa: E501
+            "application/zip": "zip",
+            "application/x-zip-compressed": "zip",
+            "application/gzip": "gz",
+            "application/x-tar": "tar",
+            "application/json": "json",
+            "application/xml": "xml",
+            "image/png": "png",
+            "image/jpeg": "jpg",
+            "image/gif": "gif",
+            "image/svg+xml": "svg",
+            "image/tiff": "tiff",
+            "application/octet-stream": "bin",
         }
 
-        return mime_to_ext.get(mime_type.lower(), 'bin')
-
+        return mime_to_ext.get(mime_type.lower(), "bin")
 
 
 def download_ticket(session: RTSession, ticket_id: str, target_dir: Path) -> None:

@@ -152,9 +152,11 @@ def test_mock_session_get_requests(mock_session):
     response = mock_session.get("https://rt.example.com/REST/1.0/ticket/123/history")
     assert response.status_code == 200
     assert b"# 456/456" in response.content
-    
+
     # Test ticket history with long format
-    response = mock_session.get("https://rt.example.com/REST/1.0/ticket/123/history?format=l")
+    response = mock_session.get(
+        "https://rt.example.com/REST/1.0/ticket/123/history?format=l"
+    )
     assert response.status_code == 200
     assert b"# 456/456" in response.content
 
@@ -202,7 +204,8 @@ def test_download_ticket_automation(mock_session):
         attachment_files = list(attachments_dir.glob("*"))
 
         # Should have 2 non-email attachments:
-        # - History 457 (Correspond) attachments 789, 790 are skipped (X-RT-Loop-Prevention)
+        # - History 457 (Correspond) attachments 789, 790 are skipped
+        #   (X-RT-Loop-Prevention)
         # - History 458 (AddWatcher) attachments 800, 801 are downloaded
         # Expected filenames: 458-800.pdf and 458-801.xlsx
         assert len(attachment_files) == 2
