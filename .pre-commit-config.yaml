@@ -1,0 +1,23 @@
+# Pre-commit hooks configuration for RT Tools
+repos:
+  # Ruff linting and formatting (already used in project)
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.12.8
+    hooks:
+      - id: ruff
+        args: [--fix]
+        exclude: ^notebooks/
+      - id: ruff-format
+        exclude: ^notebooks/
+
+  # Basic file hygiene checks
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: trailing-whitespace
+        exclude: \.bin$|^notebooks/
+      - id: end-of-file-fixer
+        exclude: \.bin$
+      - id: check-yaml
+      - id: check-toml
+      - id: check-added-large-files
