@@ -4,6 +4,11 @@ import logging
 import re
 from pathlib import Path
 
+try:
+    import openpyxl
+except ImportError:
+    openpyxl = None
+
 from .session import RTSession, parse_rt_response
 
 logger = logging.getLogger(__name__)
@@ -391,6 +396,12 @@ class TicketDownloader:
         attachment_file.write_bytes(rt_data.payload)
         logger.debug(f"Saved attachment to {attachment_file}")
 
+        # If this is an XLSX file, automatically convert to TSV
+        if extension == "xlsx":
+            tsv_filename = f"{history_id}-{attachment_id}.tsv"
+            tsv_file = attachments_dir / tsv_filename
+            self._convert_xlsx_to_tsv(attachment_file, tsv_file)
+
     def _is_outgoing_attachment(self, ticket_id: str, attachment_id: str) -> bool:
         """Check if attachment represents an outgoing email to be excluded."""
         # Get attachment metadata to check for outgoing email indicators
@@ -451,6 +462,46 @@ class TicketDownloader:
         }
 
         return mime_to_ext.get(mime_type.lower(), "bin")
+
+    def _convert_xlsx_to_tsv(self, xlsx_path: Path, tsv_path: Path) -> None:
+        """Convert XLSX file to TSV format using openpyxl.
+
+        Args:
+            xlsx_path: Path to the source XLSX file
+            tsv_path: Path where the TSV file should be saved
+        """
+        if not openpyxl:
+            logger.warning("openpyxl not available, skipping XLSX conversion")
+            return
+
+        try:
+            logger.debug(f"Converting {xlsx_path} to TSV format")
+            wb = openpyxl.load_workbook(xlsx_path, read_only=True, data_only=True)
+            worksheet = wb.active  # Use active worksheet
+
+            with open(tsv_path, "w", encoding="utf-8") as f:
+                for row in worksheet.rows:
+                    values = [self._normalize_xlsx_value(cell) for cell in row]
+                    f.write("\t".join(values) + "\n")
+
+            logger.debug(f"Successfully converted XLSX to {tsv_path}")
+
+        except Exception as e:
+            logger.error(f"Failed to convert {xlsx_path} to TSV: {e}")
+
+    def _normalize_xlsx_value(self, cell) -> str:
+        """Normalize Excel cell value to string (from vxlsx script).
+
+        Args:
+            cell: openpyxl cell object
+
+        Returns:
+            String representation of cell value
+        """
+        value = cell.value
+        if value is None:
+            return ""
+        return str(value)
 
 
 def download_ticket(session: RTSession, ticket_id: str, target_dir: Path) -> None:

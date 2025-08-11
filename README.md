@@ -5,7 +5,7 @@ A Python package and command-line tool for interacting with RT (Request Tracker)
 ## Features
 
 - **Complete Ticket Downloads**: Download entire tickets with metadata, history, and attachments
-- **Smart Attachment Processing**: Automatically skips zero-byte attachments and outgoing emails
+- **Smart Attachment Processing**: Automatically skips zero-byte attachments and outgoing emails, with automatic XLSX→TSV conversion
 - **Recursive History Fetching**: Handles broken RT API parameters with robust fallback methods
 - **Persistent Authentication**: Automatically manages RT session cookies with secure keychain integration
 - **SSL Certificate Verification**: Custom certificate support for secure RT server connections
@@ -31,6 +31,8 @@ uv pip install -e .[dev]
 ```bash
 pip install rt-tools
 ```
+
+**Note**: The package includes `openpyxl` for automatic XLSX→TSV conversion of Excel attachments.
 
 ## Configuration
 
@@ -63,6 +65,7 @@ Features:
 - Automatically skips zero-byte attachments and outgoing emails
 - Uses recursive history fetching to handle broken RT API parameters
 - Downloads attachments with format: `{history_id}-{attachment_id}.{extension}`
+- **Automatic XLSX→TSV conversion**: Excel files are automatically converted to tab-separated values for easier analysis
 - Creates comprehensive ticket metadata and history files
 
 **`dump-ticket`** - Retrieves and displays RT ticket information:

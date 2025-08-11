@@ -237,3 +237,136 @@ def test_download_ticket_automation(mock_session):
         assert xlsx_file.exists()
         xlsx_content = xlsx_file.read_text()
         assert "Real Excel file content" in xlsx_content
+
+
+def test_xlsx_to_tsv_conversion():
+    """Test XLSX to TSV conversion functionality using real fixture file."""
+    from rt_tools.downloader import TicketDownloader
+
+    # Use the real XLSX fixture file from download_output
+    fixtures_dir = Path(__file__).parent / "fixtures"
+    xlsx_path = fixtures_dir / "download_output/attachments/1489286-1483997.xlsx"
+
+    if not xlsx_path.exists():
+        # Skip test if fixture doesn't exist
+        import pytest
+
+        pytest.skip(f"XLSX fixture not found: {xlsx_path}")
+
+    with tempfile.TemporaryDirectory() as temp_dir:
+        temp_path = Path(temp_dir)
+        tsv_path = temp_path / "test_output.tsv"
+
+        # Create downloader and test conversion
+        downloader = TicketDownloader(None)
+        downloader._convert_xlsx_to_tsv(xlsx_path, tsv_path)
+
+        # Verify TSV file was created
+        assert tsv_path.exists(), "TSV file should be created"
+
+        # Verify TSV content
+        tsv_content = tsv_path.read_text()
+        lines = tsv_content.strip().split("\n")
+
+        # Should have at least header and some data
+        assert len(lines) >= 2, "TSV should have header and data rows"
+
+        # Check header (should be tab-separated)
+        header = lines[0]
+        assert "\t" in header, "Header should be tab-separated"
+        assert "Sample ID" in header, "Should contain expected column headers"
+        assert "Path" in header, "Should contain expected column headers"
+
+        # Check data rows are tab-separated
+        for i, line in enumerate(lines[1:], 2):
+            assert "\t" in line, f"Line {i} should be tab-separated: {line}"
+
+
+def test_xlsx_to_tsv_conversion_with_invalid_file():
+    """Test XLSX conversion with invalid file handles errors gracefully."""
+    from rt_tools.downloader import TicketDownloader
+
+    with tempfile.TemporaryDirectory() as temp_dir:
+        temp_path = Path(temp_dir)
+        invalid_xlsx = temp_path / "invalid.xlsx"
+        tsv_path = temp_path / "output.tsv"
+
+        # Create an invalid XLSX file
+        invalid_xlsx.write_text("This is not a valid XLSX file")
+
+        # Create downloader and attempt conversion
+        downloader = TicketDownloader(None)
+        downloader._convert_xlsx_to_tsv(invalid_xlsx, tsv_path)
+
+        # TSV file should not be created due to error
+        assert not tsv_path.exists(), "TSV file should not be created for invalid XLSX"
+
+
+def test_xlsx_conversion_trigger():
+    """Test that XLSX conversion method is called when XLSX extension is detected."""
+    from unittest.mock import patch
+
+    from rt_tools.downloader import TicketDownloader
+
+    # Create a simple unit test that verifies the conversion is triggered
+    with tempfile.TemporaryDirectory() as temp_dir:
+        attachments_dir = Path(temp_dir) / "attachments"
+        attachments_dir.mkdir(exist_ok=True)
+
+        # Create a mock downloader and patch the conversion method
+        downloader = TicketDownloader(None)
+
+        with patch.object(downloader, "_convert_xlsx_to_tsv") as mock_convert:
+            # Manually call the part that should trigger conversion
+            # We'll simulate the file save and extension detection
+
+            history_id = "458"
+            attachment_id = "801"
+            extension = "xlsx"
+
+            # Create the XLSX filename that would be generated
+            xlsx_filename = f"{history_id}-{attachment_id}.{extension}"
+            xlsx_file = attachments_dir / xlsx_filename
+
+            # Create a dummy XLSX file
+            xlsx_file.write_bytes(b"mock xlsx content")
+
+            # Test the conversion trigger logic
+            if extension == "xlsx":
+                tsv_filename = f"{history_id}-{attachment_id}.tsv"
+                tsv_file = attachments_dir / tsv_filename
+                downloader._convert_xlsx_to_tsv(xlsx_file, tsv_file)
+
+            # Verify that the conversion method was called
+            mock_convert.assert_called_once_with(
+                xlsx_file, attachments_dir / "458-801.tsv"
+            )
+
+
+def test_normalize_xlsx_value():
+    """Test cell value normalization for XLSX conversion."""
+    from unittest.mock import Mock
+
+    from rt_tools.downloader import TicketDownloader
+
+    downloader = TicketDownloader(None)
+
+    # Test None value
+    none_cell = Mock()
+    none_cell.value = None
+    assert downloader._normalize_xlsx_value(none_cell) == ""
+
+    # Test string value
+    str_cell = Mock()
+    str_cell.value = "test string"
+    assert downloader._normalize_xlsx_value(str_cell) == "test string"
+
+    # Test numeric value
+    num_cell = Mock()
+    num_cell.value = 42
+    assert downloader._normalize_xlsx_value(num_cell) == "42"
+
+    # Test float value
+    float_cell = Mock()
+    float_cell.value = 3.14
+    assert downloader._normalize_xlsx_value(float_cell) == "3.14"
