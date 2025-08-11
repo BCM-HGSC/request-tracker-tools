@@ -4,7 +4,7 @@ A Python package and command-line tool for interacting with RT (Request Tracker)
 
 ## Features
 
-- **Complete Ticket Downloads**: Download entire tickets with metadata, history, and attachments
+- **Complete Ticket Downloads**: Download entire tickets with metadata, complete history, individual history items, and attachments
 - **Smart Attachment Processing**: Automatically skips zero-byte attachments and outgoing emails, with automatic XLSX→TSV conversion
 - **Recursive History Fetching**: Handles broken RT API parameters with robust fallback methods
 - **Persistent Authentication**: Automatically manages RT session cookies with secure keychain integration
@@ -61,10 +61,26 @@ download-ticket --verbose 37525 local/output
 download-ticket --quiet 37525 local/output
 ```
 
+**Directory Structure**:
+```
+ticket-37525/
+├── metadata.txt          # Ticket basic information
+├── history.txt           # Complete ticket history
+├── 456/                  # History entry directory
+│   └── message.txt       # Individual history entry content
+├── 458/                  # Another history entry directory
+│   ├── message.txt       # History entry content
+│   ├── n800.pdf         # Attachment for this history entry
+│   └── n801.xlsx        # Another attachment (with auto-generated .tsv)
+└── ...
+```
+
 Features:
-- Automatically skips zero-byte attachments and outgoing emails
+- **Organized structure**: Each history entry and its attachments are grouped in individual directories
+- **Consistent filtering**: Automatically skips zero-byte attachments and outgoing emails from both attachments and individual history items
 - Uses recursive history fetching to handle broken RT API parameters
-- Downloads attachments with format: `{history_id}-{attachment_id}.{extension}`
+- Downloads attachments with format: `n{attachment_id}.{extension}` within each history directory (the "n" prefix ensures message.txt sorts first)
+- **Individual history items**: Each history entry is saved as `{history_id}/message.txt` for detailed analysis (excluding outgoing emails)
 - **Automatic XLSX→TSV conversion**: Excel files are automatically converted to tab-separated values for easier analysis
 - Creates comprehensive ticket metadata and history files
 

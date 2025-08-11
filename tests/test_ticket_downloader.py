@@ -31,7 +31,6 @@ def mock_rt_responses(fixture_data_path):
             responses["ticket/123"] = content
         elif filename == "history":
             responses["ticket/123/history"] = content
-            responses["ticket/123/history?format=l"] = content
         elif filename == "attachments":
             responses["ticket/123/attachments"] = content
         elif filename.startswith("attachment_") and not filename.endswith("_content"):
@@ -197,7 +196,6 @@ def test_download_ticket_automation(mock_session):
         assert target_dir.exists()
         assert (target_dir / "metadata.txt").exists()
         assert (target_dir / "history.txt").exists()
-        assert (target_dir / "attachments").exists()
 
         # Verify metadata content
         metadata_content = (target_dir / "metadata.txt").read_text()
@@ -209,34 +207,62 @@ def test_download_ticket_automation(mock_session):
         assert "# 3/3" in history_content
         assert "456: Ticket created by reporter@example.com" in history_content
 
-        # Verify attachments were downloaded
-        attachments_dir = target_dir / "attachments"
-        attachment_files = list(attachments_dir.glob("*"))
+        # Verify attachments were downloaded in history directories
+        # History 457 attachments are skipped (X-RT-Loop-Prevention)
+        # History 458 attachments 800, 801 are downloaded
 
-        # Should have 2 non-email attachments:
-        # - History 457 (Correspond) attachments 789, 790 are skipped
-        #   (X-RT-Loop-Prevention)
-        # - History 458 (AddWatcher) attachments 800, 801 are downloaded
-        # Expected filenames: 458-800.pdf and 458-801.xlsx
-        assert len(attachment_files) == 2
+        history_458_dir = target_dir / "458"
+        assert history_458_dir.exists(), "History 458 directory should exist"
 
-        # Check that we have the correct filenames based on history-attachment format
+        attachment_files = list(history_458_dir.glob("*"))
+        # Should have message.txt + 2 attachments (800.pdf, 801.xlsx) + possibly 801.tsv
+        attachment_files = [f for f in attachment_files if f.name != "message.txt"]
+        assert len(attachment_files) >= 2, (
+            f"Expected at least 2 attachments, found {len(attachment_files)}"
+        )
+
+        # Check that we have the correct filenames
         filenames = [f.name for f in attachment_files]
-        assert "458-800.pdf" in filenames
-        assert "458-801.xlsx" in filenames
+        assert "n800.pdf" in filenames
+        assert "n801.xlsx" in filenames
 
         # Verify PDF content
-        pdf_file = attachments_dir / "458-800.pdf"
+        pdf_file = history_458_dir / "n800.pdf"
         assert pdf_file.exists()
         pdf_content = pdf_file.read_bytes()
         assert b"%PDF-1.4" in pdf_content
         assert b"Real PDF Document Content" in pdf_content
 
         # Verify Excel content
-        xlsx_file = attachments_dir / "458-801.xlsx"
+        xlsx_file = history_458_dir / "n801.xlsx"
         assert xlsx_file.exists()
         xlsx_content = xlsx_file.read_text()
         assert "Real Excel file content" in xlsx_content
+
+        # Verify individual history items were downloaded
+        # Should have 2 history directories: 456, 458 (457 filtered as outgoing email)
+
+        history_456_dir = target_dir / "456"
+        history_458_dir = target_dir / "458"  # Already verified above
+        history_457_dir = target_dir / "457"
+
+        assert history_456_dir.exists(), "History 456 directory should exist"
+        assert history_458_dir.exists(), "History 458 directory should exist"
+        assert not history_457_dir.exists(), (
+            "History 457 directory should be filtered out"
+        )
+
+        # Verify message.txt files exist in each history directory
+        message_456 = history_456_dir / "message.txt"
+        message_458 = history_458_dir / "message.txt"
+
+        assert message_456.exists(), "History 456 message.txt should exist"
+        assert message_458.exists(), "History 458 message.txt should exist"
+
+        # Verify content of history message files
+        history_456_content = message_456.read_text()
+        assert "id: 456" in history_456_content
+        assert "Type: Create" in history_456_content
 
 
 def test_xlsx_to_tsv_conversion():
@@ -324,23 +350,116 @@ def test_xlsx_conversion_trigger():
             attachment_id = "801"
             extension = "xlsx"
 
-            # Create the XLSX filename that would be generated
-            xlsx_filename = f"{history_id}-{attachment_id}.{extension}"
-            xlsx_file = attachments_dir / xlsx_filename
+            # Create history directory and XLSX file with new structure
+            history_dir = attachments_dir / history_id
+            history_dir.mkdir(exist_ok=True)
+            xlsx_filename = f"n{attachment_id}.{extension}"
+            xlsx_file = history_dir / xlsx_filename
 
             # Create a dummy XLSX file
             xlsx_file.write_bytes(b"mock xlsx content")
 
             # Test the conversion trigger logic
             if extension == "xlsx":
-                tsv_filename = f"{history_id}-{attachment_id}.tsv"
-                tsv_file = attachments_dir / tsv_filename
+                tsv_filename = f"n{attachment_id}.tsv"
+                tsv_file = history_dir / tsv_filename
                 downloader._convert_xlsx_to_tsv(xlsx_file, tsv_file)
 
             # Verify that the conversion method was called
-            mock_convert.assert_called_once_with(
-                xlsx_file, attachments_dir / "458-801.tsv"
+            mock_convert.assert_called_once_with(xlsx_file, history_dir / "n801.tsv")
+
+
+def test_individual_history_download(mock_session):
+    """Test downloading individual history items as separate directories."""
+    from rt_tools.downloader import TicketDownloader
+
+    with tempfile.TemporaryDirectory() as temp_dir:
+        target_dir = Path(temp_dir)
+
+        # Create downloader and test individual history download
+        downloader = TicketDownloader(mock_session)
+        downloader._download_individual_history_items("123", target_dir)
+
+        # Verify individual history directories were created (excluding outgoing emails)
+        history_456_dir = target_dir / "456"
+        history_458_dir = target_dir / "458"
+        history_457_dir = target_dir / "457"
+
+        assert history_456_dir.exists(), "History 456 directory should be created"
+        assert history_458_dir.exists(), "History 458 directory should be created"
+        assert not history_457_dir.exists(), "History 457 should be filtered out"
+
+        # Verify message.txt files exist
+        message_456 = history_456_dir / "message.txt"
+        message_458 = history_458_dir / "message.txt"
+
+        assert message_456.exists(), "History 456 message.txt should exist"
+        assert message_458.exists(), "History 458 message.txt should exist"
+
+        # Verify content of message files
+        content_456 = message_456.read_text()
+        assert "id: 456" in content_456
+        assert "Type: Create" in content_456
+
+        content_458 = message_458.read_text()
+        assert "id: 458" in content_458
+        assert "Type: AddWatcher" in content_458
+
+
+def test_consistent_outgoing_email_filtering(mock_session):
+    """Test that history items and attachments use consistent filtering."""
+    from rt_tools.downloader import TicketDownloader
+
+    with tempfile.TemporaryDirectory():
+        downloader = TicketDownloader(mock_session)
+
+        # Get history entries and check filtering logic
+        history_entries = downloader._get_history_entries("123")
+
+        # Find history entry 457 which should be identified as outgoing email
+        history_457 = None
+        for entry in history_entries:
+            if entry.get("id") == "457":
+                history_457 = entry
+                break
+
+        assert history_457 is not None, (
+            "History entry 457 should exist in test fixtures"
+        )
+
+        # Test that history 457 is correctly identified as outgoing email
+        is_outgoing_history = downloader._is_outgoing_email_history(history_457, "123")
+        assert is_outgoing_history, (
+            "History entry 457 should be identified as outgoing email"
+        )
+
+        # Test that the same attachments are identified as outgoing
+        attachment_ids = history_457.get("attachment_ids", [])
+        assert len(attachment_ids) > 0, "History entry 457 should have attachments"
+
+        # Check that the attachments are also identified as outgoing
+        for attachment_id in attachment_ids:
+            is_outgoing_attachment = downloader._is_outgoing_attachment(
+                "123", attachment_id
             )
+            assert is_outgoing_attachment, (
+                f"Attachment {attachment_id} should be identified as outgoing email"
+            )
+
+        # Test that non-outgoing history entries are not filtered
+        history_458 = None
+        for entry in history_entries:
+            if entry.get("id") == "458":
+                history_458 = entry
+                break
+
+        assert history_458 is not None, (
+            "History entry 458 should exist in test fixtures"
+        )
+        is_outgoing_458 = downloader._is_outgoing_email_history(history_458, "123")
+        assert not is_outgoing_458, (
+            "History entry 458 should NOT be identified as outgoing email"
+        )
 
 
 def test_normalize_xlsx_value():

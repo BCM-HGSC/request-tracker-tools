@@ -27,12 +27,19 @@ class TicketDownloader:
         ticket_{id}/
         ├── metadata.txt      # Ticket basic information
         ├── history.txt       # Complete ticket history
-        └── attachments/      # Directory for attachment files
-            ├── {history_id}-{attachment_id}.{ext}  # Attachment files
+        ├── {history_id}/     # Directory for each history entry
+        │   ├── message.txt   # Individual history entry content
+        │   ├── n{attachment_id}.{ext}  # Attachments for this history entry
+        │   └── ...
+        └── {history_id}/     # Additional history directories
+            ├── message.txt
+            ├── n{attachment_id}.{ext}
             └── ...
 
-        Skips outgoing emails and zero-byte attachments.
-        Uses MIME type from attachment list to determine file extensions.
+        Applies consistent filtering to both history items and attachments:
+        - Skips outgoing emails (identified by X-RT-Loop-Prevention headers)
+        - Skips zero-byte attachments
+        - Uses MIME type from attachment list to determine file extensions
 
         Args:
             ticket_id: RT ticket ID (without 'ticket/' prefix)
@@ -48,6 +55,9 @@ class TicketDownloader:
 
         # Download ticket history
         self._download_history(ticket_id, target_dir)
+
+        # Download individual history items
+        self._download_individual_history_items(ticket_id, target_dir)
 
         # Download attachments from history
         self._download_attachments(ticket_id, target_dir)
@@ -70,7 +80,7 @@ class TicketDownloader:
 
         metadata_file = target_dir / "metadata.txt"
         metadata_file.write_bytes(rt_data.payload)
-        logger.debug(f"Saved metadata to {metadata_file}")
+        logger.info(f"Created {metadata_file}")
 
     def _download_history(self, ticket_id: str, target_dir: Path) -> None:
         """Download ticket history to history.txt."""
@@ -90,7 +100,80 @@ class TicketDownloader:
 
         history_file = target_dir / "history.txt"
         history_file.write_bytes(rt_data.payload)
-        logger.debug(f"Saved history to {history_file}")
+        logger.info(f"Created {history_file}")
+
+    def _download_individual_history_items(
+        self, ticket_id: str, target_dir: Path
+    ) -> None:
+        """Download individual history items to separate directories.
+
+        Each history item is saved as {history_id}/message.txt, equivalent to:
+        dump-ticket -q {ticket_id} history/id/{history_id} > {history_id}/message.txt
+        """
+        logger.debug(f"Downloading individual history items for ticket {ticket_id}")
+
+        # Get basic history list to find all history IDs
+        response = self.session.get(
+            f"{self.session.rest_url('ticket', ticket_id, 'history')}"
+        )
+        rt_data = parse_rt_response(response)
+
+        if not rt_data.is_ok:
+            logger.error(
+                f"Failed to get history list for ticket {ticket_id}: "
+                f"{rt_data.status_code} {rt_data.status_text}"
+            )
+            return
+
+        # Parse history IDs from the basic list
+        history_ids = self._parse_history_ids(rt_data.payload.decode("utf-8"))
+        logger.debug(f"Found {len(history_ids)} history items to download")
+
+        # Get detailed history entries to determine which ones to skip
+        # We reuse the same logic as attachment processing for consistency
+        detailed_history_entries = self._get_history_entries(ticket_id)
+
+        # Create a set of history IDs to skip (outgoing emails)
+        skip_history_ids = set()
+        for history_entry in detailed_history_entries:
+            if self._is_outgoing_email_history(history_entry, ticket_id):
+                entry_id = history_entry.get("id")
+                if entry_id:
+                    skip_history_ids.add(entry_id)
+                    logger.debug(f"Will skip history item {entry_id} (outgoing email)")
+
+        # Download each history item individually (excluding outgoing emails)
+        for history_id in history_ids:
+            if history_id in skip_history_ids:
+                logger.debug(f"Skipping outgoing email history item {history_id}")
+                continue
+            self._download_single_history_item(ticket_id, history_id, target_dir)
+
+    def _download_single_history_item(
+        self, ticket_id: str, history_id: str, target_dir: Path
+    ) -> None:
+        """Download a single history item to {history_id}/message.txt."""
+        logger.debug(f"Downloading history item {history_id} for ticket {ticket_id}")
+
+        response = self.session.get(
+            f"{self.session.rest_url('ticket', ticket_id, 'history', 'id', history_id)}"
+        )
+        rt_data = parse_rt_response(response)
+
+        if not rt_data.is_ok:
+            logger.warning(
+                f"Failed to get history item {history_id} for ticket {ticket_id}: "
+                f"{rt_data.status_code} {rt_data.status_text}"
+            )
+            return
+
+        # Create history ID directory and save message
+        history_item_dir = target_dir / history_id
+        history_item_dir.mkdir(exist_ok=True)
+
+        message_file = history_item_dir / "message.txt"
+        message_file.write_bytes(rt_data.payload)
+        logger.info(f"Created {message_file}")
 
     def _download_attachments(self, ticket_id: str, target_dir: Path) -> None:
         """Download attachments from history entries, skipping outgoing emails."""
@@ -108,26 +191,29 @@ class TicketDownloader:
             logger.debug(f"No history entries found for ticket {ticket_id}")
             return
 
-        # Create attachments directory
-        attachments_dir = target_dir / "attachments"
-        attachments_dir.mkdir(exist_ok=True)
-
         # Process each history entry
         for history_entry in history_entries:
-            if self._is_outgoing_email_history(history_entry):
+            if self._is_outgoing_email_history(history_entry, ticket_id):
                 entry_id = history_entry.get("id", "unknown")
                 logger.debug(f"Skipping outgoing email history entry {entry_id}")
                 continue
 
-            # Download attachments for this history entry
-            for attachment_id in history_entry.get("attachment_ids", []):
-                self._download_history_attachment(
-                    ticket_id,
-                    history_entry["id"],
-                    attachment_id,
-                    attachment_cache,
-                    attachments_dir,
-                )
+            history_id = history_entry["id"]
+
+            # Create history directory for this entry if it has attachments
+            if history_entry.get("attachment_ids"):
+                history_dir = target_dir / history_id
+                history_dir.mkdir(exist_ok=True)
+
+                # Download attachments for this history entry
+                for attachment_id in history_entry.get("attachment_ids", []):
+                    self._download_history_attachment(
+                        ticket_id,
+                        history_id,
+                        attachment_id,
+                        attachment_cache,
+                        history_dir,
+                    )
 
     def _build_attachment_cache(self, ticket_id: str) -> dict[str, dict[str, str]]:
         """Build cache of attachment metadata from attachments list.
@@ -329,14 +415,34 @@ class TicketDownloader:
             ids.append(match.group(1))
         return ids
 
-    def _is_outgoing_email_history(self, history_entry: dict) -> bool:
+    def _is_outgoing_email_history(self, history_entry: dict, ticket_id: str) -> bool:
         """Check if a history entry represents an outgoing email.
 
-        For now, we don't skip any history entries at this level.
-        Instead, we'll check individual attachments for outgoing email patterns
-        in the _is_outgoing_attachment method.
+        Uses consistent logic with attachment filtering to identify RT-generated
+        outgoing emails that should be excluded from downloads.
+
+        Args:
+            history_entry: Dictionary containing history entry information
+            ticket_id: RT ticket ID for API calls if needed
+
+        Returns:
+            True if this history entry represents an outgoing email
         """
-        return False
+        # Check if this history entry has attachments
+        attachment_ids = history_entry.get("attachment_ids", [])
+
+        # If no attachments, this is not an outgoing email
+        if not attachment_ids:
+            return False
+
+        # Check the first attachment to determine if this is an outgoing email history
+        # Since outgoing emails typically have all attachments being outgoing emails,
+        # checking the first one is sufficient to determine the history entry type
+        first_attachment_id = attachment_ids[0]
+
+        # Use the existing _is_outgoing_attachment method for consistency
+        # This ensures both history and attachment filtering use identical logic
+        return self._is_outgoing_attachment(ticket_id, first_attachment_id)
 
     def _download_history_attachment(
         self,
@@ -344,9 +450,9 @@ class TicketDownloader:
         history_id: str,
         attachment_id: str,
         attachment_cache: dict,
-        attachments_dir: Path,
+        history_dir: Path,
     ) -> None:
-        """Download attachment using history-based filename format."""
+        """Download attachment using n{attachment_id} filename format."""
         logger.debug(
             f"Downloading attachment {attachment_id} from history {history_id} "
             f"for ticket {ticket_id}"
@@ -388,18 +494,18 @@ class TicketDownloader:
         mime_type = attachment_info.get("mime_type", "application/octet-stream")
         extension = self._mime_type_to_extension(mime_type)
 
-        # Create filename: {history_id}-{attachment_id}.{extension}
-        filename = f"{history_id}-{attachment_id}.{extension}"
+        # Create filename: n{attachment_id}.{extension}
+        filename = f"n{attachment_id}.{extension}"
 
         # Save attachment content
-        attachment_file = attachments_dir / filename
+        attachment_file = history_dir / filename
         attachment_file.write_bytes(rt_data.payload)
-        logger.debug(f"Saved attachment to {attachment_file}")
+        logger.info(f"Created {attachment_file}")
 
         # If this is an XLSX file, automatically convert to TSV
         if extension == "xlsx":
-            tsv_filename = f"{history_id}-{attachment_id}.tsv"
-            tsv_file = attachments_dir / tsv_filename
+            tsv_filename = f"n{attachment_id}.tsv"
+            tsv_file = history_dir / tsv_filename
             self._convert_xlsx_to_tsv(attachment_file, tsv_file)
 
     def _is_outgoing_attachment(self, ticket_id: str, attachment_id: str) -> bool:
@@ -484,7 +590,8 @@ class TicketDownloader:
                     values = [self._normalize_xlsx_value(cell) for cell in row]
                     f.write("\t".join(values) + "\n")
 
-            logger.debug(f"Successfully converted XLSX to {tsv_path}")
+            logger.info(f"Created {tsv_path}")
+            logger.debug("Successfully converted XLSX to TSV format")
 
         except Exception as e:
             logger.error(f"Failed to convert {xlsx_path} to TSV: {e}")
