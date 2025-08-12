@@ -8,6 +8,14 @@ from pathlib import Path
 
 from .downloader import download_ticket
 from .session import BASE_URL, REST_URL, RTSession
+from .ticket_analyzer import analyze_ticket
+
+
+def analyze_ticket_cli():
+    """Entry point for analyzing RT ticket data and generating automation metadata."""
+    args = parse_analyze_ticket_arguments()
+    config_logging(args)
+    analyze_ticket(args.ticket_dir)
 
 
 def download_ticket_cli():
@@ -23,6 +31,15 @@ def download_ticket_cli():
         if args.verbose:
             session.print_cookies()
         download_ticket(session, args.ticket_id, target_dir)
+
+
+def parse_analyze_ticket_arguments() -> Namespace:
+    """Parse command line arguments for analyze-ticket."""
+    parser = make_parser("Analyze RT ticket data and generate automation metadata")
+    parser.add_argument(
+        "ticket_dir", type=Path, help="Directory containing downloaded RT ticket data"
+    )
+    return parser.parse_args()
 
 
 def parse_download_ticket_arguments() -> Namespace:
