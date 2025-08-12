@@ -1,0 +1,281 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://schemas.hgsc.bcm.edu/rt-ticket-automation/v2.0",
+  "title": "RT Ticket Automation Schema",
+  "description": "Schema for structured RT ticket metadata extraction for MFTS automation",
+  "type": "object",
+  "required": [
+    "ticket_id",
+    "status",
+    "request_type",
+    "transfer_method",
+    "requestor",
+    "recipients",
+    "automation_status"
+  ],
+  "properties": {
+    "ticket_id": {
+      "type": "string",
+      "pattern": "^[0-9]+$",
+      "description": "RT ticket ID number"
+    },
+    "status": {
+      "type": "string",
+      "enum": ["new", "open", "stalled", "resolved", "rejected", "deleted"],
+      "description": "RT ticket status"
+    },
+    "queue": {
+      "type": "string",
+      "description": "RT queue name"
+    },
+    "created_date": {
+      "type": "string",
+      "description": "Ticket creation timestamp"
+    },
+    "assigned_to": {
+      "type": "string",
+      "description": "Ticket assignee"
+    },
+    "request_type": {
+      "type": "string",
+      "enum": ["data_transfer", "data_submission", "technical_support"],
+      "description": "Classification of request type"
+    },
+    "transfer_method": {
+      "type": "string",
+      "enum": ["MFTS", "FTP", "Aspera", "Box", "Other"],
+      "description": "Data transfer mechanism"
+    },
+    "project": {
+      "type": "object",
+      "description": "Project-level information",
+      "properties": {
+        "name": {
+          "type": ["string", "null"],
+          "description": "Project name or identifier"
+        },
+        "id": {
+          "type": ["string", "null"],
+          "description": "Project ID or code"
+        },
+        "recipient_organization": {
+          "type": ["string", "null"],
+          "description": "Primary recipient organization"
+        },
+        "data_type": {
+          "type": ["string", "null"],
+          "enum": [null, "OLINKHT", "WGS", "RNA-seq", "ChIP-seq", "ATAC-seq", "Proteomics", "Metabolomics"],
+          "description": "Type of biological data"
+        }
+      },
+      "additionalProperties": false
+    },
+    "batch": {
+      "type": "object",
+      "description": "Batch-specific information",
+      "properties": {
+        "name": {
+          "type": ["string", "null"],
+          "description": "Batch name or identifier"
+        },
+        "sample_count": {
+          "type": ["integer", "null"],
+          "minimum": 1,
+          "description": "Number of samples in batch"
+        }
+      },
+      "additionalProperties": false
+    },
+    "requestor": {
+      "type": "object",
+      "required": ["email"],
+      "description": "Person submitting the request",
+      "properties": {
+        "email": {
+          "type": "string",
+          "format": "email",
+          "description": "Requestor email address"
+        }
+      },
+      "additionalProperties": false
+    },
+    "recipients": {
+      "type": "array",
+      "minItems": 1,
+      "description": "Data recipients",
+      "items": {
+        "type": "object",
+        "required": ["email"],
+        "properties": {
+          "name": {
+            "type": ["string", "null"],
+            "description": "Recipient full name"
+          },
+          "email": {
+            "type": "string",
+            "format": "email",
+            "description": "Recipient email address"
+          },
+          "institution": {
+            "type": ["string", "null"],
+            "description": "Recipient institution/organization"
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "data_specifications": {
+      "type": "object",
+      "description": "Data files and specifications",
+      "properties": {
+        "files": {
+          "type": "array",
+          "description": "List of specific files to transfer",
+          "items": {
+            "type": "object",
+            "required": ["filename", "extension"],
+            "properties": {
+              "filename": {
+                "type": "string",
+                "description": "Complete filename"
+              },
+              "extension": {
+                "type": "string",
+                "enum": ["parquet", "csv.gz", "fastq.gz", "vcf.gz", "tar.gz", "pdf", "xlsx", "tsv", "txt"],
+                "description": "File extension (compound extensions preserved)"
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "file_types": {
+          "type": "array",
+          "description": "Unique file extensions found",
+          "items": {
+            "type": "string",
+            "enum": ["parquet", "csv.gz", "fastq.gz", "vcf.gz", "tar.gz", "pdf", "xlsx", "tsv", "txt"]
+          }
+        },
+        "base_paths": {
+          "type": "array",
+          "description": "Base directory paths for data access",
+          "items": {
+            "type": "string",
+            "pattern": "^/[a-zA-Z0-9_/.-]+$"
+          }
+        },
+        "total_files": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Total number of files"
+        }
+      },
+      "additionalProperties": false
+    },
+    "processing_requirements": {
+      "type": "object",
+      "description": "Processing and delivery requirements",
+      "properties": {
+        "md5_checksums_required": {
+          "type": "boolean",
+          "description": "Whether MD5 checksums are required"
+        },
+        "multiple_batches_expected": {
+          "type": "boolean",
+          "description": "Whether additional batches will follow"
+        },
+        "additional_files_expected": {
+          "type": "boolean",
+          "description": "Whether additional files will be provided"
+        }
+      },
+      "additionalProperties": false
+    },
+    "automation_status": {
+      "type": "object",
+      "required": ["parsed_date", "ready_for_processing"],
+      "description": "Automation processing metadata",
+      "properties": {
+        "parsed_date": {
+          "type": "string",
+          "format": "date",
+          "description": "Date when ticket was parsed"
+        },
+        "ready_for_processing": {
+          "type": "boolean",
+          "description": "Whether ticket has sufficient data for automation"
+        },
+        "analysis_confidence": {
+          "type": "string",
+          "enum": ["low", "medium", "high"],
+          "description": "Confidence level of extracted information"
+        }
+      },
+      "additionalProperties": false
+    },
+    "references": {
+      "type": "object",
+      "description": "Related tickets and references",
+      "properties": {
+        "related_tickets": {
+          "type": "array",
+          "description": "Related RT ticket IDs",
+          "items": {
+            "type": "string",
+            "pattern": "^[0-9]+$"
+          }
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false,
+  "examples": [
+    {
+      "ticket_id": "37603",
+      "status": "new",
+      "queue": "Managed File Transfer",
+      "request_type": "data_transfer",
+      "transfer_method": "MFTS",
+      "project": {
+        "name": "DHMS_03",
+        "id": "DHMS_03",
+        "data_type": "OLINKHT"
+      },
+      "requestor": {
+        "email": "researcher@bcm.edu"
+      },
+      "recipients": [
+        {
+          "name": "John Doe",
+          "email": "john.doe@utsouthwestern.edu",
+          "institution": "UT Southwestern Medical Center"
+        }
+      ],
+      "data_specifications": {
+        "files": [
+          {
+            "filename": "data_2025-06-18.parquet",
+            "extension": "parquet"
+          },
+          {
+            "filename": "data_2025-06-18.csv.gz",
+            "extension": "csv.gz"
+          }
+        ],
+        "file_types": ["parquet", "csv.gz"],
+        "total_files": 2
+      },
+      "processing_requirements": {
+        "md5_checksums_required": false,
+        "multiple_batches_expected": false,
+        "additional_files_expected": false
+      },
+      "automation_status": {
+        "parsed_date": "2025-08-11",
+        "ready_for_processing": true,
+        "analysis_confidence": "high"
+      }
+    }
+  ]
+}

@@ -1,0 +1,73 @@
+{
+  "ticket_id": "38001",
+  "status": "new",
+  "queue": "Managed File Transfer",
+  "created_date": "Tue Aug 12 09:15:22 2025",
+  "assigned_to": "datamanager",
+  "request_type": "data_submission",
+  "transfer_method": "MFTS",
+  "project": {
+    "name": "Cardiac Transcriptomics Study",
+    "id": "CTS_2025",
+    "recipient_organization": "Johns Hopkins University",
+    "data_type": "RNA-seq"
+  },
+  "batch": {
+    "name": "CTS Batch 1 of 3",
+    "sample_count": 24
+  },
+  "requestor": {
+    "email": "pi.researcher@bcm.edu"
+  },
+  "recipients": [
+    {
+      "name": "Dr. Sarah Chen",
+      "email": "schen@jhu.edu",
+      "institution": "Johns Hopkins University"
+    },
+    {
+      "name": "Michael Rodriguez",
+      "email": "mrodriguez@jhu.edu",
+      "institution": "Johns Hopkins University"
+    }
+  ],
+  "data_specifications": {
+    "files": [
+      {
+        "filename": "sample_001_R1.fastq.gz",
+        "extension": "fastq.gz"
+      },
+      {
+        "filename": "sample_001_R2.fastq.gz",
+        "extension": "fastq.gz"
+      },
+      {
+        "filename": "sample_metadata.tsv",
+        "extension": "tsv"
+      },
+      {
+        "filename": "quality_control_report.pdf",
+        "extension": "pdf"
+      }
+    ],
+    "file_types": ["fastq.gz", "tsv", "pdf"],
+    "base_paths": [
+      "/stornext/snfs240/rna-seq/CTS_2025/batch_1/fastq",
+      "/stornext/snfs240/rna-seq/CTS_2025/batch_1/metadata"
+    ],
+    "total_files": 4
+  },
+  "processing_requirements": {
+    "md5_checksums_required": true,
+    "multiple_batches_expected": true,
+    "additional_files_expected": true
+  },
+  "automation_status": {
+    "parsed_date": "2025-08-12",
+    "ready_for_processing": true,
+    "analysis_confidence": "high"
+  },
+  "references": {
+    "related_tickets": ["37890", "37891"]
+  }
+}
