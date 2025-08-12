@@ -1,0 +1,55 @@
+{
+  "ticket_id": "37525",
+  "status": "open",
+  "queue": "Submissions",
+  "created_date": "Wed Jul 30 12:23:55 2025",
+  "assigned_to": "eskinner",
+  "request_type": "data_transfer",
+  "transfer_method": "MFTS",
+  "project": {
+    "name": null,
+    "id": null,
+    "recipient_organization": "Claudia Carvalho",
+    "data_type": null
+  },
+  "batch": {
+    "name": "Remapping Project Batch 4",
+    "sample_count": 69
+  },
+  "requestor": {
+    "email": "James.Hwang@bcm.edu"
+  },
+  "recipients": [
+    {
+      "name": "Chris Seward",
+      "email": "cseward@pnri.org",
+      "institution": null
+    },
+    {
+      "name": "Cliff Lun",
+      "email": "clun@pnri.org",
+      "institution": null
+    }
+  ],
+  "data_specifications": {
+    "files": [
+      {
+        "filename": "Samples.xlsx",
+        "extension": "xlsx"
+      }
+    ],
+    "file_types": ["xlsx"],
+    "base_paths": [],
+    "total_files": 1
+  },
+  "processing_requirements": {
+    "md5_checksums_required": true,
+    "multiple_batches_expected": false,
+    "additional_files_expected": false
+  },
+  "automation_status": {
+    "parsed_date": "2025-08-11",
+    "ready_for_processing": true,
+    "analysis_confidence": "high"
+  }
+}

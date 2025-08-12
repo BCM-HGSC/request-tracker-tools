@@ -1,0 +1,67 @@
+{
+  "ticket_id": "37603",
+  "status": "new",
+  "queue": "Managed File Transfer",
+  "created_date": "Mon Aug 11 14:38:38 2025",
+  "assigned_to": "Nobody",
+  "request_type": "data_transfer",
+  "transfer_method": "MFTS",
+  "project": {
+    "name": "DHMS_03",
+    "id": "DHMS_03",
+    "recipient_organization": null,
+    "data_type": "OLINKHT"
+  },
+  "batch": {
+    "name": null,
+    "sample_count": null
+  },
+  "requestor": {
+    "email": "Petra.Kadakova@bcm.edu"
+  },
+  "recipients": [
+    {
+      "name": "Amil Shah",
+      "institution": "UT Southwestern Medical Center",
+      "email": "Amil.Shah@UTSouthwestern.edu"
+    },
+    {
+      "name": "Victoria (Vickie) Lamberson",
+      "institution": "UT Southwestern Medical Center",
+      "email": "Victoria.Lamberson@UTSouthwestern.edu"
+    }
+  ],
+  "data_specifications": {
+    "files": [
+      {
+        "filename": "DHMS_03_06122025_NPX_2025-06-18.parquet",
+        "extension": "parquet"
+      },
+      {
+        "filename": "DHMS_03_06122025_NPX_2025-06-18.csv.gz",
+        "extension": "csv.gz"
+      },
+      {
+        "filename": "DHMS_03_06122025_Analysis_Report_2025-06-18.pdf",
+        "extension": "pdf"
+      }
+    ],
+    "file_types": ["parquet", "csv.gz", "pdf"],
+    "base_paths": [
+      "/stornext/snfs210/next-gen/Illumina/Instruments/A00992/250616_A00992_0677_AHFWYYDSXF/Results/DHMS_03/parquet_files/DHMS_03_06122025_NPX_2025-06-18.parquet",
+      "/stornext/snfs210/next-gen/Illumina/Instruments/A00992/250616_A00992_0677_AHFWYYDSXF/Results/DHMS_03/parquet_files/DHMS_03_06122025_NPX_2025-06-18.csv.gz",
+      "/stornext/snfs210/next-gen/Illumina/Instruments/A00992/250616_A00992_0677_AHFWYYDSXF/Results/DHMS_03/parquet_files/DHMS_03_06122025_Analysis_Report_2025-06-18.pdf"
+    ],
+    "total_files": 3
+  },
+  "processing_requirements": {
+    "md5_checksums_required": false,
+    "multiple_batches_expected": false,
+    "additional_files_expected": false
+  },
+  "automation_status": {
+    "parsed_date": "2025-08-11",
+    "ready_for_processing": true,
+    "analysis_confidence": "high"
+  }
+}
