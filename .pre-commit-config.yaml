@@ -16,8 +16,9 @@ repos:
     hooks:
       - id: trailing-whitespace
         exclude: \.bin$|^notebooks/
+      - id: check-added-large-files
+      - id: check-json
+      - id: check-toml
+      - id: check-yaml
       - id: end-of-file-fixer
         exclude: \.bin$
-      - id: check-yaml
-      - id: check-toml
-      - id: check-added-large-files
