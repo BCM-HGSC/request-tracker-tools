@@ -13,6 +13,7 @@ The codebase follows a standard Python package structure with src layout:
 - **`src/rt_tools/`** - Main package directory
   - **`cli.py`** - Command-line interface with argument parsing and logging configuration
   - **`session.py`** - `RTSession` class that extends `requests.Session` for RT-specific authentication and operations
+  - **`downloader.py`** - `TicketDownloader` class for comprehensive ticket data download and organization
   - **`utils.py`** - Utility functions for cookie management, password fetching, and response handling
   - **`__init__.py`** - Package initialization with dynamic version loading
 
@@ -23,6 +24,13 @@ The codebase follows a standard Python package structure with src layout:
 - SSL certificate verification with custom cert file (`rt.hgsc.bcm.edu.pem`)
 - Cookie persistence using Mozilla cookie jar format
 - Authentication status checking via RT API responses
+
+**TicketDownloader Class**: Handles comprehensive ticket data retrieval:
+- Downloads ticket metadata, complete history, and all attachments
+- Creates organized directory structure with individual history directories
+- Filters outgoing emails and zero-byte attachments automatically
+- Uses n-prefixed attachment naming for proper sorting (`n800.pdf`)
+- Provides detailed logging of all file creation operations
 
 **Authentication Flow**:
 1. Attempts to load existing cookies from `cookies.txt`
@@ -72,6 +80,7 @@ python -m build
 ### Running the CLI
 ```bash
 # Available console scripts:
+download-ticket <ticket_id> <target_dir>         # Download complete RT ticket data
 dump-ticket <ticket_id> [additional_path_parts]  # Dump RT ticket information
 dump-rest [rest_path_parts]                      # Dump content from RT REST API URLs
 dump-url [url_path_parts]                        # Dump content from RT URLs
@@ -97,6 +106,25 @@ The package expects:
 **URL Construction**: RT ticket URLs are built using static methods that concatenate base URL with ticket ID and optional path components.
 
 **Response Data**: RT REST API returns attachments surrounded by a prefix and a possible suffix. The prefix is b"RT/x.x.x 200 Ok\n\n", where x.x.x is the RT version. Anything other than this indicates an error. The suffix is present only when the URL ends with "/content/" or "/content". When present, the suffix is 3 newlines: b"\n\n\n". The three newlines never contain carraige returns. Downloading an attachment uses a content URL and requires validating the suffix and removing both suffix and prefix.
+
+**Directory Structure**: The downloader creates an organized structure with individual history directories:
+```
+ticket_37603/
+├── metadata.txt              # Basic ticket information
+├── 1492666/                  # History entry directory
+│   ├── message.txt           # History entry content
+│   ├── n800.pdf             # Attachment with n-prefix for sorting
+│   └── n801.xlsx            # Additional attachments
+└── 1492934/                  # Additional history entries
+    └── message.txt
+```
+
+**File Naming Conventions**: Attachments use n-prefixed naming (`n{attachment_id}.{ext}`) to ensure proper alphabetical sorting, preventing issues where `10.pdf` would sort before `2.pdf`.
+
+**Content Filtering**: The downloader automatically filters out:
+- Outgoing emails (identified by X-RT-Loop-Prevention headers)
+- Zero-byte attachments that contain no useful data
+- System-generated notifications that don't contain user content
 
 **Security**: Passwords are fetched from macOS keychain rather than being stored in code or configuration files. The keychain lookup uses partial command `["/usr/bin/security", "find-generic-password", "-w", "-s", "foobar", "-a"]` with username appended.
 
