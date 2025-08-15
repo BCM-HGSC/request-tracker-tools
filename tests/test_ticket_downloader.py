@@ -89,8 +89,22 @@ def mock_session(mock_rt_responses):
         """Mock rest_url method."""
         return "https://rt.example.com/REST/1.0/" + "/".join(parts)
 
+    def mock_fetch_rest(*parts):
+        """Mock fetch_rest method to work with new *parts syntax."""
+        from rt_tools.session import parse_rt_response
+
+        # Construct URL using the same logic as mock_rest_url
+        url = "https://rt.example.com/REST/1.0/" + "/".join(parts)
+
+        # Get response using existing mock_get logic
+        response = mock_get(url)
+
+        # Parse the response as fetch_rest would do
+        return parse_rt_response(response)
+
     session.get.side_effect = mock_get
     session.rest_url.side_effect = mock_rest_url
+    session.fetch_rest.side_effect = mock_fetch_rest
     return session
 
 

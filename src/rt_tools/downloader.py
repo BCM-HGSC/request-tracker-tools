@@ -9,7 +9,7 @@ try:
 except ImportError:
     openpyxl = None
 
-from .session import RTSession, parse_rt_response
+from .session import RTSession
 
 logger = logging.getLogger(__name__)
 
@@ -68,8 +68,7 @@ class TicketDownloader:
         """Download ticket metadata to metadata.txt."""
         logger.debug(f"Downloading metadata for ticket {ticket_id}")
 
-        response = self.session.get(f"{self.session.rest_url('ticket', ticket_id)}")
-        rt_data = parse_rt_response(response)
+        rt_data = self.session.fetch_rest("ticket", ticket_id)
 
         if not rt_data.is_ok:
             logger.error(
@@ -86,10 +85,7 @@ class TicketDownloader:
         """Download ticket history to history.txt."""
         logger.debug(f"Downloading history for ticket {ticket_id}")
 
-        response = self.session.get(
-            f"{self.session.rest_url('ticket', ticket_id, 'history')}"
-        )
-        rt_data = parse_rt_response(response)
+        rt_data = self.session.fetch_rest("ticket", ticket_id, "history")
 
         if not rt_data.is_ok:
             logger.error(
@@ -113,10 +109,7 @@ class TicketDownloader:
         logger.debug(f"Downloading individual history items for ticket {ticket_id}")
 
         # Get basic history list to find all history IDs
-        response = self.session.get(
-            f"{self.session.rest_url('ticket', ticket_id, 'history')}"
-        )
-        rt_data = parse_rt_response(response)
+        rt_data = self.session.fetch_rest("ticket", ticket_id, "history")
 
         if not rt_data.is_ok:
             logger.error(
@@ -155,10 +148,9 @@ class TicketDownloader:
         """Download a single history item to {history_id}/message.txt."""
         logger.debug(f"Downloading history item {history_id} for ticket {ticket_id}")
 
-        response = self.session.get(
-            f"{self.session.rest_url('ticket', ticket_id, 'history', 'id', history_id)}"
+        rt_data = self.session.fetch_rest(
+            "ticket", ticket_id, "history", "id", history_id
         )
-        rt_data = parse_rt_response(response)
 
         if not rt_data.is_ok:
             logger.warning(
@@ -220,10 +212,7 @@ class TicketDownloader:
 
         Returns dict mapping attachment_id -> {filename, mime_type}
         """
-        response = self.session.get(
-            f"{self.session.rest_url('ticket', ticket_id, 'attachments')}"
-        )
-        rt_data = parse_rt_response(response)
+        rt_data = self.session.fetch_rest("ticket", ticket_id, "attachments")
 
         if not rt_data.is_ok:
             logger.error(
@@ -290,10 +279,7 @@ class TicketDownloader:
         Fetches basic history list first, then individual entries.
         """
         # Get basic history list first
-        response = self.session.get(
-            f"{self.session.rest_url('ticket', ticket_id, 'history')}"
-        )
-        rt_data = parse_rt_response(response)
+        rt_data = self.session.fetch_rest("ticket", ticket_id, "history")
 
         if not rt_data.is_ok:
             logger.error(
@@ -340,10 +326,9 @@ class TicketDownloader:
 
     def _get_single_history_entry(self, ticket_id: str, history_id: str) -> dict:
         """Get detailed information for a single history entry."""
-        response = self.session.get(
-            f"{self.session.rest_url('ticket', ticket_id, 'history', 'id', history_id)}"
+        rt_data = self.session.fetch_rest(
+            "ticket", ticket_id, "history", "id", history_id
         )
-        rt_data = parse_rt_response(response)
 
         if not rt_data.is_ok:
             logger.warning(
@@ -471,11 +456,9 @@ class TicketDownloader:
             return
 
         # Get attachment content
-        url = self.session.rest_url(
+        rt_data = self.session.fetch_rest(
             "ticket", ticket_id, "attachments", attachment_id, "content"
         )
-        response = self.session.get(url)
-        rt_data = parse_rt_response(response)
 
         if not rt_data.is_ok:
             logger.error(
@@ -511,9 +494,9 @@ class TicketDownloader:
     def _is_outgoing_attachment(self, ticket_id: str, attachment_id: str) -> bool:
         """Check if attachment represents an outgoing email to be excluded."""
         # Get attachment metadata to check for outgoing email indicators
-        url = self.session.rest_url("ticket", ticket_id, "attachments", attachment_id)
-        response = self.session.get(url)
-        rt_data = parse_rt_response(response)
+        rt_data = self.session.fetch_rest(
+            "ticket", ticket_id, "attachments", attachment_id
+        )
 
         if not rt_data.is_ok:
             logger.debug(f"Could not get metadata for attachment {attachment_id}")
