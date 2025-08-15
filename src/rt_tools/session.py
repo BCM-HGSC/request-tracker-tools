@@ -183,14 +183,19 @@ class RTSession(Session):
             file: Optional binary file-like object to write payload to.
                 If None, writes to stdout.buffer.
         """
-        url = RTSession.rest_url(*parts)
-        response = self.get(url)
-        log_response(response)
-        result = parse_rt_response(response)
+        result = self.fetch_rest(*parts)
         if result.is_ok:
             dump_data(result.payload, file=file)
         else:
             logger.error("payload suppressed")
+
+    def fetch_rest(self, *parts: str) -> RTResponseData:
+        """GET a REST URL and return the parsed result."""
+        url = RTSession.rest_url(*parts)
+        response = self.get(url)
+        log_response(response)
+        result = parse_rt_response(response)
+        return result
 
     def dump_url(self, url: str) -> None:
         """GET a URL and dump the response."""
