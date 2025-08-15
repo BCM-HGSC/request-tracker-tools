@@ -37,3 +37,9 @@ def pytest_collection_modifyitems(config, items):
 def fixtures_dir():
     """Return path to the test fixtures directory."""
     return Path(__file__).parent / "fixtures"
+
+
+@fixture
+def fixture_data_path(fixtures_dir):
+    """Return path to test fixture data."""
+    return fixtures_dir / "rt_ticket_data"
