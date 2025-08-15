@@ -10,12 +10,6 @@ from rt_tools import RTSession, download_ticket
 
 
 @fixture
-def fixture_data_path(fixtures_dir):
-    """Return path to test fixture data."""
-    return fixtures_dir / "rt_ticket_data"
-
-
-@fixture
 def mock_rt_responses(fixture_data_path):
     """Create mock RT responses using fixture data."""
     responses = {}
