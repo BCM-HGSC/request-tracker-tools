@@ -118,24 +118,41 @@ class TicketDownloader:
             )
             return
 
-        # Parse history IDs from the basic list
-        history_ids = self._parse_history_ids(rt_data.payload.decode("utf-8"))
-        logger.debug(f"Found {len(history_ids)} history items to download")
+        # Use optimized filtering: check basic history for outgoing emails first
+        history_ids, outgoing_by_pattern = self._parse_history_with_outgoing_filter(
+            rt_data.payload.decode("utf-8")
+        )
 
-        # Get detailed history entries to determine which ones to skip
-        # We reuse the same logic as attachment processing for consistency
+        # If we found pattern-based outgoing emails, log the optimization
+        if outgoing_by_pattern:
+            logger.info(
+                f"Optimization: Pattern-based filtering identified "
+                f"{len(outgoing_by_pattern)} outgoing emails without API calls"
+            )
+
+        # For remaining entries, get detailed history entries to check for filtering
+        # (e.g., X-RT-Loop-Prevention headers in attachments)
         detailed_history_entries = self._get_history_entries(ticket_id)
 
-        # Create a set of history IDs to skip (outgoing emails)
-        skip_history_ids = set()
+        # Create comprehensive set of history IDs to skip
+        skip_history_ids = set(outgoing_by_pattern)  # Start with pattern-based results
+
+        # Add entries identified through detailed checking
         for history_entry in detailed_history_entries:
             if self._is_outgoing_email_history(history_entry, ticket_id):
                 entry_id = history_entry.get("id")
-                if entry_id:
+                if entry_id and entry_id not in skip_history_ids:
                     skip_history_ids.add(entry_id)
-                    logger.debug(f"Will skip history item {entry_id} (outgoing email)")
+                    logger.debug(
+                        f"Detailed check identified outgoing email: {entry_id}"
+                    )
 
-        # Download each history item individually (excluding outgoing emails)
+        logger.debug(
+            f"Found {len(history_ids)} history items, "
+            f"filtering {len(skip_history_ids)} total outgoing emails"
+        )
+
+        # Download each history item individually (excluding all filtered entries)
         for history_id in history_ids:
             if history_id in skip_history_ids:
                 logger.debug(f"Skipping outgoing email history item {history_id}")
@@ -177,6 +194,17 @@ class TicketDownloader:
             logger.debug(f"No attachments found for ticket {ticket_id}")
             return
 
+        # Get basic history list to identify outgoing emails efficiently
+        rt_data = self.session.fetch_rest("ticket", ticket_id, "history")
+        if not rt_data.is_ok:
+            logger.error(f"Failed to get history list for ticket {ticket_id}")
+            return
+
+        # Use hybrid filtering: pattern-based + detailed checking
+        _, outgoing_by_pattern = self._parse_history_with_outgoing_filter(
+            rt_data.payload.decode("utf-8")
+        )
+
         # Get detailed history with attachments
         history_entries = self._get_history_entries(ticket_id)
         if not history_entries:
@@ -185,12 +213,21 @@ class TicketDownloader:
 
         # Process each history entry
         for history_entry in history_entries:
-            if self._is_outgoing_email_history(history_entry, ticket_id):
-                entry_id = history_entry.get("id", "unknown")
-                logger.debug(f"Skipping outgoing email history entry {entry_id}")
+            history_id = history_entry["id"]
+
+            # Skip if identified by pattern-based detection
+            if history_id in outgoing_by_pattern:
+                logger.debug(
+                    f"Skipping outgoing email entry {history_id} (pattern-based)"
+                )
                 continue
 
-            history_id = history_entry["id"]
+            # Skip if identified by detailed attachment checking
+            if self._is_outgoing_email_history(history_entry, ticket_id):
+                logger.debug(
+                    f"Skipping outgoing email entry {history_id} (detailed check)"
+                )
+                continue
 
             # Create history directory for this entry if it has attachments
             if history_entry.get("attachment_ids"):
@@ -323,6 +360,45 @@ class TicketDownloader:
 
         logger.debug(f"Parsed history IDs: {history_ids}")
         return history_ids
+
+    def _parse_history_with_outgoing_filter(
+        self, history_text: str
+    ) -> tuple[list[str], set[str]]:
+        """Parse history IDs and identify outgoing emails from basic history response.
+
+        Performance optimization: identifies "Outgoing email recorded by RT_System"
+        entries directly from the history summary without making additional API calls.
+
+        Example: Ticket 37525 has 18 history entries, 10 of which are outgoing emails.
+        This optimization saves 10+ API calls (individual history entry fetches +
+        attachment metadata checks) by filtering directly from the summary text.
+
+        Args:
+            history_text: Basic history response text
+
+        Returns:
+            Tuple of (all_history_ids, outgoing_email_ids_set)
+        """
+        history_ids = []
+        outgoing_email_ids = set()
+
+        for line in history_text.strip().split("\n"):
+            if ":" in line and not line.strip().startswith("#"):
+                # Extract ID from beginning of line
+                match = re.match(r"^(\d+):", line.strip())
+                if match:
+                    history_id = match.group(1)
+                    history_ids.append(history_id)
+
+                    # Check if this is an outgoing email by RT_System
+                    if "Outgoing email recorded by RT_System" in line:
+                        outgoing_email_ids.add(history_id)
+                        logger.debug(f"Identified outgoing email: {history_id}")
+
+        logger.debug(
+            f"Parsed {len(history_ids)} history IDs, {len(outgoing_email_ids)} outgoing"
+        )
+        return history_ids, outgoing_email_ids
 
     def _get_single_history_entry(self, ticket_id: str, history_id: str) -> dict:
         """Get detailed information for a single history entry."""
