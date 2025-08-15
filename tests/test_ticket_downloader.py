@@ -392,7 +392,14 @@ def test_individual_history_download(mock_session):
 
         # Create downloader and test individual history download
         downloader = TicketDownloader(mock_session)
-        downloader._download_individual_history_items("123", target_dir)
+
+        # Get the mock history payload that the method would normally receive
+        mock_history_response = mock_session.fetch_rest("ticket", "123", "history")
+        history_payload = mock_history_response.payload
+
+        downloader._download_individual_history_items(
+            "123", target_dir, history_payload
+        )
 
         # Verify individual history directories were created (excluding outgoing emails)
         history_456_dir = target_dir / "456"

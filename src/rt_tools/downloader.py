@@ -53,14 +53,20 @@ class TicketDownloader:
         # Download ticket metadata
         self._download_metadata(ticket_id, target_dir)
 
-        # Download ticket history
-        self._download_history(ticket_id, target_dir)
+        # Download ticket history and cache the payload for reuse
+        history_payload = self._download_history(ticket_id, target_dir)
+        if not history_payload:
+            logger.error(
+                f"Failed to get history for ticket {ticket_id}, "
+                f"skipping remaining downloads"
+            )
+            return
 
-        # Download individual history items
-        self._download_individual_history_items(ticket_id, target_dir)
+        # Download individual history items using cached history payload
+        self._download_individual_history_items(ticket_id, target_dir, history_payload)
 
-        # Download attachments from history
-        self._download_attachments(ticket_id, target_dir)
+        # Download attachments from history using cached history payload
+        self._download_attachments(ticket_id, target_dir, history_payload)
 
         logger.info(f"Completed downloading ticket {ticket_id}")
 
@@ -81,8 +87,12 @@ class TicketDownloader:
         metadata_file.write_bytes(rt_data.payload)
         logger.info(f"Created {metadata_file}")
 
-    def _download_history(self, ticket_id: str, target_dir: Path) -> None:
-        """Download ticket history to history.txt."""
+    def _download_history(self, ticket_id: str, target_dir: Path) -> bytes | None:
+        """Download ticket history to history.txt and return payload for reuse.
+
+        Returns:
+            History payload bytes if successful, None if failed
+        """
         logger.debug(f"Downloading history for ticket {ticket_id}")
 
         rt_data = self.session.fetch_rest("ticket", ticket_id, "history")
@@ -92,35 +102,32 @@ class TicketDownloader:
                 f"Failed to get history for ticket {ticket_id}: "
                 f"{rt_data.status_code} {rt_data.status_text}"
             )
-            return
+            return None
 
         history_file = target_dir / "history.txt"
         history_file.write_bytes(rt_data.payload)
         logger.info(f"Created {history_file}")
 
+        return rt_data.payload
+
     def _download_individual_history_items(
-        self, ticket_id: str, target_dir: Path
+        self, ticket_id: str, target_dir: Path, history_payload: bytes
     ) -> None:
         """Download individual history items to separate directories.
 
         Each history item is saved as {history_id}/message.txt, equivalent to:
         dump-ticket -q {ticket_id} history/id/{history_id} > {history_id}/message.txt
+
+        Args:
+            ticket_id: RT ticket ID
+            target_dir: Directory to save files
+            history_payload: Cached history response payload
         """
         logger.debug(f"Downloading individual history items for ticket {ticket_id}")
 
-        # Get basic history list to find all history IDs
-        rt_data = self.session.fetch_rest("ticket", ticket_id, "history")
-
-        if not rt_data.is_ok:
-            logger.error(
-                f"Failed to get history list for ticket {ticket_id}: "
-                f"{rt_data.status_code} {rt_data.status_text}"
-            )
-            return
-
-        # Use optimized filtering: check basic history for outgoing emails first
+        # Use optimized filtering: check cached history for outgoing emails first
         history_ids, outgoing_by_pattern = self._parse_history_with_outgoing_filter(
-            rt_data.payload.decode("utf-8")
+            history_payload.decode("utf-8")
         )
 
         # If we found pattern-based outgoing emails, log the optimization
@@ -184,8 +191,16 @@ class TicketDownloader:
         message_file.write_bytes(rt_data.payload)
         logger.info(f"Created {message_file}")
 
-    def _download_attachments(self, ticket_id: str, target_dir: Path) -> None:
-        """Download attachments from history entries, skipping outgoing emails."""
+    def _download_attachments(
+        self, ticket_id: str, target_dir: Path, history_payload: bytes
+    ) -> None:
+        """Download attachments from history entries, skipping outgoing emails.
+
+        Args:
+            ticket_id: RT ticket ID
+            target_dir: Directory to save files
+            history_payload: Cached history response payload
+        """
         logger.debug(f"Downloading attachments for ticket {ticket_id}")
 
         # Build attachment cache (ID -> {filename, mime_type})
@@ -194,15 +209,9 @@ class TicketDownloader:
             logger.debug(f"No attachments found for ticket {ticket_id}")
             return
 
-        # Get basic history list to identify outgoing emails efficiently
-        rt_data = self.session.fetch_rest("ticket", ticket_id, "history")
-        if not rt_data.is_ok:
-            logger.error(f"Failed to get history list for ticket {ticket_id}")
-            return
-
-        # Use hybrid filtering: pattern-based + detailed checking
+        # Use hybrid filtering: pattern-based + detailed checking with cached payload
         _, outgoing_by_pattern = self._parse_history_with_outgoing_filter(
-            rt_data.payload.decode("utf-8")
+            history_payload.decode("utf-8")
         )
 
         # Get detailed history with attachments
