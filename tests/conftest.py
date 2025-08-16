@@ -33,13 +33,13 @@ def pytest_collection_modifyitems(config, items):
             item.add_marker(skip_integration)
 
 
-@fixture
+@fixture(scope="session")
 def fixtures_dir() -> Path:
     """Return path to the test fixtures directory."""
     return Path(__file__).parent / "fixtures"
 
 
-@fixture
+@fixture(scope="session")
 def fixture_data_path(fixtures_dir) -> Path:
     """Return path to test fixture data."""
     return fixtures_dir / "rt_ticket_data"
