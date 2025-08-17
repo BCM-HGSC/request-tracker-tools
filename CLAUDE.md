@@ -14,6 +14,7 @@ The codebase follows a standard Python package structure with src layout:
   - **`cli.py`** - Command-line interface with argument parsing and logging configuration
   - **`session.py`** - `RTSession` class that extends `requests.Session` for RT-specific authentication and operations
   - **`downloader.py`** - `TicketDownloader` class for comprehensive ticket data download and organization
+  - **`parser.py`** - Centralized RT response parsing with dataclasses and filtering logic
   - **`utils.py`** - Utility functions for cookie management, password fetching, and response handling
   - **`__init__.py`** - Package initialization with dynamic version loading
 
@@ -28,9 +29,18 @@ The codebase follows a standard Python package structure with src layout:
 **TicketDownloader Class**: Handles comprehensive ticket data retrieval:
 - Downloads ticket metadata, complete history, and all attachments
 - Creates organized directory structure with individual history directories
+- Uses centralized parser module for consistent data handling
 - Filters outgoing emails and zero-byte attachments automatically
 - Uses n-prefixed attachment naming for proper sorting (`n800.pdf`)
+- Automatically converts XLSX attachments to TSV format
 - Provides detailed logging of all file creation operations
+
+**Parser Module**: Provides centralized RT response parsing:
+- Defines structured dataclasses for RT data (AttachmentMeta, HistoryMessage, etc.)
+- Parses attachment lists, history items, and individual messages
+- Filters outgoing emails during history parsing
+- Uses string-based dataclasses to match RT API format
+- Handles multi-line content and attachment extraction
 
 **Authentication Flow**:
 1. Attempts to load existing cookies from `cookies.txt`
@@ -67,6 +77,13 @@ ruff check --fix src/rt_tools/
 
 # Run tests
 pytest
+
+# Run specific test modules
+pytest tests/test_parser.py
+pytest tests/test_ticket_downloader.py
+
+# Run tests with verbose output
+pytest -v
 ```
 
 ### Building and Distribution
@@ -99,6 +116,8 @@ The package expects:
 
 ## Important Implementation Details
 
+**Parsing Architecture**: Uses centralized parser module (`parser.py`) to eliminate duplicate parsing logic. All RT responses are parsed into structured dataclasses with string attributes to match RT API format.
+
 **Cookie Management**: Uses `http.cookiejar.MozillaCookieJar` for persistent authentication across sessions. Cookies are automatically loaded on RTSession initialization and saved after successful authentication.
 
 **Error Handling**: Authentication and request failures cause immediate program exit with error logging. The package does not implement retry logic.
@@ -125,6 +144,13 @@ ticket_37603/
 - Outgoing emails (identified by X-RT-Loop-Prevention headers)
 - Zero-byte attachments that contain no useful data
 - System-generated notifications that don't contain user content
+
+**Testing Architecture**: Comprehensive test suite with:
+- Parser tests covering all parsing functions and dataclasses (14 tests)
+- Downloader tests covering all methods and error scenarios (25 tests)
+- Mock fixtures for RT responses using real captured data
+- Session-scoped fixtures for optimal performance
+- Edge case and error handling validation
 
 **Security**: Passwords are fetched from macOS keychain rather than being stored in code or configuration files. The keychain lookup uses partial command `["/usr/bin/security", "find-generic-password", "-w", "-s", "foobar", "-a"]` with username appended.
 
