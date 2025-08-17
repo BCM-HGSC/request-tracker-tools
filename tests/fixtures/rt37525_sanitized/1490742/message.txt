@@ -1,0 +1,61 @@
+# 18/18 (id/1490742/total)
+
+id: 1490742
+Ticket: 37525
+TimeTaken: 0
+Type: Correspond
+Field: 
+OldValue: 
+NewValue: 
+Data: No Subject
+Description: Correspondence added by user002
+
+Content: Hi One,
+         
+         All files have been shared with the collaborators.
+         
+         1 MFTS account has been created for Person Five. Login information and
+         instructions to download the data have been emailed to the collaborator
+         directly.
+         
+         In order to conserve our finite data transfer storage, this data will be kept
+         live for 4 weeks and then purged. Please let us know promptly if the
+         collaborator encounters any problems downloading and validating this data.
+         
+         Thank you,
+         Two
+         On Mon Aug 04 16:47:07 2025, user002 wrote:
+         
+           Files are copied and checksums are generating now.
+           On Fri Aug 01 17:49:54 2025, user002 wrote:
+         
+             Hi One,
+         
+             No problem! The files are copying now.
+         
+             Thanks,
+             Two
+             On Fri Aug 01 16:02:30 2025, user001 wrote:
+         
+               Hi Two,
+         
+               Please also share access of these files to the following member of
+               Claudia's lab"
+         
+               Person Five
+               user005@example.com
+         
+               Thanks!
+         
+               Sincerely,
+               One
+         
+
+
+Creator: user002
+Created: 2025-08-05 16:45:05
+
+Attachments: 
+             1485420: untitled (1.1k)
+
+

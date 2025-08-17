@@ -1,0 +1,34 @@
+# 18/18 (id/1489982/total)
+
+id: 1489982
+Ticket: 37525
+TimeTaken: 0
+Type: Correspond
+Field: 
+OldValue: 
+NewValue: 
+Data: No Subject
+Description: Correspondence added by user001
+
+Content: Hi Two,
+         
+         Please also share access of these files to the following member of Claudia's
+         lab"
+         
+         Person Five
+         user005@example.com
+         
+         Thanks!
+         
+         Sincerely,
+         One
+         
+
+
+Creator: user001
+Created: 2025-08-01 21:02:30
+
+Attachments: 
+             1484849: untitled (272b)
+
+

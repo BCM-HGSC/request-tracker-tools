@@ -1,0 +1,16 @@
+# 18/18 (id/1489289/total)
+
+id: 1489289
+Ticket: 37525
+TimeTaken: 0
+Type: Set
+Field: Owner
+OldValue: 6
+NewValue: 8052
+Data: 
+Description: Given to user002 (Person Two) by RT_System
+Content: This transaction appears to have no content
+Creator: RT_System
+Created: 2025-07-30 17:23:56
+Attachments: 
+

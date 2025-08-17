@@ -1,0 +1,21 @@
+# 18/18 (/total)
+
+1489286: Ticket created by user001
+1489287: Outgoing email recorded by RT_System
+1489288: Outgoing email recorded by RT_System
+1489289: Given to user002 (Person Two) by RT_System
+1489290: Outgoing email recorded by RT_System
+1489291: Owner set to user002 (Person Two) by RT_System
+1489982: Correspondence added by user001
+1489983: Outgoing email recorded by RT_System
+1489984: Status changed from 'new' to 'open' by RT_System
+1490011: Correspondence added by user002
+1490012: Outgoing email recorded by RT_System
+1490013: Outgoing email recorded by RT_System
+1490538: Correspondence added by user002
+1490539: Outgoing email recorded by RT_System
+1490540: Outgoing email recorded by RT_System
+1490742: Correspondence added by user002
+1490743: Outgoing email recorded by RT_System
+1490744: Outgoing email recorded by RT_System
+

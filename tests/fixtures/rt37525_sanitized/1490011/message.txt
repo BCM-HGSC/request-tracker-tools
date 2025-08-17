@@ -1,0 +1,42 @@
+# 18/18 (id/1490011/total)
+
+id: 1490011
+Ticket: 37525
+TimeTaken: 0
+Type: Correspond
+Field: 
+OldValue: 
+NewValue: 
+Data: No Subject
+Description: Correspondence added by user002
+
+Content: Hi One,
+         
+         No problem! The files are copying now.
+         
+         Thanks,
+         Two
+         On Fri Aug 01 16:02:30 2025, user001 wrote:
+         
+           Hi Two,
+         
+           Please also share access of these files to the following member of
+           Claudia's lab"
+         
+           Person Five
+           user005@example.com
+         
+           Thanks!
+         
+           Sincerely,
+           One
+         
+
+
+Creator: user002
+Created: 2025-08-01 22:49:54
+
+Attachments: 
+             1484885: untitled (417b)
+
+

@@ -1,0 +1,16 @@
+# 18/18 (id/1489984/total)
+
+id: 1489984
+Ticket: 37525
+TimeTaken: 0
+Type: Status
+Field: Status
+OldValue: new
+NewValue: open
+Data: 
+Description: Status changed from 'new' to 'open' by RT_System
+Content: This transaction appears to have no content
+Creator: RT_System
+Created: 2025-08-01 21:02:31
+Attachments: 
+
