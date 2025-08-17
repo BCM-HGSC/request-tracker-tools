@@ -54,6 +54,12 @@ class TicketDownloader:
         self._download_metadata(ticket_id, target_dir)
 
         attachment_list_payload = self._download_attachment_ist(ticket_id, target_dir)
+        if not attachment_list_payload:
+            logger.error(
+                f"Failed to get attachment list for ticket {ticket_id}, "
+                f"skipping downloads"
+            )
+            return
         attachment_index = parse_attachment_list(
             attachment_list_payload.decode("ascii")
         )
@@ -178,6 +184,7 @@ class TicketDownloader:
                 f"Failed to get attachment list for ticket {ticket_id}: "
                 f"{rt_data.status_code} {rt_data.status_text}"
             )
+            return None
 
         metadata_file = target_dir / "attachments.txt"
         metadata_file.write_bytes(rt_data.payload)
