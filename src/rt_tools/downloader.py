@@ -114,7 +114,6 @@ class TicketDownloader:
                         attachment.id,
                         mime_type,
                     )
-                    pass  # TODO
 
         logger.info(f"Completed downloading ticket {ticket_id}")
 
