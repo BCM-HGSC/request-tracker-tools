@@ -15,10 +15,10 @@ repos:
     rev: v5.0.0
     hooks:
       - id: trailing-whitespace
-        exclude: \.bin$|^notebooks/
+        exclude: \.bin$|^(notebooks/|tests/fixtures/)
       - id: check-added-large-files
       - id: check-json
       - id: check-toml
       - id: check-yaml
       - id: end-of-file-fixer
-        exclude: \.bin$
+        exclude: \.bin$|^tests/fixtures/
