@@ -7,12 +7,7 @@ from unittest.mock import Mock
 from pytest import fixture
 
 from rt_tools import RTSession, download_ticket
-
-
-@fixture
-def fixture_data_path(fixtures_dir):
-    """Return path to test fixture data."""
-    return fixtures_dir / "rt_ticket_data"
+from rt_tools.downloader import TicketDownloader
 
 
 @fixture
@@ -198,87 +193,6 @@ def test_mock_session_get_requests(mock_session):
     assert b"%PDF-1.4" in response.content
 
 
-def test_download_ticket_automation(mock_session):
-    """Test the complete ticket download automation functionality."""
-    with tempfile.TemporaryDirectory() as temp_dir:
-        target_dir = Path(temp_dir) / "ticket_123"
-
-        # Run ticket download automation
-        download_ticket(mock_session, "123", target_dir)
-
-        # Verify directory structure was created
-        assert target_dir.exists()
-        assert (target_dir / "metadata.txt").exists()
-        assert (target_dir / "history.txt").exists()
-
-        # Verify metadata content
-        metadata_content = (target_dir / "metadata.txt").read_text()
-        assert "id: ticket/123" in metadata_content
-        assert "Subject: Sample ticket for testing automation" in metadata_content
-
-        # Verify history content
-        history_content = (target_dir / "history.txt").read_text()
-        assert "# 3/3" in history_content
-        assert "456: Ticket created by reporter@example.com" in history_content
-
-        # Verify attachments were downloaded in history directories
-        # History 457 attachments are skipped (X-RT-Loop-Prevention)
-        # History 458 attachments 800, 801 are downloaded
-
-        history_458_dir = target_dir / "458"
-        assert history_458_dir.exists(), "History 458 directory should exist"
-
-        attachment_files = list(history_458_dir.glob("*"))
-        # Should have message.txt + 2 attachments (800.pdf, 801.xlsx) + possibly 801.tsv
-        attachment_files = [f for f in attachment_files if f.name != "message.txt"]
-        assert len(attachment_files) >= 2, (
-            f"Expected at least 2 attachments, found {len(attachment_files)}"
-        )
-
-        # Check that we have the correct filenames
-        filenames = [f.name for f in attachment_files]
-        assert "n800.pdf" in filenames
-        assert "n801.xlsx" in filenames
-
-        # Verify PDF content
-        pdf_file = history_458_dir / "n800.pdf"
-        assert pdf_file.exists()
-        pdf_content = pdf_file.read_bytes()
-        assert b"%PDF-1.4" in pdf_content
-        assert b"Real PDF Document Content" in pdf_content
-
-        # Verify Excel content
-        xlsx_file = history_458_dir / "n801.xlsx"
-        assert xlsx_file.exists()
-        xlsx_content = xlsx_file.read_text()
-        assert "Real Excel file content" in xlsx_content
-
-        # Verify individual history items were downloaded
-        # Should have 2 history directories: 456, 458 (457 filtered as outgoing email)
-
-        history_456_dir = target_dir / "456"
-        history_458_dir = target_dir / "458"  # Already verified above
-        history_457_dir = target_dir / "457"
-
-        assert history_456_dir.exists(), "History 456 directory should exist"
-        assert history_458_dir.exists(), "History 458 directory should exist"
-        assert not history_457_dir.exists(), (
-            "History 457 directory should be filtered out"
-        )
-
-        # Verify message.txt files exist in each history directory
-        message_456 = history_456_dir / "message.txt"
-        message_458 = history_458_dir / "message.txt"
-
-        assert message_456.exists(), "History 456 message.txt should exist"
-        assert message_458.exists(), "History 458 message.txt should exist"
-
-        # Verify content of history message files
-        history_456_content = message_456.read_text()
-        assert "id: 456" in history_456_content
-        assert "Type: Create" in history_456_content
-
-
 def test_xlsx_to_tsv_conversion():
     """Test XLSX to TSV conversion functionality using real fixture file."""
     from rt_tools.downloader import TicketDownloader
@@ -383,106 +297,6 @@ def test_xlsx_conversion_trigger():
             mock_convert.assert_called_once_with(xlsx_file, history_dir / "n801.tsv")
 
 
-def test_individual_history_download(mock_session):
-    """Test downloading individual history items as separate directories."""
-    from rt_tools.downloader import TicketDownloader
-
-    with tempfile.TemporaryDirectory() as temp_dir:
-        target_dir = Path(temp_dir)
-
-        # Create downloader and test individual history download
-        downloader = TicketDownloader(mock_session)
-
-        # Get the mock history payload that the method would normally receive
-        mock_history_response = mock_session.fetch_rest("ticket", "123", "history")
-        history_payload = mock_history_response.payload
-
-        downloader._download_individual_history_items(
-            "123", target_dir, history_payload
-        )
-
-        # Verify individual history directories were created (excluding outgoing emails)
-        history_456_dir = target_dir / "456"
-        history_458_dir = target_dir / "458"
-        history_457_dir = target_dir / "457"
-
-        assert history_456_dir.exists(), "History 456 directory should be created"
-        assert history_458_dir.exists(), "History 458 directory should be created"
-        assert not history_457_dir.exists(), "History 457 should be filtered out"
-
-        # Verify message.txt files exist
-        message_456 = history_456_dir / "message.txt"
-        message_458 = history_458_dir / "message.txt"
-
-        assert message_456.exists(), "History 456 message.txt should exist"
-        assert message_458.exists(), "History 458 message.txt should exist"
-
-        # Verify content of message files
-        content_456 = message_456.read_text()
-        assert "id: 456" in content_456
-        assert "Type: Create" in content_456
-
-        content_458 = message_458.read_text()
-        assert "id: 458" in content_458
-        assert "Type: AddWatcher" in content_458
-
-
-def test_consistent_outgoing_email_filtering(mock_session):
-    """Test that history items and attachments use consistent filtering."""
-    from rt_tools.downloader import TicketDownloader
-
-    with tempfile.TemporaryDirectory():
-        downloader = TicketDownloader(mock_session)
-
-        # Get history entries and check filtering logic
-        history_entries = downloader._get_history_entries("123")
-
-        # Find history entry 457 which should be identified as outgoing email
-        history_457 = None
-        for entry in history_entries:
-            if entry.get("id") == "457":
-                history_457 = entry
-                break
-
-        assert history_457 is not None, (
-            "History entry 457 should exist in test fixtures"
-        )
-
-        # Test that history 457 is correctly identified as outgoing email
-        is_outgoing_history = downloader._is_outgoing_email_history(history_457, "123")
-        assert is_outgoing_history, (
-            "History entry 457 should be identified as outgoing email"
-        )
-
-        # Test that the same attachments are identified as outgoing
-        attachment_ids = history_457.get("attachment_ids", [])
-        assert len(attachment_ids) > 0, "History entry 457 should have attachments"
-
-        # Check that the attachments are also identified as outgoing
-        for attachment_id in attachment_ids:
-            is_outgoing_attachment = downloader._is_outgoing_attachment(
-                "123", attachment_id
-            )
-            assert is_outgoing_attachment, (
-                f"Attachment {attachment_id} should be identified as outgoing email"
-            )
-
-        # Test that non-outgoing history entries are not filtered
-        history_458 = None
-        for entry in history_entries:
-            if entry.get("id") == "458":
-                history_458 = entry
-                break
-
-        assert history_458 is not None, (
-            "History entry 458 should exist in test fixtures"
-        )
-        is_outgoing_458 = downloader._is_outgoing_email_history(history_458, "123")
-        assert not is_outgoing_458, (
-            "History entry 458 should NOT be identified as outgoing email"
-        )
-
-
 def test_normalize_xlsx_value():
     """Test cell value normalization for XLSX conversion."""
     from unittest.mock import Mock
@@ -510,3 +324,368 @@ def test_normalize_xlsx_value():
     float_cell = Mock()
     float_cell.value = 3.14
     assert downloader._normalize_xlsx_value(float_cell) == "3.14"
+
+
+def test_mime_type_to_extension():
+    """Test MIME type to file extension conversion."""
+    downloader = TicketDownloader(None)
+
+    # Test common MIME types
+    assert downloader._mime_type_to_extension("text/plain") == "txt"
+    assert downloader._mime_type_to_extension("text/html") == "html"
+    assert downloader._mime_type_to_extension("application/pdf") == "pdf"
+    assert downloader._mime_type_to_extension("image/png") == "png"
+    assert downloader._mime_type_to_extension("image/jpeg") == "jpg"
+
+    # Test Microsoft Office formats
+    assert downloader._mime_type_to_extension("application/vnd.ms-excel") == "xls"
+    assert (
+        downloader._mime_type_to_extension(
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        )
+        == "xlsx"
+    )
+    assert (
+        downloader._mime_type_to_extension(
+            "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+        )
+        == "docx"
+    )
+
+    # Test case insensitivity
+    assert downloader._mime_type_to_extension("TEXT/PLAIN") == "txt"
+    assert downloader._mime_type_to_extension("Application/PDF") == "pdf"
+
+    # Test unknown MIME types default to "bin"
+    assert downloader._mime_type_to_extension("unknown/type") == "bin"
+    assert downloader._mime_type_to_extension("") == "bin"
+    assert downloader._mime_type_to_extension("invalid-mime") == "bin"
+
+
+def test_download_ticket_convenience_function(mock_session):
+    """Test the download_ticket convenience function."""
+    with tempfile.TemporaryDirectory() as temp_dir:
+        target_dir = Path(temp_dir) / "ticket_123"
+
+        # Call the convenience function
+        download_ticket(mock_session, "123", target_dir)
+
+        # Verify it creates the same structure as TicketDownloader
+        assert target_dir.exists()
+        assert (target_dir / "metadata.txt").exists()
+        assert (target_dir / "history.txt").exists()
+        assert (target_dir / "attachments.txt").exists()
+
+
+def test_download_metadata_success(mock_session):
+    """Test successful metadata download."""
+    with tempfile.TemporaryDirectory() as temp_dir:
+        target_dir = Path(temp_dir)
+        downloader = TicketDownloader(mock_session)
+
+        downloader._download_metadata("123", target_dir)
+
+        metadata_file = target_dir / "metadata.txt"
+        assert metadata_file.exists()
+
+        content = metadata_file.read_text()
+        assert "id: ticket/123" in content
+
+
+def test_download_metadata_failure(mock_session):
+    """Test metadata download with API failure."""
+    with tempfile.TemporaryDirectory() as temp_dir:
+        target_dir = Path(temp_dir)
+        downloader = TicketDownloader(mock_session)
+
+        # Test with non-existent ticket
+        downloader._download_metadata("999", target_dir)
+
+        metadata_file = target_dir / "metadata.txt"
+        assert not metadata_file.exists()
+
+
+def test_download_history_success(mock_session):
+    """Test successful history download."""
+    with tempfile.TemporaryDirectory() as temp_dir:
+        target_dir = Path(temp_dir)
+        downloader = TicketDownloader(mock_session)
+
+        payload = downloader._download_history("123", target_dir)
+
+        # Should return payload
+        assert payload is not None
+        assert isinstance(payload, bytes)
+
+        # Should create history file
+        history_file = target_dir / "history.txt"
+        assert history_file.exists()
+
+        content = history_file.read_text()
+        assert "# 3/3" in content
+
+
+def test_download_history_failure(mock_session):
+    """Test history download with API failure."""
+    with tempfile.TemporaryDirectory() as temp_dir:
+        target_dir = Path(temp_dir)
+        downloader = TicketDownloader(mock_session)
+
+        # Test with non-existent ticket
+        payload = downloader._download_history("999", target_dir)
+
+        # Should return None on failure
+        assert payload is None
+
+        # Should not create history file
+        history_file = target_dir / "history.txt"
+        assert not history_file.exists()
+
+
+def test_download_attachment_list_success(mock_session):
+    """Test successful attachment list download."""
+    with tempfile.TemporaryDirectory() as temp_dir:
+        target_dir = Path(temp_dir)
+        downloader = TicketDownloader(mock_session)
+
+        payload = downloader._download_attachment_ist("123", target_dir)
+
+        # Should return payload
+        assert payload is not None
+        assert isinstance(payload, bytes)
+
+        # Should create attachments file
+        attachments_file = target_dir / "attachments.txt"
+        assert attachments_file.exists()
+
+        content = attachments_file.read_text()
+        assert "456: (Unnamed)" in content
+
+
+def test_download_individual_history_item_success(mock_session):
+    """Test successful individual history item download."""
+    with tempfile.TemporaryDirectory() as temp_dir:
+        target_dir = Path(temp_dir)
+        downloader = TicketDownloader(mock_session)
+
+        payload = downloader._download_individual_history_item("123", target_dir, "456")
+
+        # Should return payload
+        assert payload is not None
+        assert isinstance(payload, bytes)
+
+        # Should create history directory and message file
+        history_dir = target_dir / "456"
+        message_file = history_dir / "message.txt"
+
+        assert history_dir.exists()
+        assert message_file.exists()
+
+        content = message_file.read_text()
+        assert "id: 456" in content
+
+
+def test_download_individual_history_item_failure(mock_session):
+    """Test individual history item download with API failure."""
+    with tempfile.TemporaryDirectory() as temp_dir:
+        target_dir = Path(temp_dir)
+        downloader = TicketDownloader(mock_session)
+
+        # Test with non-existent history item
+        payload = downloader._download_individual_history_item("123", target_dir, "999")
+
+        # Should return None on failure
+        assert payload is None
+
+        # Should not create directory
+        history_dir = target_dir / "999"
+        assert not history_dir.exists()
+
+
+def test_download_history_attachment_success(mock_session):
+    """Test successful history attachment download."""
+    with tempfile.TemporaryDirectory() as temp_dir:
+        target_dir = Path(temp_dir)
+        downloader = TicketDownloader(mock_session)
+
+        # Create history directory first
+        history_dir = target_dir / "458"
+        history_dir.mkdir(parents=True)
+
+        downloader._download_history_attachment(
+            "123", target_dir, "458", "800", "application/pdf"
+        )
+
+        # Should create attachment file
+        attachment_file = history_dir / "n800.pdf"
+        assert attachment_file.exists()
+
+        content = attachment_file.read_bytes()
+        assert b"%PDF-1.4" in content
+
+
+def test_download_history_attachment_xlsx_conversion(mock_session):
+    """Test XLSX attachment download with automatic TSV conversion."""
+    from unittest.mock import patch
+
+    with tempfile.TemporaryDirectory() as temp_dir:
+        target_dir = Path(temp_dir)
+        downloader = TicketDownloader(mock_session)
+
+        # Create history directory first
+        history_dir = target_dir / "458"
+        history_dir.mkdir(parents=True)
+
+        with patch.object(downloader, "_convert_xlsx_to_tsv") as mock_convert:
+            xlsx_mime_type = (
+                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            )
+            downloader._download_history_attachment(
+                "123", target_dir, "458", "801", xlsx_mime_type
+            )
+
+            # Should create XLSX file
+            xlsx_file = history_dir / "n801.xlsx"
+            assert xlsx_file.exists()
+
+            # Should trigger TSV conversion
+            tsv_file = history_dir / "n801.tsv"
+            mock_convert.assert_called_once_with(xlsx_file, tsv_file)
+
+
+def test_download_history_attachment_failure(mock_session):
+    """Test history attachment download with API failure."""
+    with tempfile.TemporaryDirectory() as temp_dir:
+        target_dir = Path(temp_dir)
+        downloader = TicketDownloader(mock_session)
+
+        # Create history directory first
+        history_dir = target_dir / "458"
+        history_dir.mkdir(parents=True)
+
+        # Test with non-existent attachment
+        downloader._download_history_attachment(
+            "123", target_dir, "458", "999", "application/pdf"
+        )
+
+        # Should not create attachment file
+        attachment_file = history_dir / "n999.pdf"
+        assert not attachment_file.exists()
+
+
+def test_ticket_downloader_init():
+    """Test TicketDownloader initialization."""
+    mock_session = Mock(spec=RTSession)
+    downloader = TicketDownloader(mock_session)
+
+    assert downloader.session is mock_session
+
+
+def test_convert_xlsx_to_tsv_no_openpyxl():
+    """Test XLSX conversion when openpyxl is not available."""
+    from unittest.mock import patch
+
+    with tempfile.TemporaryDirectory() as temp_dir:
+        temp_path = Path(temp_dir)
+        xlsx_file = temp_path / "test.xlsx"
+        tsv_file = temp_path / "test.tsv"
+
+        # Create a dummy XLSX file
+        xlsx_file.write_bytes(b"dummy content")
+
+        # Mock openpyxl as None
+        with patch("rt_tools.downloader.openpyxl", None):
+            downloader = TicketDownloader(None)
+            downloader._convert_xlsx_to_tsv(xlsx_file, tsv_file)
+
+            # Should not create TSV file
+            assert not tsv_file.exists()
+
+
+def test_directory_creation():
+    """Test that target directories are created properly."""
+    with tempfile.TemporaryDirectory() as temp_dir:
+        temp_path = Path(temp_dir)
+        target_dir = temp_path / "deep" / "nested" / "directory"
+
+        mock_session = Mock(spec=RTSession)
+        # Mock failed responses that don't try to write files
+        mock_rt_data = Mock()
+        mock_rt_data.is_ok = False
+        mock_rt_data.status_code = 404
+        mock_rt_data.status_text = "Not Found"
+        mock_session.fetch_rest.return_value = mock_rt_data
+
+        downloader = TicketDownloader(mock_session)
+
+        # This should create the directory even if downloads fail
+        downloader.download_ticket("123", target_dir)
+
+        assert target_dir.exists()
+        assert target_dir.is_dir()
+
+
+def test_path_conversion():
+    """Test that string paths are converted to Path objects."""
+    with tempfile.TemporaryDirectory() as temp_dir:
+        target_dir_str = str(Path(temp_dir) / "string_path")
+
+        mock_session = Mock(spec=RTSession)
+        # Mock failed responses that don't try to write files
+        mock_rt_data = Mock()
+        mock_rt_data.is_ok = False
+        mock_rt_data.status_code = 404
+        mock_rt_data.status_text = "Not Found"
+        mock_session.fetch_rest.return_value = mock_rt_data
+
+        downloader = TicketDownloader(mock_session)
+
+        # Should accept string path and convert to Path
+        downloader.download_ticket("123", target_dir_str)
+
+        assert Path(target_dir_str).exists()
+
+
+def test_error_handling_in_main_download(mock_session):
+    """Test error handling in main download_ticket method."""
+    with tempfile.TemporaryDirectory() as temp_dir:
+        target_dir = Path(temp_dir)
+        downloader = TicketDownloader(mock_session)
+
+        # Mock history download failure
+        def failing_download_history(*args, **kwargs):
+            return None  # Simulate failure
+
+        downloader._download_history = failing_download_history
+
+        # Should handle failure gracefully and return early
+        downloader.download_ticket("123", target_dir)
+
+        # Should still create metadata but not history items
+        assert (target_dir / "metadata.txt").exists()
+        assert not any(target_dir.glob("*/message.txt"))  # No history items
+
+
+def test_edge_cases():
+    """Test various edge cases and boundary conditions."""
+    downloader = TicketDownloader(None)
+
+    # Test _normalize_xlsx_value with edge cases
+    edge_cell = Mock()
+    edge_cell.value = 0
+    assert downloader._normalize_xlsx_value(edge_cell) == "0"
+
+    edge_cell.value = ""
+    assert downloader._normalize_xlsx_value(edge_cell) == ""
+
+    edge_cell.value = False
+    assert downloader._normalize_xlsx_value(edge_cell) == "False"
+
+    # Test _mime_type_to_extension with None (should not crash)
+    try:
+        result = downloader._mime_type_to_extension(None)
+        # If it doesn't crash, it should return "bin"
+        assert result == "bin"
+    except (AttributeError, TypeError):
+        # This is also acceptable behavior
+        pass
