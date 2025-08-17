@@ -1,4 +1,21 @@
-"""RT ticket download automation."""
+"""RT ticket download automation.
+
+This module provides the TicketDownloader class for automated downloading of
+complete RT ticket data to organized directory structures. The downloader
+fetches all ticket metadata, history, and attachments while applying consistent
+filtering to exclude outgoing emails and zero-byte attachments.
+
+Key features:
+- Downloads ticket metadata, history, and attachments in organized directory structure
+- Filters out outgoing emails and zero-byte attachments
+- Uses centralized parser for consistent data handling
+- Automatically converts XLSX attachments to TSV format
+- Provides comprehensive error handling and logging
+- Supports both Path objects and string paths for target directories
+
+The module integrates with the RT session module for authenticated API access
+and uses the parser module for consistent response parsing.
+"""
 
 import logging
 from pathlib import Path
@@ -18,6 +35,11 @@ class TicketDownloader:
     """Downloads complete RT ticket data to organized directory structure."""
 
     def __init__(self, session: RTSession):
+        """Initialize TicketDownloader with authenticated RT session.
+
+        Args:
+            session: Authenticated RTSession for making RT API calls
+        """
         self.session = session
 
     def download_ticket(self, ticket_id: str, target_dir: Path) -> None:
