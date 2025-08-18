@@ -81,12 +81,10 @@ def test_dump_ticket_invalid_attachment(tmp_path):
     subprocess.run(cmd, capture_output=True, text=False, timeout=30)
 
     # Command should handle errors gracefully
-    # (Return code depends on how RT handles invalid attachment IDs)
-    # File should either not exist or be empty
-    if output_file.exists():
-        assert output_file.stat().st_size == 0, (
-            "Output file should be empty for invalid attachment"
-        )
+    assert output_file.exists()
+    assert output_file.stat().st_size == 0, (
+        "Output file should be empty for invalid attachment"
+    )
 
 
 @pytest.mark.integration
