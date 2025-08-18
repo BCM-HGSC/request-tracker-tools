@@ -132,7 +132,6 @@ def mock_session_with_rt37525_data(rt37525_fixture_data):
     return session
 
 
-@pytest.mark.integration
 def test_downloader_creates_expected_directory_structure(
     mock_session_with_rt37525_data, rt37525_fixture_data
 ):
@@ -164,7 +163,6 @@ def test_downloader_creates_expected_directory_structure(
             )
 
 
-@pytest.mark.integration
 def test_downloader_filters_outgoing_emails(
     mock_session_with_rt37525_data, rt37525_fixture_data
 ):
@@ -208,7 +206,6 @@ def test_downloader_filters_outgoing_emails(
             assert any(item.history_id == history_dir.name for item in filtered_items)
 
 
-@pytest.mark.integration
 def test_downloader_handles_attachments_correctly(
     mock_session_with_rt37525_data, rt37525_fixture_data
 ):
@@ -274,7 +271,6 @@ def test_downloader_handles_attachments_correctly(
         # Note: Due to sanitization, we may not have all attachments
 
 
-@pytest.mark.integration
 def test_downloader_xlsx_conversion_integration(mock_session_with_rt37525_data):
     """Test XLSX to TSV conversion with real ticket data structure."""
     with tempfile.TemporaryDirectory() as temp_dir:
@@ -306,7 +302,6 @@ def test_downloader_xlsx_conversion_integration(mock_session_with_rt37525_data):
                 )
 
 
-@pytest.mark.integration
 def test_xlsx_conversion_with_real_fixture_files(fixtures_dir):
     """Test XLSX to TSV conversion using real fixture files."""
     from rt_tools.downloader import TicketDownloader
@@ -377,7 +372,6 @@ def test_xlsx_conversion_with_real_fixture_files(fixtures_dir):
                 print("XLSX conversion skipped - openpyxl not available")
 
 
-@pytest.mark.integration
 def test_downloader_content_validation(
     mock_session_with_rt37525_data, rt37525_fixture_data
 ):
@@ -412,7 +406,6 @@ def test_downloader_content_validation(
             assert "Type: Create" in message_content
 
 
-@pytest.mark.integration
 def test_downloader_error_handling_integration(mock_session_with_rt37525_data):
     """Test downloader error handling with realistic error scenarios."""
     with tempfile.TemporaryDirectory() as temp_dir:
