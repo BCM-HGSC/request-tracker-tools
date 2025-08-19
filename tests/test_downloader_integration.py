@@ -19,50 +19,12 @@ from rt_tools.parser import (
     parse_history_message,
 )
 
-
-@pytest.fixture(scope="module")
-def rt37525_fixture_data(fixtures_dir):
-    """Load sanitized RT ticket 37525 data for integration testing."""
-    fixture_path = fixtures_dir / "rt37525_sanitized"
-
-    # Load all fixture files
-    data = {}
-    data["metadata"] = (fixture_path / "metadata.txt").read_bytes()
-    data["history"] = (fixture_path / "history.txt").read_bytes()
-    data["attachments"] = (fixture_path / "attachments.txt").read_bytes()
-
-    # Load individual history messages
-    data["history_messages"] = {}
-    for history_dir in fixture_path.iterdir():
-        if history_dir.is_dir() and history_dir.name.isdigit():
-            history_id = history_dir.name
-            message_file = history_dir / "message.txt"
-            if message_file.exists():
-                data["history_messages"][history_id] = message_file.read_bytes()
-
-    # Load attachment content (simulate what would be downloaded)
-    data["attachment_content"] = {}
-    for history_dir in fixture_path.iterdir():
-        if history_dir.is_dir() and history_dir.name.isdigit():
-            for attachment_file in history_dir.glob("n*.html"):
-                # Extract attachment ID from filename (n1483996.html -> 1483996)
-                attachment_id = attachment_file.stem[1:]  # Remove 'n' prefix
-                data["attachment_content"][attachment_id] = attachment_file.read_bytes()
-            for attachment_file in history_dir.glob("n*.xlsx"):
-                attachment_id = attachment_file.stem[1:]
-                data["attachment_content"][attachment_id] = attachment_file.read_bytes()
-            # Also load TSV files for comparison (though they won't be "downloaded")
-            for attachment_file in history_dir.glob("n*.tsv"):
-                attachment_id = attachment_file.stem[1:]
-                data["attachment_content"][f"{attachment_id}_tsv"] = (
-                    attachment_file.read_bytes()
-                )
-
-    return data
+# Use shared fixture from conftest.py
+# rt37525_sanitized_data fixture is now available
 
 
 @pytest.fixture
-def mock_session_with_rt37525_data(rt37525_fixture_data):
+def mock_session_with_rt37525_data(rt37525_sanitized_data):
     """Create mock RTSession that returns RT ticket 37525 data."""
     session = Mock(spec=RTSession)
 
@@ -74,25 +36,25 @@ def mock_session_with_rt37525_data(rt37525_fixture_data):
 
         if endpoint == "ticket/37525":
             return RTResponseData(
-                "4.4.3", 200, "Ok", True, rt37525_fixture_data["metadata"]
+                "4.4.3", 200, "Ok", True, rt37525_sanitized_data["metadata"]
             )
         elif endpoint == "ticket/37525/history":
             return RTResponseData(
-                "4.4.3", 200, "Ok", True, rt37525_fixture_data["history"]
+                "4.4.3", 200, "Ok", True, rt37525_sanitized_data["history"]
             )
         elif endpoint == "ticket/37525/attachments":
             return RTResponseData(
-                "4.4.3", 200, "Ok", True, rt37525_fixture_data["attachments"]
+                "4.4.3", 200, "Ok", True, rt37525_sanitized_data["attachments"]
             )
         elif endpoint.startswith("ticket/37525/history/id/"):
             history_id = endpoint.split("/")[-1]
-            if history_id in rt37525_fixture_data["history_messages"]:
+            if history_id in rt37525_sanitized_data["history_messages"]:
                 return RTResponseData(
                     "4.4.3",
                     200,
                     "Ok",
                     True,
-                    rt37525_fixture_data["history_messages"][history_id],
+                    rt37525_sanitized_data["history_messages"][history_id],
                 )
             else:
                 return RTResponseData(
@@ -106,13 +68,13 @@ def mock_session_with_rt37525_data(rt37525_fixture_data):
             "/content"
         ):
             attachment_id = endpoint.split("/")[-2]
-            if attachment_id in rt37525_fixture_data["attachment_content"]:
+            if attachment_id in rt37525_sanitized_data["attachment_content"]:
                 return RTResponseData(
                     "4.4.3",
                     200,
                     "Ok",
                     True,
-                    rt37525_fixture_data["attachment_content"][attachment_id],
+                    rt37525_sanitized_data["attachment_content"][attachment_id],
                 )
             else:
                 # Return empty content for attachments we don't have fixture data for
@@ -133,7 +95,7 @@ def mock_session_with_rt37525_data(rt37525_fixture_data):
 
 
 def test_downloader_creates_expected_directory_structure(
-    mock_session_with_rt37525_data, rt37525_fixture_data
+    mock_session_with_rt37525_data, rt37525_sanitized_data
 ):
     """Test that downloader creates expected directory structure for ticket 37525."""
     with tempfile.TemporaryDirectory() as temp_dir:
@@ -149,7 +111,7 @@ def test_downloader_creates_expected_directory_structure(
         assert (target_dir / "attachments.txt").exists()
 
         # Parse the history to determine expected directories
-        history_content = rt37525_fixture_data["history"].decode("utf-8")
+        history_content = rt37525_sanitized_data["history"].decode("utf-8")
         expected_history_items = list(parse_history_list(history_content))
 
         # Verify that non-outgoing history items have directories
@@ -164,7 +126,7 @@ def test_downloader_creates_expected_directory_structure(
 
 
 def test_downloader_filters_outgoing_emails(
-    mock_session_with_rt37525_data, rt37525_fixture_data
+    mock_session_with_rt37525_data, rt37525_sanitized_data
 ):
     """Test that downloader properly filters out outgoing email entries."""
     with tempfile.TemporaryDirectory() as temp_dir:
@@ -174,7 +136,7 @@ def test_downloader_filters_outgoing_emails(
         downloader.download_ticket("37525", target_dir)
 
         # Parse history to get all items (including outgoing emails)
-        history_content = rt37525_fixture_data["history"].decode("utf-8")
+        history_content = rt37525_sanitized_data["history"].decode("utf-8")
         all_history_lines = [
             line
             for line in history_content.split("\n")
@@ -207,7 +169,7 @@ def test_downloader_filters_outgoing_emails(
 
 
 def test_downloader_handles_attachments_correctly(
-    mock_session_with_rt37525_data, rt37525_fixture_data
+    mock_session_with_rt37525_data, rt37525_sanitized_data
 ):
     """Test that downloader handles attachments with correct filtering and naming."""
     with tempfile.TemporaryDirectory() as temp_dir:
@@ -217,11 +179,11 @@ def test_downloader_handles_attachments_correctly(
         downloader.download_ticket("37525", target_dir)
 
         # Parse attachment list to understand expected attachments
-        attachment_content = rt37525_fixture_data["attachments"].decode("ascii")
+        attachment_content = rt37525_sanitized_data["attachments"].decode("ascii")
         attachment_index = parse_attachment_list(attachment_content)
 
         # Find history items that should have attachments
-        history_content = rt37525_fixture_data["history"].decode("utf-8")
+        history_content = rt37525_sanitized_data["history"].decode("utf-8")
         history_items = list(parse_history_list(history_content))
 
         attachment_count = 0
@@ -229,7 +191,7 @@ def test_downloader_handles_attachments_correctly(
             history_dir = target_dir / history_item.history_id
             if history_dir.exists():
                 # Check if this history item should have attachments
-                history_message_data = rt37525_fixture_data["history_messages"].get(
+                history_message_data = rt37525_sanitized_data["history_messages"].get(
                     history_item.history_id
                 )
                 if history_message_data:
@@ -259,7 +221,7 @@ def test_downloader_handles_attachments_correctly(
                                 # so we check if mock provided content
                                 if (
                                     attachment.id
-                                    in rt37525_fixture_data["attachment_content"]
+                                    in rt37525_sanitized_data["attachment_content"]
                                 ):
                                     assert attachment_file.exists(), (
                                         f"Missing attachment file: {attachment_file}"
@@ -302,78 +264,8 @@ def test_downloader_xlsx_conversion_integration(mock_session_with_rt37525_data):
                 )
 
 
-def test_xlsx_conversion_with_real_fixture_files(fixtures_dir):
-    """Test XLSX to TSV conversion using real fixture files."""
-    from rt_tools.downloader import TicketDownloader
-
-    # Get the actual XLSX and TSV files from the sanitized fixture
-    xlsx_fixture = fixtures_dir / "rt37525_sanitized" / "1489286" / "n1483997.xlsx"
-    tsv_fixture = fixtures_dir / "rt37525_sanitized" / "1489286" / "n1483997.tsv"
-
-    # Verify fixture files exist
-    assert xlsx_fixture.exists(), f"XLSX fixture not found: {xlsx_fixture}"
-    assert tsv_fixture.exists(), f"TSV fixture not found: {tsv_fixture}"
-
-    with tempfile.TemporaryDirectory() as temp_dir:
-        temp_path = Path(temp_dir)
-        test_xlsx = temp_path / "test_input.xlsx"
-        test_tsv = temp_path / "test_output.tsv"
-
-        # Copy the fixture XLSX file to our test location
-        test_xlsx.write_bytes(xlsx_fixture.read_bytes())
-
-        # Create downloader and test conversion
-        downloader = TicketDownloader(None)  # Session not needed for this test
-        downloader._convert_xlsx_to_tsv(test_xlsx, test_tsv)
-
-        if test_tsv.exists():
-            # Compare structure with the fixture TSV file
-            fixture_tsv_content = tsv_fixture.read_text().strip()
-            generated_tsv_content = test_tsv.read_text().strip()
-
-            # Check that both files have similar structure
-            fixture_lines = fixture_tsv_content.split("\n")
-            generated_lines = generated_tsv_content.split("\n")
-
-            # Should have at least header and some data
-            assert len(generated_lines) >= 2, (
-                "Generated TSV should have header and data"
-            )
-            assert len(fixture_lines) >= 2, "Fixture TSV should have header and data"
-
-            # Check header structure (both should be tab-separated)
-            fixture_header = fixture_lines[0]
-            generated_header = generated_lines[0]
-
-            assert "\t" in fixture_header, "Fixture TSV header should be tab-separated"
-            assert "\t" in generated_header, (
-                "Generated TSV header should be tab-separated"
-            )
-
-            # Headers should have similar column count
-            fixture_col_count = len(fixture_header.split("\t"))
-            generated_col_count = len(generated_header.split("\t"))
-
-            assert generated_col_count > 0, "Generated TSV should have columns"
-            # Note: Column counts may differ due to Excel processing differences
-            print(f"Fixture TSV has {fixture_col_count} columns")
-            print(f"Generated TSV has {generated_col_count} columns")
-        else:
-            # If conversion failed, check if openpyxl is available
-            try:
-                import openpyxl  # noqa: F401
-
-                # If openpyxl is available but conversion failed, that's an error
-                raise AssertionError(
-                    "XLSX conversion failed despite openpyxl being available"
-                )
-            except ImportError:
-                # If openpyxl is not available, conversion should fail gracefully
-                print("XLSX conversion skipped - openpyxl not available")
-
-
 def test_downloader_content_validation(
-    mock_session_with_rt37525_data, rt37525_fixture_data
+    mock_session_with_rt37525_data, rt37525_sanitized_data
 ):
     """Test that downloaded content matches expected format and structure."""
     with tempfile.TemporaryDirectory() as temp_dir:

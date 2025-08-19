@@ -193,14 +193,12 @@ def test_mock_session_get_requests(mock_session):
     assert b"%PDF-1.4" in response.content
 
 
-def test_xlsx_to_tsv_conversion():
+def test_xlsx_to_tsv_conversion(rt37525_xlsx_fixtures):
     """Test XLSX to TSV conversion functionality using real fixture file."""
     from rt_tools.downloader import TicketDownloader
 
-    # Use the sanitized fixture XLSX file
-    fixtures_dir = Path(__file__).parent / "fixtures"
-    xlsx_path = fixtures_dir / "rt37525_sanitized" / "1489286" / "n1483997.xlsx"
-    tsv_fixture_path = fixtures_dir / "rt37525_sanitized" / "1489286" / "n1483997.tsv"
+    xlsx_path = rt37525_xlsx_fixtures["xlsx"]
+    tsv_fixture_path = rt37525_xlsx_fixtures["tsv"]
 
     if not xlsx_path.exists():
         # Skip test if fixture doesn't exist
