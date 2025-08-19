@@ -9,28 +9,28 @@ from pytest import fixture
 def pytest_addoption(parser):
     """Add custom pytest command line options."""
     parser.addoption(
-        "--integration",
+        "--e2e",
         action="store_true",
         default=False,
-        help="run integration tests",
+        help="run end-to-end tests",
     )
 
 
 def pytest_configure(config):
     """Register custom markers."""
-    config.addinivalue_line("markers", "integration: mark test as integration test")
+    config.addinivalue_line("markers", "e2e: mark test as end-to-end test")
 
 
 def pytest_collection_modifyitems(config, items):
-    """Skip integration tests unless --integration option is used."""
-    if config.getoption("--integration"):
-        # When --integration is used, run all tests including integration tests
+    """Skip end-to-end tests unless --e2e option is used."""
+    if config.getoption("--e2e"):
+        # When --e2e is used, run all tests including end-to-end tests
         return
 
-    skip_integration = pytest.mark.skip(reason="need --integration option to run")
+    skip_e2e = pytest.mark.skip(reason="need --e2e option to run")
     for item in items:
-        if "integration" in item.keywords:
-            item.add_marker(skip_integration)
+        if "e2e" in item.keywords:
+            item.add_marker(skip_e2e)
 
 
 @fixture(scope="session")
