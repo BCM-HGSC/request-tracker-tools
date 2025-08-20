@@ -97,7 +97,7 @@ python -m build
 ### Running the CLI
 ```bash
 # Available console scripts:
-download-ticket <ticket_id> <target_dir>         # Download complete RT ticket data
+download-ticket <ticket_id> <target_dir>         # Download complete RT ticket data to rt{ticket_id} subdirectory
 dump-ticket <ticket_id> [additional_path_parts]  # Dump RT ticket information
 dump-rest [rest_path_parts]                      # Dump content from RT REST API URLs
 dump-url [url_path_parts]                        # Dump content from RT URLs
@@ -105,6 +105,9 @@ dump-url [url_path_parts]                        # Dump content from RT URLs
 # With logging options
 dump-ticket --verbose <ticket_id>   # Debug level logging
 dump-ticket --quiet <ticket_id>     # Only warnings/errors
+
+# Example: download ticket 37603 to local/output/rt37603/
+download-ticket 37603 local/output
 ```
 
 ## Configuration Requirements
@@ -126,16 +129,20 @@ The package expects:
 
 **Response Data**: RT REST API returns attachments surrounded by a prefix and a possible suffix. The prefix is b"RT/x.x.x 200 Ok\n\n", where x.x.x is the RT version. Anything other than this indicates an error. The suffix is present only when the URL ends with "/content/" or "/content". When present, the suffix is 3 newlines: b"\n\n\n". The three newlines never contain carraige returns. Downloading an attachment uses a content URL and requires validating the suffix and removing both suffix and prefix.
 
-**Directory Structure**: The downloader creates an organized structure with individual history directories:
+**Directory Structure**: The downloader creates an organized structure with individual history directories. The `target_dir` is the parent directory containing multiple ticket directories:
 ```
-ticket_37603/
-├── metadata.txt              # Basic ticket information
-├── 1492666/                  # History entry directory
-│   ├── message.txt           # History entry content
-│   ├── n800.pdf             # Attachment with n-prefix for sorting
-│   └── n801.xlsx            # Additional attachments
-└── 1492934/                  # Additional history entries
-    └── message.txt
+target_dir/
+├── rt37603/                  # Ticket directory (rt{ticket_id} format)
+│   ├── metadata.txt          # Basic ticket information
+│   ├── 1492666/              # History entry directory
+│   │   ├── message.txt       # History entry content
+│   │   ├── n800.pdf          # Attachment with n-prefix for sorting
+│   │   └── n801.xlsx         # Additional attachments
+│   └── 1492934/              # Additional history entries
+│       └── message.txt
+└── rt37604/                  # Another ticket directory
+    ├── metadata.txt
+    └── ...
 ```
 
 **File Naming Conventions**: Attachments use n-prefixed naming (`n{attachment_id}.{ext}`) to ensure proper alphabetical sorting, preventing issues where `10.pdf` would sort before `2.pdf`.

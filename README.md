@@ -51,7 +51,7 @@ Before using RT Tools, you need to set up:
 **`download-ticket`** - Downloads complete tickets with metadata, history, and attachments:
 
 ```bash
-# Download complete ticket to local directory
+# Download complete ticket to local directory (creates local/output/rt37525/)
 download-ticket 37525 local/output
 
 # With verbose logging to see download progress
@@ -63,16 +63,17 @@ download-ticket --quiet 37525 local/output
 
 **Directory Structure**:
 ```
-ticket-37525/
-├── metadata.txt          # Ticket basic information
-├── history.txt           # Complete ticket history
-├── 456/                  # History entry directory
-│   └── message.txt       # Individual history entry content
-├── 458/                  # Another history entry directory
-│   ├── message.txt       # History entry content
-│   ├── n800.pdf         # Attachment for this history entry
-│   └── n801.xlsx        # Another attachment (with auto-generated .tsv)
-└── ...
+local/output/
+└── rt37525/              # Ticket directory (rt{ticket_id} format)
+    ├── metadata.txt      # Ticket basic information
+    ├── history.txt       # Complete ticket history
+    ├── 456/              # History entry directory
+    │   └── message.txt   # Individual history entry content
+    ├── 458/              # Another history entry directory
+    │   ├── message.txt   # History entry content
+    │   ├── n800.pdf      # Attachment for this history entry
+    │   └── n801.xlsx     # Another attachment (with auto-generated .tsv)
+    └── ...
 ```
 
 Features:

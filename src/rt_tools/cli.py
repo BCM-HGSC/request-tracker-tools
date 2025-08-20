@@ -23,7 +23,11 @@ def parse_download_ticket_arguments() -> Namespace:
     """Parse command line arguments for download-ticket."""
     parser = make_parser("Download complete RT ticket data to directory")
     parser.add_argument("ticket_id", help="RT ticket ID (without 'ticket/' prefix)")
-    parser.add_argument("target_dir", type=Path, help="Directory to save ticket data")
+    parser.add_argument(
+        "target_dir",
+        type=Path,
+        help="Parent directory where rt{ticket_id} subdirectory will be created",
+    )
     return parser.parse_args()
 
 

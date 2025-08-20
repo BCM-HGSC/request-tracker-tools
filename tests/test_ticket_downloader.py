@@ -384,16 +384,17 @@ def test_mime_type_to_extension():
 def test_download_ticket_convenience_function(mock_session):
     """Test the download_ticket convenience function."""
     with tempfile.TemporaryDirectory() as temp_dir:
-        target_dir = Path(temp_dir) / "ticket_123"
+        parent_dir = Path(temp_dir) / "test_output"
 
         # Call the convenience function
-        download_ticket(mock_session, "123", target_dir)
+        download_ticket(mock_session, "123", parent_dir)
 
-        # Verify it creates the same structure as TicketDownloader
-        assert target_dir.exists()
-        assert (target_dir / "metadata.txt").exists()
-        assert (target_dir / "history.txt").exists()
-        assert (target_dir / "attachments.txt").exists()
+        # Verify it creates the ticket directory structure
+        ticket_dir = parent_dir / "rt123"
+        assert ticket_dir.exists()
+        assert (ticket_dir / "metadata.txt").exists()
+        assert (ticket_dir / "history.txt").exists()
+        assert (ticket_dir / "attachments.txt").exists()
 
 
 def test_download_metadata_success(mock_session):
@@ -625,7 +626,7 @@ def test_directory_creation():
     """Test that target directories are created properly."""
     with tempfile.TemporaryDirectory() as temp_dir:
         temp_path = Path(temp_dir)
-        target_dir = temp_path / "deep" / "nested" / "directory"
+        parent_dir = temp_path / "deep" / "nested" / "directory"
 
         mock_session = Mock(spec=RTSession)
         # Mock failed responses that don't try to write files
@@ -638,16 +639,17 @@ def test_directory_creation():
         downloader = TicketDownloader(mock_session)
 
         # This should create the directory even if downloads fail
-        downloader.download_ticket("123", target_dir)
+        downloader.download_ticket("123", parent_dir)
 
-        assert target_dir.exists()
-        assert target_dir.is_dir()
+        ticket_dir = parent_dir / "rt123"
+        assert ticket_dir.exists()
+        assert ticket_dir.is_dir()
 
 
 def test_path_conversion():
     """Test that string paths are converted to Path objects."""
     with tempfile.TemporaryDirectory() as temp_dir:
-        target_dir_str = str(Path(temp_dir) / "string_path")
+        parent_dir_str = str(Path(temp_dir) / "string_path")
 
         mock_session = Mock(spec=RTSession)
         # Mock failed responses that don't try to write files
@@ -660,15 +662,16 @@ def test_path_conversion():
         downloader = TicketDownloader(mock_session)
 
         # Should accept string path and convert to Path
-        downloader.download_ticket("123", target_dir_str)
+        downloader.download_ticket("123", parent_dir_str)
 
-        assert Path(target_dir_str).exists()
+        ticket_dir = Path(parent_dir_str) / "rt123"
+        assert ticket_dir.exists()
 
 
 def test_error_handling_in_main_download(mock_session):
     """Test error handling in main download_ticket method."""
     with tempfile.TemporaryDirectory() as temp_dir:
-        target_dir = Path(temp_dir)
+        parent_dir = Path(temp_dir)
         downloader = TicketDownloader(mock_session)
 
         # Mock history download failure
@@ -678,11 +681,12 @@ def test_error_handling_in_main_download(mock_session):
         downloader._download_history = failing_download_history
 
         # Should handle failure gracefully and return early
-        downloader.download_ticket("123", target_dir)
+        downloader.download_ticket("123", parent_dir)
 
         # Should still create metadata but not history items
-        assert (target_dir / "metadata.txt").exists()
-        assert not any(target_dir.glob("*/message.txt"))  # No history items
+        ticket_dir = parent_dir / "rt123"
+        assert (ticket_dir / "metadata.txt").exists()
+        assert not any(ticket_dir.glob("*/message.txt"))  # No history items
 
 
 def test_edge_cases():

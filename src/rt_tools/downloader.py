@@ -46,17 +46,18 @@ class TicketDownloader:
         """Download all relevant content for a ticket to target directory.
 
         Creates directory structure:
-        ticket_{id}/
-        ├── metadata.txt      # Ticket basic information
-        ├── history.txt       # Complete ticket history
-        ├── {history_id}/     # Directory for each history entry
-        │   ├── message.txt   # Individual history entry content
-        │   ├── n{attachment_id}.{ext}  # Attachments for this history entry
-        │   └── ...
-        └── {history_id}/     # Additional history directories
-            ├── message.txt
-            ├── n{attachment_id}.{ext}
-            └── ...
+        target_dir/
+        └── rt{ticket_id}/    # Ticket subdirectory
+            ├── metadata.txt      # Ticket basic information
+            ├── history.txt       # Complete ticket history
+            ├── {history_id}/     # Directory for each history entry
+            │   ├── message.txt   # Individual history entry content
+            │   ├── n{attachment_id}.{ext}  # Attachments for this history entry
+            │   └── ...
+            └── {history_id}/     # Additional history directories
+                ├── message.txt
+                ├── n{attachment_id}.{ext}
+                └── ...
 
         Applies consistent filtering to both history items and attachments:
         - Skips outgoing emails (identified by X-RT-Loop-Prevention headers)
@@ -65,17 +66,19 @@ class TicketDownloader:
 
         Args:
             ticket_id: RT ticket ID (without 'ticket/' prefix)
-            target_dir: Directory where ticket data should be saved
+            target_dir: Parent directory where rt{ticket_id} subdirectory will be
+                created
         """
         target_dir = Path(target_dir)
-        target_dir.mkdir(parents=True, exist_ok=True)
+        ticket_dir = target_dir / f"rt{ticket_id}"
+        ticket_dir.mkdir(parents=True, exist_ok=True)
 
-        logger.info(f"Downloading ticket {ticket_id} to {target_dir}")
+        logger.info(f"Downloading ticket {ticket_id} to {ticket_dir}")
 
         # Download ticket metadata
-        self._download_metadata(ticket_id, target_dir)
+        self._download_metadata(ticket_id, ticket_dir)
 
-        attachment_list_payload = self._download_attachment_ist(ticket_id, target_dir)
+        attachment_list_payload = self._download_attachment_ist(ticket_id, ticket_dir)
         if not attachment_list_payload:
             logger.error(
                 f"Failed to get attachment list for ticket {ticket_id}, "
@@ -87,7 +90,7 @@ class TicketDownloader:
         )
 
         # Download ticket history and cache the payload for reuse
-        history_payload = self._download_history(ticket_id, target_dir)
+        history_payload = self._download_history(ticket_id, ticket_dir)
         if not history_payload:
             logger.error(
                 f"Failed to get history for ticket {ticket_id}, "
@@ -100,7 +103,7 @@ class TicketDownloader:
         for history_meta in parse_history_list(history_text):
             history_id = history_meta.history_id
             history_item_payload = self._download_individual_history_item(
-                ticket_id, target_dir, history_id
+                ticket_id, ticket_dir, history_id
             )
             history_item_text = history_item_payload.decode("ascii")
             history_message = parse_history_message(history_item_text)
@@ -109,7 +112,7 @@ class TicketDownloader:
                     mime_type = attachment_index[attachment.id].mime_type
                     self._download_history_attachment(
                         ticket_id,
-                        target_dir,
+                        ticket_dir,
                         history_id,
                         attachment.id,
                         mime_type,
@@ -330,7 +333,8 @@ def download_ticket(session: RTSession, ticket_id: str, target_dir: Path) -> Non
     Args:
         session: Authenticated RTSession
         ticket_id: RT ticket ID (without 'ticket/' prefix)
-        target_dir: Directory where ticket data should be saved
+        target_dir: Parent directory where rt{ticket_id} subdirectory will be
+            created
     """
     downloader = TicketDownloader(session)
     downloader.download_ticket(ticket_id, target_dir)

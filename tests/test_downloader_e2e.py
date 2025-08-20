@@ -8,6 +8,7 @@ Note: Downloaded data will not exactly match sanitized fixture data
 due to the fixtures being sanitized versions of the original.
 """
 
+import subprocess
 import tempfile
 from pathlib import Path
 
@@ -19,13 +20,13 @@ from rt_tools.downloader import TicketDownloader
 
 @pytest.fixture(scope="module")
 def ticket_37525(tmp_path_factory) -> Path:
-    """Download ticket 37525 to a temporary directory and return the location"""
-    target_dir = tmp_path_factory.mktemp("ticket_37525")
+    """Download ticket 37525 to a temporary directory and return the ticket directory"""
+    parent_dir = tmp_path_factory.mktemp("ticket_37525")
     session = RTSession()
     session.authenticate()
     downloader = TicketDownloader(session)
-    downloader.download_ticket("37525", target_dir)
-    return target_dir
+    downloader.download_ticket("37525", parent_dir)
+    return parent_dir / "rt37525"
 
 
 @pytest.mark.e2e
@@ -162,18 +163,19 @@ def test_downloader_outgoing_email_filtering(ticket_37525):
 def test_downloader_error_handling_invalid_ticket():
     """Test downloader error handling with invalid ticket ID."""
     with tempfile.TemporaryDirectory() as temp_dir:
-        target_dir = Path(temp_dir) / "ticket_999999"
+        parent_dir = Path(temp_dir) / "test_invalid"
 
         session = RTSession()
         session.authenticate()
         downloader = TicketDownloader(session)
 
         # Should handle invalid ticket gracefully (not crash)
-        downloader.download_ticket("999999", target_dir)
+        downloader.download_ticket("999999", parent_dir)
 
-        # Should still create target directory
-        assert target_dir.exists(), (
-            "Should create target directory even for invalid ticket"
+        # Should still create ticket directory
+        ticket_dir = parent_dir / "rt999999"
+        assert ticket_dir.exists(), (
+            "Should create ticket directory even for invalid ticket"
         )
 
         # May or may not create files depending on RT server response
@@ -183,20 +185,21 @@ def test_downloader_error_handling_invalid_ticket():
 @pytest.mark.e2e
 def test_downloader_directory_structure(tmp_path):
     """Test that downloader creates expected directory structure."""
-    target_dir = tmp_path / "nested" / "path" / "ticket_37525"
+    parent_dir = tmp_path / "nested" / "path"
 
     session = RTSession()
     session.authenticate()
     downloader = TicketDownloader(session)
 
     # Should create nested directories automatically
-    downloader.download_ticket("37525", target_dir)
+    downloader.download_ticket("37525", parent_dir)
 
-    assert target_dir.exists(), "Should create nested target directory"
-    assert (target_dir / "metadata.txt").exists(), "Should create metadata file"
+    ticket_dir = parent_dir / "rt37525"
+    assert ticket_dir.exists(), "Should create ticket directory"
+    assert (ticket_dir / "metadata.txt").exists(), "Should create metadata file"
 
     # Verify parent directories were created
-    assert target_dir.parent.exists(), "Should create parent directories"
+    assert parent_dir.exists(), "Should create parent directories"
     assert (tmp_path / "nested" / "path").exists(), "Should create full nested path"
 
 
@@ -232,3 +235,42 @@ def test_downloader_content_validation(ticket_37525):
             assert "Type:" in message_content, (
                 f"Message in {history_dir.name} should contain Type field"
             )
+
+
+@pytest.mark.e2e
+def test_command_line_directory_structure():
+    """Test that command line creates correct directory structure using subprocess."""
+    with tempfile.TemporaryDirectory() as temp_dir:
+        parent_dir = Path(temp_dir) / "cli_test"
+
+        # Run the download-ticket command using subprocess
+        result = subprocess.run(
+            ["download-ticket", "37525", str(parent_dir)],
+            capture_output=True,
+            text=True,
+            timeout=300,  # 5 minute timeout
+        )
+
+        # Command should succeed
+        assert result.returncode == 0, f"Command failed: {result.stderr}"
+
+        # Verify the expected directory structure was created
+        ticket_dir = parent_dir / "rt37525"
+        assert ticket_dir.exists(), "Should create rt37525 directory"
+        assert ticket_dir.is_dir(), "rt37525 should be a directory"
+
+        # Verify basic files are present
+        assert (ticket_dir / "metadata.txt").exists(), "Should create metadata.txt"
+        assert (ticket_dir / "history.txt").exists(), "Should create history.txt"
+        assert (ticket_dir / "attachments.txt").exists(), (
+            "Should create attachments.txt"
+        )
+
+        # Verify at least some history directories exist
+        history_dirs = [d for d in ticket_dir.iterdir() if d.is_dir()]
+        assert len(history_dirs) > 0, "Should create history directories"
+
+        # Verify each history directory has message.txt
+        for history_dir in history_dirs:
+            message_file = history_dir / "message.txt"
+            assert message_file.exists(), f"Missing message.txt in {history_dir.name}"
