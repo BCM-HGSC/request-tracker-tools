@@ -99,16 +99,20 @@ def test_downloader_creates_expected_directory_structure(
 ):
     """Test that downloader creates expected directory structure for ticket 37525."""
     with tempfile.TemporaryDirectory() as temp_dir:
-        target_dir = Path(temp_dir) / "ticket_37525"
+        parent_dir = Path(temp_dir) / "test_output"
         downloader = TicketDownloader(mock_session_with_rt37525_data)
 
         # Download the ticket
-        downloader.download_ticket("37525", target_dir)
+        downloader.download_ticket("37525", parent_dir)
+
+        # Verify ticket directory is created
+        ticket_dir = parent_dir / "rt37525"
+        assert ticket_dir.exists()
 
         # Verify basic files are created
-        assert (target_dir / "metadata.txt").exists()
-        assert (target_dir / "history.txt").exists()
-        assert (target_dir / "attachments.txt").exists()
+        assert (ticket_dir / "metadata.txt").exists()
+        assert (ticket_dir / "history.txt").exists()
+        assert (ticket_dir / "attachments.txt").exists()
 
         # Parse the history to determine expected directories
         history_content = rt37525_sanitized_data["history"].decode("utf-8")
@@ -116,7 +120,7 @@ def test_downloader_creates_expected_directory_structure(
 
         # Verify that non-outgoing history items have directories
         for history_item in expected_history_items:
-            history_dir = target_dir / history_item.history_id
+            history_dir = ticket_dir / history_item.history_id
             assert history_dir.exists(), (
                 f"Missing directory for history item {history_item.history_id}"
             )
@@ -130,10 +134,11 @@ def test_downloader_filters_outgoing_emails(
 ):
     """Test that downloader properly filters out outgoing email entries."""
     with tempfile.TemporaryDirectory() as temp_dir:
-        target_dir = Path(temp_dir) / "ticket_37525"
+        parent_dir = Path(temp_dir) / "test_output"
         downloader = TicketDownloader(mock_session_with_rt37525_data)
 
-        downloader.download_ticket("37525", target_dir)
+        downloader.download_ticket("37525", parent_dir)
+        ticket_dir = parent_dir / "rt37525"
 
         # Parse history to get all items (including outgoing emails)
         history_content = rt37525_sanitized_data["history"].decode("utf-8")
@@ -153,7 +158,7 @@ def test_downloader_filters_outgoing_emails(
 
         # Verify only non-outgoing items have directories
         filtered_items = list(parse_history_list(history_content))
-        created_dirs = [d for d in target_dir.iterdir() if d.is_dir()]
+        created_dirs = [d for d in ticket_dir.iterdir() if d.is_dir()]
 
         # Should have fewer directories than total history items due to filtering
         assert len(created_dirs) == len(filtered_items)
@@ -173,10 +178,11 @@ def test_downloader_handles_attachments_correctly(
 ):
     """Test that downloader handles attachments with correct filtering and naming."""
     with tempfile.TemporaryDirectory() as temp_dir:
-        target_dir = Path(temp_dir) / "ticket_37525"
+        parent_dir = Path(temp_dir) / "test_output"
         downloader = TicketDownloader(mock_session_with_rt37525_data)
 
-        downloader.download_ticket("37525", target_dir)
+        downloader.download_ticket("37525", parent_dir)
+        ticket_dir = parent_dir / "rt37525"
 
         # Parse attachment list to understand expected attachments
         attachment_content = rt37525_sanitized_data["attachments"].decode("ascii")
@@ -188,7 +194,7 @@ def test_downloader_handles_attachments_correctly(
 
         attachment_count = 0
         for history_item in history_items:
-            history_dir = target_dir / history_item.history_id
+            history_dir = ticket_dir / history_item.history_id
             if history_dir.exists():
                 # Check if this history item should have attachments
                 history_message_data = rt37525_sanitized_data["history_messages"].get(
@@ -236,12 +242,12 @@ def test_downloader_handles_attachments_correctly(
 def test_downloader_xlsx_conversion_integration(mock_session_with_rt37525_data):
     """Test XLSX to TSV conversion with real ticket data structure."""
     with tempfile.TemporaryDirectory() as temp_dir:
-        target_dir = Path(temp_dir) / "ticket_37525"
+        parent_dir = Path(temp_dir) / "test_output"
         downloader = TicketDownloader(mock_session_with_rt37525_data)
 
         # Mock the XLSX conversion to verify it gets called
         with patch.object(downloader, "_convert_xlsx_to_tsv") as mock_convert:
-            downloader.download_ticket("37525", target_dir)
+            downloader.download_ticket("37525", parent_dir)
 
             # Should have called XLSX conversion for any XLSX attachments
             # In our fixture data, we know there's an Example Workbook.xlsx (1483997)
@@ -269,28 +275,29 @@ def test_downloader_content_validation(
 ):
     """Test that downloaded content matches expected format and structure."""
     with tempfile.TemporaryDirectory() as temp_dir:
-        target_dir = Path(temp_dir) / "ticket_37525"
+        parent_dir = Path(temp_dir) / "test_output"
         downloader = TicketDownloader(mock_session_with_rt37525_data)
 
-        downloader.download_ticket("37525", target_dir)
+        downloader.download_ticket("37525", parent_dir)
+        ticket_dir = parent_dir / "rt37525"
 
         # Verify metadata content
-        metadata_content = (target_dir / "metadata.txt").read_text()
+        metadata_content = (ticket_dir / "metadata.txt").read_text()
         assert "id: ticket/37525" in metadata_content
         assert "Subject:" in metadata_content
 
         # Verify history content matches expected format
-        history_content = (target_dir / "history.txt").read_text()
+        history_content = (ticket_dir / "history.txt").read_text()
         assert "# 18/18" in history_content  # Should match the sanitized fixture
         assert "1489286: Ticket created by user001" in history_content
 
         # Verify attachments content
-        attachments_content = (target_dir / "attachments.txt").read_text()
+        attachments_content = (ticket_dir / "attachments.txt").read_text()
         assert "id: ticket/37525/attachments" in attachments_content
         assert "Example Workbook.xlsx" in attachments_content
 
         # Verify individual history message content
-        history_1489286_dir = target_dir / "1489286"
+        history_1489286_dir = ticket_dir / "1489286"
         if history_1489286_dir.exists():
             message_content = (history_1489286_dir / "message.txt").read_text()
             assert "id: 1489286" in message_content
@@ -301,7 +308,7 @@ def test_downloader_content_validation(
 def test_downloader_error_handling_integration(mock_session_with_rt37525_data):
     """Test downloader error handling with realistic error scenarios."""
     with tempfile.TemporaryDirectory() as temp_dir:
-        target_dir = Path(temp_dir) / "ticket_37525"
+        parent_dir = Path(temp_dir) / "test_output"
 
         # Test with session that fails on history download
         def failing_fetch_rest(*parts):
@@ -325,12 +332,13 @@ def test_downloader_error_handling_integration(mock_session_with_rt37525_data):
         downloader = TicketDownloader(failing_session)
 
         # Should handle the error gracefully and not crash
-        downloader.download_ticket("37525", target_dir)
+        downloader.download_ticket("37525", parent_dir)
 
-        # Should still create target directory and metadata
-        assert target_dir.exists()
+        # Should still create ticket directory and metadata
+        ticket_dir = parent_dir / "rt37525"
+        assert ticket_dir.exists()
         # But should not proceed with history processing due to error
-        history_dirs = [d for d in target_dir.iterdir() if d.is_dir()]
+        history_dirs = [d for d in ticket_dir.iterdir() if d.is_dir()]
         assert len(history_dirs) == 0, (
             "Should not create history directories when history download fails"
         )

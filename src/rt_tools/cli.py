@@ -1,6 +1,8 @@
 """Command line interface for RT tools."""
 
 import logging
+import os
+import tomllib
 from argparse import ArgumentParser, Namespace
 from pathlib import Path
 
@@ -12,19 +14,55 @@ def download_ticket_cli():
     """Entry point for downloading complete RT ticket data."""
     args = parse_download_ticket_arguments()
     config_logging(args)
+
+    # resolve target_dir according to resolution order
+    target_dir = resolve_target_dir(args)
+
     with RTSession() as session:
         session.authenticate()
         if args.verbose:
             session.print_cookies()
-        download_ticket(session, args.ticket_id, args.target_dir)
+        download_ticket(session, args.ticket_id, target_dir)
 
 
 def parse_download_ticket_arguments() -> Namespace:
     """Parse command line arguments for download-ticket."""
     parser = make_parser("Download complete RT ticket data to directory")
     parser.add_argument("ticket_id", help="RT ticket ID (without 'ticket/' prefix)")
-    parser.add_argument("target_dir", type=Path, help="Directory to save ticket data")
+    parser.add_argument(
+        "--output-dir",
+        metavar="DIR",
+        help="Parent directory for rt{ticket_id}. "
+        "Resolution order: 1. --output-dir "
+        "2. $DOWNLOAD_TICKET_DIR "
+        "3. config file "
+        "4. current directory",
+    )
     return parser.parse_args()
+
+
+def resolve_target_dir(args) -> str:
+    """Resolve target directory using resolution order from args."""
+    # 1. Command-line option
+    if args.output_dir:
+        return os.path.expanduser(args.output_dir)
+
+    # 2. Environment variable
+    env_dir = os.environ.get("DOWNLOAD_TICKET_DIR")
+    if env_dir:
+        return os.path.expanduser(env_dir)
+
+    # 3. Config file (~/.config/download-ticket/config.toml)
+    config_path = os.path.expanduser("~/.config/download-ticket/config.toml")
+    if os.path.exists(config_path):
+        with open(config_path, "rb") as f:
+            config = tomllib.load(f)
+        default_dir = config.get("default_dir")
+        if default_dir:
+            return os.path.expanduser(default_dir)
+
+    # 4. Fallback = current working directory
+    return os.getcwd()
 
 
 def dump_ticket():
@@ -123,4 +161,4 @@ def config_logging(args) -> None:
 
 
 if __name__ == "__main__":
-    download_ticket()
+    download_ticket_cli()

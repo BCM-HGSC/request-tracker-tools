@@ -97,14 +97,26 @@ python -m build
 ### Running the CLI
 ```bash
 # Available console scripts:
-download-ticket <ticket_id> <target_dir>         # Download complete RT ticket data
+download-ticket <ticket_id> [--output-dir DIR]   # Download complete RT ticket data to rt{ticket_id} subdirectory
 dump-ticket <ticket_id> [additional_path_parts]  # Dump RT ticket information
 dump-rest [rest_path_parts]                      # Dump content from RT REST API URLs
 dump-url [url_path_parts]                        # Dump content from RT URLs
 
+# Target directory resolution (in order of priority):
+# 1. --output-dir command-line option
+# 2. $DOWNLOAD_TICKET_DIR environment variable
+# 3. ~/.config/download-ticket/config.toml (default_dir setting)
+# 4. Current working directory (fallback)
+
+# Examples:
+download-ticket 37603                           # Downloads to ./rt37603/
+download-ticket 37603 --output-dir local/output # Downloads to local/output/rt37603/
+export DOWNLOAD_TICKET_DIR=~/tickets && download-ticket 37603  # Downloads to ~/tickets/rt37603/
+
 # With logging options
 dump-ticket --verbose <ticket_id>   # Debug level logging
 dump-ticket --quiet <ticket_id>     # Only warnings/errors
+download-ticket --verbose 37603 --output-dir /tmp  # Verbose download to /tmp/rt37603/
 ```
 
 ## Configuration Requirements
@@ -113,6 +125,33 @@ The package expects:
 - **SSL Certificate**: `rt.hgsc.bcm.edu.pem` file in working directory for RT server verification
 - **Keychain Access**: macOS keychain entry with service "foobar" containing RT password
 - **RT Server**: Configured to work with `https://rt.hgsc.bcm.edu/REST/1.0/` endpoint
+
+### Target Directory Configuration
+
+The `download-ticket` command supports flexible target directory configuration through multiple methods:
+
+1. **Command-line option** (highest priority):
+   ```bash
+   download-ticket 37603 --output-dir /path/to/output
+   ```
+
+2. **Environment variable**:
+   ```bash
+   export DOWNLOAD_TICKET_DIR="~/Downloads/rt-tickets"
+   download-ticket 37603  # Uses ~/Downloads/rt-tickets/
+   ```
+
+3. **Config file** (`~/.config/download-ticket/config.toml`):
+   ```toml
+   default_dir = "~/Documents/rt-data"
+   ```
+
+4. **Current working directory** (fallback):
+   ```bash
+   cd /tmp && download-ticket 37603  # Creates /tmp/rt37603/
+   ```
+
+The resolution follows this exact priority order, with higher-numbered options overriding lower-numbered ones.
 
 ## Important Implementation Details
 
@@ -126,16 +165,20 @@ The package expects:
 
 **Response Data**: RT REST API returns attachments surrounded by a prefix and a possible suffix. The prefix is b"RT/x.x.x 200 Ok\n\n", where x.x.x is the RT version. Anything other than this indicates an error. The suffix is present only when the URL ends with "/content/" or "/content". When present, the suffix is 3 newlines: b"\n\n\n". The three newlines never contain carraige returns. Downloading an attachment uses a content URL and requires validating the suffix and removing both suffix and prefix.
 
-**Directory Structure**: The downloader creates an organized structure with individual history directories:
+**Directory Structure**: The downloader creates an organized structure with individual history directories. The resolved target directory (from --output-dir, environment variable, config file, or current directory) is the parent directory containing multiple ticket directories:
 ```
-ticket_37603/
-├── metadata.txt              # Basic ticket information
-├── 1492666/                  # History entry directory
-│   ├── message.txt           # History entry content
-│   ├── n800.pdf             # Attachment with n-prefix for sorting
-│   └── n801.xlsx            # Additional attachments
-└── 1492934/                  # Additional history entries
-    └── message.txt
+resolved_target_dir/          # From resolution order: --output-dir > env var > config > cwd
+├── rt37603/                  # Ticket directory (rt{ticket_id} format)
+│   ├── metadata.txt          # Basic ticket information
+│   ├── 1492666/              # History entry directory
+│   │   ├── message.txt       # History entry content
+│   │   ├── n800.pdf          # Attachment with n-prefix for sorting
+│   │   └── n801.xlsx         # Additional attachments
+│   └── 1492934/              # Additional history entries
+│       └── message.txt
+└── rt37604/                  # Another ticket directory
+    ├── metadata.txt
+    └── ...
 ```
 
 **File Naming Conventions**: Attachments use n-prefixed naming (`n{attachment_id}.{ext}`) to ensure proper alphabetical sorting, preventing issues where `10.pdf` would sort before `2.pdf`.
