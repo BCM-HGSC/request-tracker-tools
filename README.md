@@ -51,19 +51,39 @@ Before using RT Tools, you need to set up:
 **`download-ticket`** - Downloads complete tickets with metadata, history, and attachments:
 
 ```bash
-# Download complete ticket to local directory (creates local/output/rt37525/)
-download-ticket 37525 local/output
+# Download ticket to current directory (creates ./rt37525/)
+download-ticket 37525
+
+# Download to specific directory (creates local/output/rt37525/)
+download-ticket 37525 --output-dir local/output
 
 # With verbose logging to see download progress
-download-ticket --verbose 37525 local/output
+download-ticket --verbose 37525
 
 # With quiet mode for minimal output
-download-ticket --quiet 37525 local/output
+download-ticket --quiet 37525 --output-dir /tmp
+```
+
+**Target Directory Resolution**:
+The `download-ticket` command resolves the output directory in the following order:
+1. `--output-dir` command-line option (highest priority)
+2. `$DOWNLOAD_TICKET_DIR` environment variable
+3. `~/.config/download-ticket/config.toml` config file (`default_dir` setting)
+4. Current working directory (fallback)
+
+```bash
+# Environment variable example
+export DOWNLOAD_TICKET_DIR="~/Downloads/rt-tickets"
+download-ticket 37525  # Creates ~/Downloads/rt-tickets/rt37525/
+
+# Config file example (~/.config/download-ticket/config.toml)
+# default_dir = "~/Documents/rt-data"
+download-ticket 37525  # Creates ~/Documents/rt-data/rt37525/
 ```
 
 **Directory Structure**:
 ```
-local/output/
+output_directory/         # Resolved from --output-dir, env var, config, or cwd
 └── rt37525/              # Ticket directory (rt{ticket_id} format)
     ├── metadata.txt      # Ticket basic information
     ├── history.txt       # Complete ticket history
