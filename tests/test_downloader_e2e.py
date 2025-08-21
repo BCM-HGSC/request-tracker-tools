@@ -245,7 +245,7 @@ def test_command_line_directory_structure():
 
         # Run the download-ticket command using subprocess
         result = subprocess.run(
-            ["download-ticket", "37525", str(parent_dir)],
+            ["download-ticket", "37525", "--output-dir", str(parent_dir)],
             capture_output=True,
             text=True,
             timeout=300,  # 5 minute timeout
