@@ -1,0 +1,44 @@
+# 18/18 (id/1489286/total)
+
+id: 1489286
+Ticket: 37525
+TimeTaken: 0
+Type: Create
+Field: 
+OldValue: 
+NewValue: 
+Data: 
+Description: Ticket created by user001
+
+Content: Hi All,
+         
+         We would like to request data submission through MFTS to Person Three's
+         group for 69 ILWGS sample(s).
+         
+         Please see the excel for the paths and transfer all files in the /alignment
+         folders, there should be 2 files per sample.
+         
+         Please send the data files to the recipient, and include MD5 checksums with the
+         excel itself.
+         
+         Person Four
+         user004@example.com
+         
+         Previous submission for this group can be found at RT# 36164
+         
+         Please let me know if you need any additional information, thanks!
+         
+         Sincerely,
+         Person One
+         
+
+
+Creator: user001
+Created: 2025-07-30 17:23:55
+
+Attachments: 
+             1483995: untitled (0b)
+             1483996: untitled (610b)
+             1483997: Example Workbook.xlsx (21.2k)
+
+

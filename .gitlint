@@ -1,0 +1,9 @@
+[general]
+# Ignore rules, reference them by id or name (comma-separated)
+ignore=body-min-length,body-is-missing
+
+[title-max-length]
+line-length=50
+
+[body-max-line-length]
+line-length=72

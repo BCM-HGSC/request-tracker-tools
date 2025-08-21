@@ -1,11 +1,11 @@
-"""Integration tests for dump-ticket command with file output."""
+"""End-to-end tests for dump-ticket command with real server connections."""
 
 import subprocess
 
 import pytest
 
 
-@pytest.mark.integration
+@pytest.mark.e2e
 def test_dump_ticket_file_output(tmp_path):
     """Integration test for dump-ticket command with -o option.
 
@@ -64,7 +64,7 @@ def test_dump_ticket_file_output(tmp_path):
     )
 
 
-@pytest.mark.integration
+@pytest.mark.e2e
 def test_dump_ticket_invalid_attachment(tmp_path):
     """Test dump-ticket with invalid attachment ID."""
     output_file = tmp_path / "invalid_attachment.bin"
@@ -81,15 +81,13 @@ def test_dump_ticket_invalid_attachment(tmp_path):
     subprocess.run(cmd, capture_output=True, text=False, timeout=30)
 
     # Command should handle errors gracefully
-    # (Return code depends on how RT handles invalid attachment IDs)
-    # File should either not exist or be empty
-    if output_file.exists():
-        assert output_file.stat().st_size == 0, (
-            "Output file should be empty for invalid attachment"
-        )
+    assert output_file.exists()
+    assert output_file.stat().st_size == 0, (
+        "Output file should be empty for invalid attachment"
+    )
 
 
-@pytest.mark.integration
+@pytest.mark.e2e
 def test_dump_ticket_output_directory_creation(tmp_path):
     """Test that dump-ticket automatically creates parent directories."""
     # Use a deeply nested path that doesn't exist
@@ -126,7 +124,7 @@ def test_dump_ticket_output_directory_creation(tmp_path):
     assert output_file.stat().st_size > 0, "Output file should contain attachment data"
 
 
-@pytest.mark.integration
+@pytest.mark.e2e
 def test_dump_ticket_without_output_option():
     """Test dump-ticket without -o option (stdout behavior)."""
     cmd = ["dump-ticket", "-q", "37525", "attachments/1483996/content"]

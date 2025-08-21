@@ -10,21 +10,39 @@ from rt_tools.parser import (
     parse_history_message,
 )
 
-EXPECTED_CONTENT = """Greetings,
-Lorem ipsum dolor sit amet, consectetur adipiscing elit.
-Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua."""
+EXPECTED_CONTENT = """Hi All,
+
+We would like to request data submission through MFTS to Person Three's
+group for 69 ILWGS sample(s).
+
+Please see the excel for the paths and transfer all files in the /alignment
+folders, there should be 2 files per sample.
+
+Please send the data files to the recipient, and include MD5 checksums with the
+excel itself.
+
+Person Four
+user004@example.com
+
+Previous submission for this group can be found at RT# 36164
+
+Please let me know if you need any additional information, thanks!
+
+Sincerely,
+Person One
+"""
 
 
 @fixture(scope="module")
-def sample_attachment_list_data(fixture_data_path) -> str:
-    attachment_list_path = fixture_data_path / "37525-attachments.txt"
+def sample_attachment_list_data(fixtures_dir) -> str:
+    attachment_list_path = fixtures_dir / "rt37525_sanitized" / "attachments.txt"
     attachment_list_data = attachment_list_path.read_text()
     return attachment_list_data
 
 
 @fixture(scope="module")
-def sample_history_list_data(fixture_data_path) -> str:
-    history_list_path = fixture_data_path / "37525-history.bin"
+def sample_history_list_data(fixtures_dir) -> str:
+    history_list_path = fixtures_dir / "rt37525_sanitized" / "history.txt"
     history_list_data = history_list_path.read_text()
     return history_list_data
 
@@ -54,7 +72,7 @@ def test_parse_history_list_basic(sample_history_list_data):
     first_item = history_items[0]
     assert isinstance(first_item, HistoryItemMeta)
     assert first_item.history_id == "1489286"
-    assert first_item.history_event == "Ticket created by user1"
+    assert first_item.history_event == "Ticket created by user001"
 
     # Verify that outgoing emails are filtered out
     for item in history_items:
@@ -95,8 +113,8 @@ def test_parse_history_list_filtering():
 
 
 @fixture(scope="module")
-def sample_history_data(fixture_data_path) -> str:
-    hist_item_path = fixture_data_path / "37525-history-1489286.bin"
+def sample_history_data(fixtures_dir) -> str:
+    hist_item_path = fixtures_dir / "rt37525_sanitized" / "1489286" / "message.txt"
     hist_item_data = hist_item_path.read_text()
     return hist_item_data
 
@@ -113,9 +131,9 @@ def test_parse_message_basic(sample_history_data):
     assert msg.old_value is None
     assert msg.new_value is None
     assert msg.data is None
-    assert msg.description == "Ticket created by user1"
-    assert msg.content.startswith("Greetings")
-    assert msg.creator == "user1"
+    assert msg.description == "Ticket created by user001"
+    assert msg.content.startswith("Hi All")
+    assert msg.creator == "user001"
     assert msg.created == "2025-07-30 17:23:55"
     assert len(msg.attachments) == 3
 
