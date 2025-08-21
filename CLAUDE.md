@@ -15,6 +15,7 @@ The codebase follows a standard Python package structure with src layout:
   - **`session.py`** - `RTSession` class that extends `requests.Session` for RT-specific authentication and operations
   - **`downloader.py`** - `TicketDownloader` class for comprehensive ticket data download and organization
   - **`parser.py`** - Centralized RT response parsing with dataclasses and filtering logic
+  - **`ticket_analyzer.py`** - RT ticket analysis for automation-friendly YAML generation
   - **`utils.py`** - Utility functions for cookie management, password fetching, and response handling
   - **`__init__.py`** - Package initialization with dynamic version loading
 
@@ -41,6 +42,13 @@ The codebase follows a standard Python package structure with src layout:
 - Filters outgoing emails during history parsing
 - Uses string-based dataclasses to match RT API format
 - Handles multi-line content and attachment extraction
+
+**Ticket Analyzer**: Generates automation-friendly metadata from downloaded tickets:
+- Extracts structured information (projects, batches, recipients, data files)
+- Produces schema-compliant YAML files for automation systems
+- Handles compound file extensions (`.csv.gz`, `.fastq.gz`) correctly
+- Implements recipient deduplication and confidence scoring
+- Creates problem reports when data is missing or malformed
 
 **Authentication Flow**:
 1. Attempts to load existing cookies from `cookies.txt`
@@ -98,6 +106,7 @@ python -m build
 ```bash
 # Available console scripts:
 download-ticket <ticket_id> [--output-dir DIR]   # Download complete RT ticket data to rt{ticket_id} subdirectory
+analyze-ticket <ticket_dir>                      # Analyze ticket and generate automation metadata
 dump-ticket <ticket_id> [additional_path_parts]  # Dump RT ticket information
 dump-rest [rest_path_parts]                      # Dump content from RT REST API URLs
 dump-url [url_path_parts]                        # Dump content from RT URLs
@@ -108,15 +117,21 @@ dump-url [url_path_parts]                        # Dump content from RT URLs
 # 3. ~/.config/download-ticket/config.toml (default_dir setting)
 # 4. Current working directory (fallback)
 
+# Complete workflow example:
+export DOWNLOAD_TICKET_DIR=~/tickets
+download-ticket 37603                              # Download all ticket data
+analyze-ticket $DOWNLOAD_TICKET_DIR/rt37603/       # Generate analysis.yaml
+
 # Examples:
-download-ticket 37603                           # Downloads to ./rt37603/
-download-ticket 37603 --output-dir local/output # Downloads to local/output/rt37603/
+download-ticket 37603                              # Downloads to ./rt37603/
+download-ticket 37603 --output-dir local/output    # Downloads to local/output/rt37603/
 export DOWNLOAD_TICKET_DIR=~/tickets && download-ticket 37603  # Downloads to ~/tickets/rt37603/
 
 # With logging options
-dump-ticket --verbose <ticket_id>   # Debug level logging
-dump-ticket --quiet <ticket_id>     # Only warnings/errors
+dump-ticket --verbose <ticket_id>                  # Debug level logging
+dump-ticket --quiet <ticket_id>                    # Only warnings/errors
 download-ticket --verbose 37603 --output-dir /tmp  # Verbose download to /tmp/rt37603/
+analyze-ticket --quiet /tmp/rt37603/               # Only warnings/errors
 ```
 
 ## Configuration Requirements
@@ -194,6 +209,11 @@ resolved_target_dir/          # From resolution order: --output-dir > env var > 
 - Mock fixtures for RT responses using real captured data
 - Session-scoped fixtures for optimal performance
 - Edge case and error handling validation
+
+**Automation Integration**: The ticket analyzer produces structured YAML output:
+- `analysis.yaml`: Schema-compliant automation metadata
+- `analysis_problems.yaml`: Issue report when data extraction encounters problems
+- Both files are written to the same directory as downloaded ticket content
 
 **Security**: Passwords are fetched from macOS keychain rather than being stored in code or configuration files. The keychain lookup uses partial command `["/usr/bin/security", "find-generic-password", "-w", "-s", "foobar", "-a"]` with username appended.
 
