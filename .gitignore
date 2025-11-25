@@ -3,3 +3,4 @@ __pycache__
 /rt[0-9]*/
 /tickets
 cookies.txt
+/build
