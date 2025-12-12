@@ -242,7 +242,7 @@ Common history entry types encountered:
 ## SSL Configuration
 
 This project uses custom SSL certificate verification:
-- **Certificate File**: `rt.hgsc.bcm.edu.pem` (must be present in working directory)
+- **Certificate File**: Bundled with the package (loaded automatically from package data)
 - **Cookie Storage**: Mozilla cookie jar format (`cookies.txt`)
 - **Session Management**: Persistent across CLI invocations via saved cookies
 

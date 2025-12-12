@@ -12,7 +12,7 @@
 
 ### Authentication & Security
 - Auth uses persistent cookies (`cookies.txt`) and macOS keychain for password retrieval (via `/usr/bin/security`).
-- SSL verification uses a custom cert file (`rt.hgsc.bcm.edu.pem`).
+- SSL verification uses a bundled certificate (loaded automatically from package data).
 - On startup, the session loads cookies, checks auth, and re-authenticates if needed.
 
 ## Developer Workflows
@@ -41,7 +41,7 @@
 - Logging levels are controlled by CLI flags: `--verbose` (DEBUG), `--quiet` (WARNING), default is INFO.
 - All RT server requests go through `RTSession` for consistent auth and error handling.
 - Passwords are never stored in code or config—always fetched from keychain.
-- SSL cert file must be present in the working directory for secure connections.
+- SSL certificate is bundled with the package and loaded automatically.
 
 ## Integration Points
 - Relies on `requests`, `keyring`, and `ruff` for core functionality and code quality.
@@ -50,7 +50,7 @@
 
 ## References
 - See `README.md` and `CLAUDE.md` for more details and usage examples.
-- Example config/setup: `pyproject.toml`, `rt.hgsc.bcm.edu.pem`, `cookies.txt`.
+- Example config/setup: `pyproject.toml`, `cookies.txt`.
 
 ---
 

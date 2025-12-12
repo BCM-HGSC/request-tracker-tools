@@ -113,9 +113,10 @@ def _():
 
 
 @app.cell
-def _(Session):
-    s = Session()
-    s.verify = "rt.hgsc.bcm.edu.pem"
+def _():
+    # Import RTSession from rt_tools package which includes bundled certificate
+    from rt_tools.session import RTSession
+    s = RTSession()
     return (s,)
 
 

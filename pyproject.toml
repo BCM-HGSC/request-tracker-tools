@@ -29,6 +29,9 @@ dump-url = "rt_tools.cli:dump_url"
 [tool.setuptools.packages.find]
 where = ["src"]
 
+[tool.setuptools.package-data]
+rt_tools = ["*.pem"]
+
 [build-system]
 requires = ["setuptools", "wheel"]
 build-backend = "setuptools.build_meta"

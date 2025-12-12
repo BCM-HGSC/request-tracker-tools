@@ -38,11 +38,12 @@ pip install rt-tools
 
 Before using RT Tools, you need to set up:
 
-1. **SSL Certificate**: Place `rt.hgsc.bcm.edu.pem` in your working directory for RT server verification
-2. **Keychain Entry**: Store your RT password in macOS keychain with service name "foobar"
+1. **Keychain Entry**: Store your RT password in macOS keychain with service name "foobar"
    ```bash
    security add-generic-password -s "foobar" -a "your_username" -w "your_password"
    ```
+
+**Note**: The SSL certificate for RT server verification is bundled with the package and requires no manual setup.
 
 ## Usage
 
@@ -245,7 +246,6 @@ python -m build
 - macOS (for keychain integration)
 - Network access to RT server
 - Valid RT user credentials
-- SSL certificate file for RT server
 
 ## License
 

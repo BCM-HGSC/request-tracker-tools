@@ -3,6 +3,7 @@
 import http.cookiejar as cookiejar
 from argparse import ArgumentParser, Namespace
 from getpass import getuser
+from importlib.resources import files
 from pprint import pprint as pp
 from re import IGNORECASE, match
 from subprocess import CalledProcessError, run
@@ -40,7 +41,9 @@ def parse_arguments() -> Namespace:
 class RTSession(Session):
     def __init__(self):
         super().__init__()
-        self.verify: str = "rt.hgsc.bcm.edu.pem"
+        # Load SSL certificate from rt_tools package data
+        cert_path = files("rt_tools") / "rt.hgsc.bcm.edu.pem"
+        self.verify: str = str(cert_path)
         self.cookies: cookiejar.CookieJar = load_cookies()
 
     def authenticate(self) -> None:

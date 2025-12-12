@@ -4,6 +4,7 @@ import http.cookiejar as cookiejar
 import logging
 from dataclasses import dataclass
 from getpass import getuser
+from importlib.resources import files
 from pprint import pprint as pp
 from re import IGNORECASE, match
 from sys import exit, stdout
@@ -18,6 +19,7 @@ logger = logging.getLogger(__name__)
 DEFAULT_COOKIE_FILE = "cookies.txt"
 BASE_URL = "https://rt.hgsc.bcm.edu"
 REST_URL = f"{BASE_URL}/REST/1.0"
+CERT_FILENAME = "rt.hgsc.bcm.edu.pem"
 
 
 @dataclass
@@ -124,7 +126,9 @@ class RTSession(Session):
 
     def __init__(self, cookie_file: str = DEFAULT_COOKIE_FILE):
         super().__init__()
-        self.verify: str = "rt.hgsc.bcm.edu.pem"
+        # Load SSL certificate from package data
+        cert_path = files("rt_tools") / CERT_FILENAME
+        self.verify: str = str(cert_path)
         self.cookies: cookiejar.CookieJar = load_cookies(cookie_file)
 
     def authenticate(self) -> None:
