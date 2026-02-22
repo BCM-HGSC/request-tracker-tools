@@ -13,7 +13,7 @@ dependencies = [
 [project.optional-dependencies]
 dev = [
     "pytest>=8.4.1",
-    "ruff>=0.12.5",
+    "ruff>=0.14.9",
 ]
 optional = [
     "anthropic>=0.60.0",
@@ -43,7 +43,7 @@ python_classes = ["Test*"]
 python_functions = ["test_*"]
 
 [tool.ruff]
-required-version = ">=0.12.8,<0.12.9"
+required-version = ">=0.14.9,<0.15.0"
 src = ["src", "tests"]
 target-version = "py313"
 
