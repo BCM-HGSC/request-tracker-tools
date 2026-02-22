@@ -8,6 +8,7 @@ from rt_tools.parser import (
     parse_attachment_list,
     parse_history_list,
     parse_history_message,
+    strip_quoted_reply,
 )
 
 EXPECTED_CONTENT = """Hi All,
@@ -147,6 +148,46 @@ def test_parse_message_attachments(sample_history_data):
     msg = parse_history_message(sample_history_data)
     assert msg.attachments[0] == Attachment(id="1483995", name="untitled", size="0b")
     assert msg.attachments[2].name == "Example Workbook.xlsx"
+
+
+def test_strip_quoted_reply_no_quotes():
+    content = "Hi,\n\nThis is a message.\n\nThanks,\nOne"
+    assert strip_quoted_reply(content) == "Hi,\n\nThis is a message.\n\nThanks,\nOne"
+
+
+def test_strip_quoted_reply_single_level():
+    content = (
+        "Files are ready.\n"
+        "On Fri Aug 01 17:00:00 2025, user001 wrote:\n\n"
+        "  Original message."
+    )
+    assert strip_quoted_reply(content) == "Files are ready."
+
+
+def test_strip_quoted_reply_nested():
+    # Only the first "On...wrote:" boundary matters; everything after is stripped
+    content = (
+        "Done.\n"
+        "On Mon Aug 04 16:47:07 2025, user002 wrote:\n\n"
+        "  Earlier message.\n"
+        "  On Fri Aug 01 2025, user001 wrote:\n\n"
+        "    Original."
+    )
+    assert strip_quoted_reply(content) == "Done."
+
+
+def test_strip_quoted_reply_leading_quote():
+    # Entire content is a quoted reply — result is empty, returns ""
+    content = "On Fri Aug 01 16:00:00 2025, user001 wrote:\n\n  Hi there."
+    assert strip_quoted_reply(content) == ""
+
+
+def test_strip_quoted_reply_fixture_1490011(fixtures_dir):
+    text = (fixtures_dir / "rt37525_sanitized" / "1490011" / "message.txt").read_text()
+    msg = parse_history_message(text)
+    stripped = strip_quoted_reply(msg.content)
+    assert "On Fri Aug 01 16:02:30 2025, user001 wrote:" not in stripped
+    assert "No problem! The files are copying now." in stripped
 
 
 def test_parse_attachment_list_edge_cases():

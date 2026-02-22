@@ -25,7 +25,12 @@ try:
 except ImportError:
     openpyxl = None
 
-from .parser import parse_attachment_list, parse_history_list, parse_history_message
+from .parser import (
+    parse_attachment_list,
+    parse_history_list,
+    parse_history_message,
+    strip_quoted_reply,
+)
 from .session import RTSession
 
 logger = logging.getLogger(__name__)
@@ -107,6 +112,7 @@ class TicketDownloader:
             )
             history_item_text = history_item_payload.decode("utf-8")
             history_message = parse_history_message(history_item_text)
+            self._save_stripped_content(ticket_dir, history_id, history_message.content)
             for attachment in history_message.attachments:
                 if attachment.size != "0b":
                     mime_type = attachment_index[attachment.id].mime_type
@@ -190,6 +196,22 @@ class TicketDownloader:
         message_file.write_bytes(rt_data.payload)
         logger.info(f"Created {message_file}")
         return rt_data.payload
+
+    def _save_stripped_content(
+        self, target_dir: Path, history_id: str, content: str | None
+    ) -> None:
+        """Save non-quoted message content to content.txt.
+
+        Skips saving if content is None or entirely quoted (empty after strip).
+        """
+        if not content:
+            return
+        stripped = strip_quoted_reply(content)
+        if not stripped:
+            return
+        content_file = target_dir / history_id / "content.txt"
+        content_file.write_text(stripped + "\n", encoding="utf-8")
+        logger.info(f"Created {content_file}")
 
     def _download_attachment_ist(
         self, ticket_id: str, target_dir: Path

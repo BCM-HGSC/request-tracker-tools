@@ -16,7 +16,7 @@ from collections.abc import Iterator
 from dataclasses import dataclass
 from dataclasses import field as dc_field
 from logging import getLogger
-from re import DOTALL, compile, findall, search
+from re import DOTALL, MULTILINE, compile, findall, search
 from textwrap import dedent
 
 logger = getLogger(__name__)
@@ -192,3 +192,25 @@ def parse_history_message(text: str) -> HistoryMessage:
         created=created,
         attachments=attachments,
     )
+
+
+def strip_quoted_reply(content: str) -> str:
+    """Strip quoted reply sections, keeping only new content.
+
+    RT emails include accumulated quoted replies using the pattern
+    "On <date>, <username> wrote:" followed by indented prior content.
+    Since each history entry is preserved separately, quoted text is
+    redundant.
+
+    Args:
+        content: Dedented message content from parse_history_message()
+
+    Returns:
+        Content up to the first quoted reply boundary, rstripped.
+        Returns the original content rstripped if no quoting is found.
+    """
+    match = search(r"(^|\n)On .+, .+ wrote:", content, MULTILINE)
+    if match:
+        cut = match.start() if content[match.start()] == "\n" else 0
+        return content[:cut].rstrip()
+    return content.rstrip()
