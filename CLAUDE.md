@@ -172,11 +172,13 @@ resolved_target_dir/          # From resolution order: --output-dir > env var > 
 ├── rt37603/                  # Ticket directory (rt{ticket_id} format)
 │   ├── metadata.txt          # Basic ticket information
 │   ├── 1492666/              # History entry directory
-│   │   ├── message.txt       # History entry content
+│   │   ├── message.txt       # Full RT history entry (raw format)
+│   │   ├── content.txt       # New content only (quoted replies stripped)
 │   │   ├── n800.pdf          # Attachment with n-prefix for sorting
 │   │   └── n801.xlsx         # Additional attachments
 │   └── 1492934/              # Additional history entries
-│       └── message.txt
+│       ├── message.txt
+│       └── content.txt
 └── rt37604/                  # Another ticket directory
     ├── metadata.txt
     └── ...

@@ -396,6 +396,11 @@ def test_download_ticket_convenience_function(mock_session):
         assert (ticket_dir / "history.txt").exists()
         assert (ticket_dir / "attachments.txt").exists()
 
+        # Verify content.txt is created for history entries with non-empty content
+        assert (ticket_dir / "456" / "content.txt").exists()
+        assert (ticket_dir / "457" / "content.txt").exists()
+        assert (ticket_dir / "458" / "content.txt").exists()
+
 
 def test_download_metadata_success(mock_session):
     """Test successful metadata download."""
