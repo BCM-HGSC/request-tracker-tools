@@ -182,6 +182,24 @@ def test_strip_quoted_reply_leading_quote():
     assert strip_quoted_reply(content) == ""
 
 
+def test_strip_quoted_reply_outlook_style():
+    content = (
+        "Hi Evette,\n\n"
+        "I cc ed you on the e-mail with SRA.\n\n"
+        "Thank you\n\n"
+        "Ravi\n\n"
+        "From: Evette Skinner via RT <rt@hgsc.bcm.tmc.edu>\n"
+        "Sent: Monday, September 8, 2025 1:06 PM\n"
+        "To: Raveendran, Muthuswamy <raveendr@bcm.edu>\n"
+        "Subject: RE: [MFTS #37719] Replace existing data\n\n"
+        "Hi Ravi,\n\n"
+        "Previous message content."
+    )
+    assert strip_quoted_reply(content) == (
+        "Hi Evette,\n\nI cc ed you on the e-mail with SRA.\n\nThank you\n\nRavi"
+    )
+
+
 def test_strip_quoted_reply_fixture_1490011(fixtures_dir):
     text = (fixtures_dir / "rt37525_sanitized" / "1490011" / "message.txt").read_text()
     msg = parse_history_message(text)
