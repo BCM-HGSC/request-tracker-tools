@@ -105,7 +105,7 @@ class TicketDownloader:
             history_item_payload = self._download_individual_history_item(
                 ticket_id, ticket_dir, history_id
             )
-            history_item_text = history_item_payload.decode("ascii")
+            history_item_text = history_item_payload.decode("utf-8")
             history_message = parse_history_message(history_item_text)
             for attachment in history_message.attachments:
                 if attachment.size != "0b":

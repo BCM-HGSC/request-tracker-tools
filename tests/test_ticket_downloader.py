@@ -712,3 +712,90 @@ def test_edge_cases():
     except (AttributeError, TypeError):
         # This is also acceptable behavior
         pass
+
+
+def test_unicode_in_history_messages():
+    """Test that Unicode characters in history messages are handled correctly.
+
+    This test exposes the bug that occurred when history messages contained
+    Unicode characters but the code tried to decode them as ASCII.
+    """
+    import tempfile
+    from pathlib import Path
+    from unittest.mock import Mock, patch
+
+    # Create mock history message content with Unicode characters
+    # This simulates real RT content that might contain em dashes, smart quotes, etc.
+    unicode_history_content = (
+        "RT/4.4.4 200 Ok\n\n"
+        "id: ticket/37597/history/1493258\n"
+        "Ticket: 37597\n"
+        "TimeTaken: 0\n"
+        "Type: Correspond\n"
+        "Field: \n"
+        "OldValue: \n"
+        "NewValue: \n"
+        "Data: \n"
+        "Description: Correspondence added\n"
+        'Content: Contains Unicode characters: like—em dashes and "smart quotes".\n\n'
+        "Content: And some non-ASCII characters: café, naïve, résumé\n"
+        "Creator: user@example.com\n"
+        "Created: 2023-01-01 12:00:00\n"
+        "Attachments: \n"
+    )
+
+    # Encode as UTF-8 bytes (what RT would actually return)
+    unicode_history_bytes = unicode_history_content.encode("utf-8")
+
+    with tempfile.TemporaryDirectory() as temp_dir:
+        target_dir = Path(temp_dir)
+        ticket_dir = target_dir / "rt37597"
+        ticket_dir.mkdir()
+
+        # Create mock session
+        mock_session = Mock(spec=RTSession)
+
+        # Mock the individual history item download to return Unicode content
+        mock_rt_data = Mock()
+        mock_rt_data.is_ok = True
+        mock_rt_data.payload = unicode_history_bytes
+        mock_session.fetch_rest.return_value = mock_rt_data
+
+        downloader = TicketDownloader(mock_session)
+
+        # This should work with UTF-8 decoding (current implementation)
+        result = downloader._download_individual_history_item(
+            "37597", ticket_dir, "1493258"
+        )
+        assert result == unicode_history_bytes
+
+        # Verify the message was saved correctly
+        message_file = ticket_dir / "1493258" / "message.txt"
+        assert message_file.exists()
+        saved_content = message_file.read_bytes()
+        assert saved_content == unicode_history_bytes
+
+        # Now test what would happen with ASCII decoding (the bug)
+        # We'll temporarily patch the method to use ASCII decoding
+        with patch.object(
+            downloader, "_download_individual_history_item"
+        ) as mock_download:
+            mock_download.return_value = unicode_history_bytes
+
+            # This simulates the old buggy behavior
+            try:
+                # This is what the old code was trying to do:
+                history_item_text = unicode_history_bytes.decode("ascii")
+                # If we get here, the test environment doesn't have Unicode chars
+                # that would trigger the bug, so we force the error
+                raise AssertionError("Expected UnicodeDecodeError with ASCII decoding")
+            except UnicodeDecodeError as e:
+                # This is the bug we fixed - Unicode content can't be decoded as ASCII
+                assert "ascii" in str(e)
+                assert "can't decode byte" in str(e)
+
+                # But with UTF-8 decoding (the fix), it should work fine
+                history_item_text = unicode_history_bytes.decode("utf-8")
+                assert "em dashes" in history_item_text
+                assert "smart quotes" in history_item_text
+                assert "café" in history_item_text

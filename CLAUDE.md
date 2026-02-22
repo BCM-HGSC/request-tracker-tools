@@ -22,7 +22,7 @@ The codebase follows a standard Python package structure with src layout:
 
 **RTSession Class**: Inherits from `requests.Session` and handles:
 - RT server authentication using stored cookies
-- SSL certificate verification with custom cert file (`rt.hgsc.bcm.edu.pem`)
+- SSL certificate verification with bundled certificate (loaded from package data)
 - Cookie persistence using Mozilla cookie jar format
 - Authentication status checking via RT API responses
 
@@ -122,9 +122,10 @@ download-ticket --verbose 37603 --output-dir /tmp  # Verbose download to /tmp/rt
 ## Configuration Requirements
 
 The package expects:
-- **SSL Certificate**: `rt.hgsc.bcm.edu.pem` file in working directory for RT server verification
 - **Keychain Access**: macOS keychain entry with service "foobar" containing RT password
 - **RT Server**: Configured to work with `https://rt.hgsc.bcm.edu/REST/1.0/` endpoint
+
+**Note**: The SSL certificate for RT server verification is bundled as package data and loaded automatically.
 
 ### Target Directory Configuration
 
