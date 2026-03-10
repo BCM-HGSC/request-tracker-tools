@@ -22,13 +22,17 @@ def download_ticket_cli():
         session.authenticate()
         if args.verbose:
             session.print_cookies()
-        download_ticket(session, args.ticket_id, target_dir)
+        for ticket_id in args.ticket_ids:
+            try:
+                download_ticket(session, ticket_id, target_dir)
+            except Exception as e:
+                logging.error("Failed to download ticket %s: %s", ticket_id, e)
 
 
 def parse_download_ticket_arguments() -> Namespace:
     """Parse command line arguments for download-ticket."""
     parser = make_parser("Download complete RT ticket data to directory")
-    parser.add_argument("ticket_id", help="RT ticket ID (without 'ticket/' prefix)")
+    parser.add_argument("ticket_ids", nargs="+", help="One or more RT ticket IDs")
     parser.add_argument(
         "--output-dir",
         metavar="DIR",
