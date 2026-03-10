@@ -3,7 +3,7 @@
 import logging
 import os
 import tomllib
-from argparse import ArgumentParser, Namespace
+from argparse import ArgumentParser, Namespace, RawDescriptionHelpFormatter
 from pathlib import Path
 
 from .downloader import download_ticket
@@ -22,13 +22,38 @@ def download_ticket_cli():
         session.authenticate()
         if args.verbose:
             session.print_cookies()
-        download_ticket(session, args.ticket_id, target_dir)
+        for ticket_id in args.ticket_ids:
+            try:
+                download_ticket(session, ticket_id, target_dir)
+            except Exception as e:
+                logging.error("Failed to download ticket %s: %s", ticket_id, e)
 
 
 def parse_download_ticket_arguments() -> Namespace:
     """Parse command line arguments for download-ticket."""
-    parser = make_parser("Download complete RT ticket data to directory")
-    parser.add_argument("ticket_id", help="RT ticket ID (without 'ticket/' prefix)")
+    parser = ArgumentParser(
+        description="Download complete RT ticket data to directory",
+        formatter_class=RawDescriptionHelpFormatter,
+        epilog="""
+Output structure:
+  rt{id}/
+    metadata.txt       ticket fields
+    history.txt        full history listing
+    attachments.txt    attachment index
+    {history_id}/
+      message.txt      full RT history entry (raw)
+      content.txt      new content only, quoted replies stripped
+                       (primary file for automated and human processing)
+      n{att_id}.pdf    attachments (n-prefix for correct sort order)
+""",
+    )
+    parser.add_argument(
+        "-v", "--verbose", action="store_true", help="Enable verbose output"
+    )
+    parser.add_argument(
+        "-q", "--quiet", action="store_true", help="Suppress INFO and below messages"
+    )
+    parser.add_argument("ticket_ids", nargs="+", help="One or more RT ticket IDs")
     parser.add_argument(
         "--output-dir",
         metavar="DIR",

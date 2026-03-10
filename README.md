@@ -58,6 +58,13 @@ download-ticket 37525
 # Download to specific directory (creates local/output/rt37525/)
 download-ticket 37525 --output-dir local/output
 
+# Download multiple tickets (authenticate once, loop sequentially)
+download-ticket 37525 37526 37527
+
+# From clipboard or file via xargs
+pbpaste | xargs download-ticket
+cat tickets.txt | xargs download-ticket
+
 # With verbose logging to see download progress
 download-ticket --verbose 37525
 
@@ -88,12 +95,15 @@ output_directory/         # Resolved from --output-dir, env var, config, or cwd
 └── rt37525/              # Ticket directory (rt{ticket_id} format)
     ├── metadata.txt      # Ticket basic information
     ├── history.txt       # Complete ticket history
+    ├── attachments.txt   # Attachment index
     ├── 456/              # History entry directory
-    │   └── message.txt   # Individual history entry content
+    │   ├── message.txt   # Full RT history entry (raw format)
+    │   └── content.txt   # New content only — quoted replies stripped
     ├── 458/              # Another history entry directory
-    │   ├── message.txt   # History entry content
+    │   ├── message.txt
+    │   ├── content.txt
     │   ├── n800.pdf      # Attachment for this history entry
-    │   └── n801.xlsx     # Another attachment (with auto-generated .tsv)
+    │   └── n801.xlsx     # Also saved as n801.tsv (auto-converted)
     └── ...
 ```
 
@@ -102,7 +112,7 @@ Features:
 - **Consistent filtering**: Automatically skips zero-byte attachments and outgoing emails from both attachments and individual history items
 - Uses recursive history fetching to handle broken RT API parameters
 - Downloads attachments with format: `n{attachment_id}.{extension}` within each history directory (the "n" prefix ensures message.txt sorts first)
-- **Individual history items**: Each history entry is saved as `{history_id}/message.txt` for detailed analysis (excluding outgoing emails)
+- **Individual history items**: Each history entry is saved as `{history_id}/message.txt` (full raw entry) and `{history_id}/content.txt` (new content only, with quoted replies stripped). `content.txt` is the primary file for automated and human processing.
 - **Automatic XLSX→TSV conversion**: Excel files are automatically converted to tab-separated values for easier analysis
 - Creates comprehensive ticket metadata and history files
 
