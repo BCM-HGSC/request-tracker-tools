@@ -1,6 +1,6 @@
 [project]
 name = "rt-tools"
-version = "0.0.0+dev"
+version = "1.0.0"
 description = "RT Tools package for interacting with RT (Request Tracker) systems"
 readme = "README.md"
 license = {text = "MIT"}
