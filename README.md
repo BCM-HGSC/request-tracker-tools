@@ -166,16 +166,24 @@ dump-url --quiet some/path
 ### Python API
 
 ```python
-from rt_tools import RTSession
+from rt_tools import RTSession, get_ticket_statuses
 
 # Create an authenticated session
 with RTSession() as session:
     session.authenticate()
 
+    # Check status of one or more tickets
+    statuses = get_ticket_statuses(["37525", "37526"], session)
+    # {"37525": "open", "37526": "resolved"}
+
     # Access ticket data programmatically
-    response = session.get("https://rt.hgsc.bcm.edu/REST/1.0/ticket/37525/show")
+    response = session.get("https://rt.hgsc.bcm.edu/REST/1.0/ticket/37525")
     print(response.text)
 ```
+
+**`get_ticket_statuses(ticket_ids, session)`** fetches ticket status via the REST API and
+returns a dict mapping each ticket ID to `"open"` (new/open/stalled), `"resolved"`, or
+`"unknown"`.
 
 ## Architecture
 

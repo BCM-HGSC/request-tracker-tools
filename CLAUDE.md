@@ -38,6 +38,7 @@ The codebase follows a standard Python package structure with src layout:
 **Parser Module**: Provides centralized RT response parsing:
 - Defines structured dataclasses for RT data (AttachmentMeta, HistoryMessage, etc.)
 - Parses attachment lists, history items, and individual messages
+- Parses ticket status from `ticket/{id}` responses via `parse_ticket_status()`
 - Filters outgoing emails during history parsing
 - Uses string-based dataclasses to match RT API format
 - Handles multi-line content and attachment extraction
