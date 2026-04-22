@@ -194,6 +194,33 @@ def parse_history_message(text: str) -> HistoryMessage:
     )
 
 
+_OPEN_STATUSES = {"new", "open", "stalled"}
+_RESOLVED_STATUSES = {"resolved"}
+
+
+def parse_ticket_status(payload: bytes) -> str:
+    """Parse ticket status from a ticket/{id} REST response payload.
+
+    Args:
+        payload: Raw payload bytes from RTResponseData (RT header already stripped)
+
+    Returns:
+        "open" for new/open/stalled, "resolved" for resolved, "unknown" otherwise
+    """
+    text = payload.decode("utf-8", errors="replace")
+    m = search(r"^Status:\s*(\S+)", text, MULTILINE)
+    if not m:
+        logger.warning("Status field not found in ticket response")
+        return "unknown"
+    status = m.group(1).lower()
+    if status in _OPEN_STATUSES:
+        return "open"
+    if status in _RESOLVED_STATUSES:
+        return "resolved"
+    logger.warning(f"Unrecognized ticket status: {status!r}")
+    return "unknown"
+
+
 def strip_quoted_reply(content: str) -> str:
     """Strip quoted reply sections, keeping only new content.
 

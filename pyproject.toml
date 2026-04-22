@@ -43,7 +43,7 @@ python_classes = ["Test*"]
 python_functions = ["test_*"]
 
 [tool.ruff]
-required-version = ">=0.14.9,<0.15.0"
+required-version = ">=0.14.9"
 src = ["src", "tests"]
 target-version = "py313"
 

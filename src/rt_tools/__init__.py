@@ -8,6 +8,7 @@ from .session import (
     RTResponseError,
     RTSession,
     dump_response,
+    get_ticket_statuses,
     parse_rt_response,
 )
 from .utils import fetch_password, load_cookies, remove_fixed_string
@@ -25,6 +26,7 @@ __all__ = [
     "TicketDownloader",
     "download_ticket",
     "dump_response",
+    "get_ticket_statuses",
     "fetch_password",
     "load_cookies",
     "parse_rt_response",

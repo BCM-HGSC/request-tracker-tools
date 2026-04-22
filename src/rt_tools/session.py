@@ -12,6 +12,7 @@ from typing import BinaryIO
 
 from requests import RequestException, Response, Session
 
+from .parser import parse_ticket_status
 from .utils import fetch_password, load_cookies
 
 logger = logging.getLogger(__name__)
@@ -218,6 +219,27 @@ class RTSession(Session):
     def rest_url(*parts) -> str:
         """Generate a REST 1.0 URL using any supplied parts."""
         return "/".join([REST_URL] + list(parts))
+
+
+def get_ticket_statuses(ticket_ids: list[str], session: RTSession) -> dict[str, str]:
+    """Fetch the status of one or more RT tickets.
+
+    Args:
+        ticket_ids: List of RT ticket IDs (as strings)
+        session: Authenticated RTSession to use for requests
+
+    Returns:
+        Mapping of ticket ID to status string: "open", "resolved", or "unknown"
+    """
+    result = {}
+    for ticket_id in ticket_ids:
+        response_data = session.fetch_rest("ticket", ticket_id)
+        if response_data.is_ok:
+            result[ticket_id] = parse_ticket_status(response_data.payload)
+        else:
+            logger.warning(f"Non-OK response for ticket {ticket_id}")
+            result[ticket_id] = "unknown"
+    return result
 
 
 def dump_response(response: Response) -> None:
