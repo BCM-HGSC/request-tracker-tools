@@ -6,6 +6,11 @@ import tomllib
 from argparse import ArgumentParser, Namespace, RawDescriptionHelpFormatter
 from pathlib import Path
 
+from .credentials import (
+    PASSWORD_FILE_CANDIDATES,
+    PASSWORD_FILE_ENV_VAR,
+    SECRET_FILE_MODE,
+)
 from .downloader import download_ticket
 from .session import BASE_URL, REST_URL, RTSession
 
@@ -18,7 +23,7 @@ def download_ticket_cli():
     # resolve target_dir according to resolution order
     target_dir = resolve_target_dir(args)
 
-    with RTSession() as session:
+    with RTSession(password_file=args.password_file) as session:
         session.authenticate()
         if args.verbose:
             session.print_cookies()
@@ -47,12 +52,7 @@ Output structure:
       n{att_id}.pdf    attachments (n-prefix for correct sort order)
 """,
     )
-    parser.add_argument(
-        "-v", "--verbose", action="store_true", help="Enable verbose output"
-    )
-    parser.add_argument(
-        "-q", "--quiet", action="store_true", help="Suppress INFO and below messages"
-    )
+    add_common_arguments(parser)
     parser.add_argument("ticket_ids", nargs="+", help="One or more RT ticket IDs")
     parser.add_argument(
         "--output-dir",
@@ -94,7 +94,7 @@ def dump_ticket():
     """Main entry point for dumping RT ticket information."""
     args = parse_dump_ticket_arguments()
     config_logging(args)
-    with RTSession() as session:
+    with RTSession(password_file=args.password_file) as session:
         session.authenticate()
         if args.verbose:
             session.print_cookies()
@@ -123,7 +123,7 @@ def dump_rest():
     """Entry point for dumping content from RT REST API URLs."""
     args = parse_dump_rest_arguments()
     config_logging(args)
-    with RTSession() as session:
+    with RTSession(password_file=args.password_file) as session:
         session.authenticate()
         if args.verbose:
             session.print_cookies()
@@ -143,7 +143,7 @@ def dump_url():
     """Entry point for dumping content from arbitrary RT URLs."""
     args = parse_dump_url_arguments()
     config_logging(args)
-    with RTSession() as session:
+    with RTSession(password_file=args.password_file) as session:
         session.authenticate()
         if args.verbose:
             session.print_cookies()
@@ -162,13 +162,29 @@ def parse_dump_url_arguments() -> Namespace:
 
 def make_parser(description: str) -> ArgumentParser:
     parser = ArgumentParser(description=description)
+    add_common_arguments(parser)
+    return parser
+
+
+def add_common_arguments(parser: ArgumentParser) -> None:
+    """Add the options shared by every RT tools command."""
     parser.add_argument(
         "-v", "--verbose", action="store_true", help="Enable verbose output"
     )
     parser.add_argument(
         "-q", "--quiet", action="store_true", help="Suppress INFO and below messages"
     )
-    return parser
+    parser.add_argument(
+        "--password-file",
+        metavar="FILE",
+        help="File holding the RT password on its first line. "
+        "Resolution order: 1. --password-file "
+        f"2. ${PASSWORD_FILE_ENV_VAR} "
+        f"3. {PASSWORD_FILE_CANDIDATES[0]} then {PASSWORD_FILE_CANDIDATES[1]} "
+        "4. macOS keychain. "
+        "Secret files must not be readable by group or other (mode "
+        f"{SECRET_FILE_MODE:o} or 400).",
+    )
 
 
 def config_logging(args) -> None:

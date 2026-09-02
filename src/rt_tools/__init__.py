@@ -2,6 +2,7 @@
 
 from importlib.metadata import PackageNotFoundError, version
 
+from .credentials import fetch_password, load_cookies, save_cookies
 from .downloader import TicketDownloader, download_ticket
 from .session import (
     RTResponseData,
@@ -11,7 +12,7 @@ from .session import (
     get_ticket_statuses,
     parse_rt_response,
 )
-from .utils import fetch_password, load_cookies, remove_fixed_string
+from .utils import remove_fixed_string
 
 try:
     __version__ = version("rt-tools")
@@ -31,4 +32,5 @@ __all__ = [
     "load_cookies",
     "parse_rt_response",
     "remove_fixed_string",
+    "save_cookies",
 ]

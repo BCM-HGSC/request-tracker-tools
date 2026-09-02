@@ -2,6 +2,7 @@
 
 import http.cookiejar as cookiejar
 import logging
+import os
 from dataclasses import dataclass
 from getpass import getuser
 from importlib.resources import files
@@ -12,12 +13,11 @@ from typing import BinaryIO
 
 from requests import RequestException, Response, Session
 
+from .credentials import DEFAULT_COOKIE_FILE, fetch_password, load_cookies, save_cookies
 from .parser import parse_ticket_status
-from .utils import fetch_password, load_cookies
 
 logger = logging.getLogger(__name__)
 
-DEFAULT_COOKIE_FILE = "cookies.txt"
 BASE_URL = "https://rt.hgsc.bcm.edu"
 REST_URL = f"{BASE_URL}/REST/1.0"
 CERT_FILENAME = "rt.hgsc.bcm.edu.pem"
@@ -125,19 +125,24 @@ def parse_rt_response(response: Response) -> RTResponseData:
 class RTSession(Session):
     """Session class for interacting with RT (Request Tracker) systems."""
 
-    def __init__(self, cookie_file: str = DEFAULT_COOKIE_FILE):
+    def __init__(
+        self,
+        cookie_file: str | os.PathLike = DEFAULT_COOKIE_FILE,
+        password_file: str | os.PathLike | None = None,
+    ):
         super().__init__()
         # Load SSL certificate from package data
         cert_path = files("rt_tools") / CERT_FILENAME
         self.verify: str = str(cert_path)
         self.cookies: cookiejar.CookieJar = load_cookies(cookie_file)
+        self.password_file = password_file
 
     def authenticate(self) -> None:
         """Authenticate with RT if not already authenticated."""
         if self.check_authorized():
             return
         user = getuser()
-        password = fetch_password(user)
+        password = fetch_password(user, self.password_file)
         self.fetch_and_save_auth_cookie(user, password)
 
     def check_authorized(self) -> bool:
@@ -154,7 +159,7 @@ class RTSession(Session):
         """Fetch authentication cookie and save it."""
         form_data = {"user": user, "pass": password}
         self.rt_post(BASE_URL, data=form_data)
-        self.cookies.save(ignore_discard=True, ignore_expires=True)
+        save_cookies(self.cookies)
 
     def rt_post(self, url: str, verbose=False, **kwargs) -> None:
         """Perform a POST request with RT-specific error handling."""
@@ -174,7 +179,7 @@ class RTSession(Session):
         response = self.get(f"{REST_URL}/logout")
         dump_response(response)
         self.cookies.clear()
-        self.cookies.save()
+        save_cookies(self.cookies)
 
     def dump_ticket(self, id_string: str, *parts, file: BinaryIO = None) -> None:
         """GET a ticket URL and dump the response."""
