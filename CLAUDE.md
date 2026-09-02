@@ -15,7 +15,8 @@ The codebase follows a standard Python package structure with src layout:
   - **`session.py`** - `RTSession` class that extends `requests.Session` for RT-specific authentication and operations
   - **`downloader.py`** - `TicketDownloader` class for comprehensive ticket data download and organization
   - **`parser.py`** - Centralized RT response parsing with dataclasses and filtering logic
-  - **`utils.py`** - Utility functions for cookie management, password fetching, and response handling
+  - **`credentials.py`** - Password resolution across secret files and the macOS keychain, plus cookie file handling and permission enforcement
+  - **`utils.py`** - Small shared helpers
   - **`__init__.py`** - Package initialization with dynamic version loading
 
 ### Key Components
@@ -43,11 +44,17 @@ The codebase follows a standard Python package structure with src layout:
 - Uses string-based dataclasses to match RT API format
 - Handles multi-line content and attachment extraction
 
+**Credentials Module**: Owns every secret that touches the filesystem:
+- Resolves the password in order: `--password-file` → `$RT_PASSWORD_FILE` → `~/.secrets/rt-tools/password` → `~/.secrets/rt` → macOS keychain
+- Refuses to read a secret file with any group or other permission bit set
+- Creates the cookie file mode 0600 inside a mode 0700 directory, before the jar writes to it
+- Skips the keychain entirely where `/usr/bin/security` does not exist, so Linux hosts need no special-casing
+
 **Authentication Flow**:
-1. Attempts to load existing cookies from `cookies.txt`
+1. Attempts to load existing cookies from `~/.secrets/rt-tools/cookies.txt`
 2. Checks authorization status by parsing RT server response
-3. If unauthorized, fetches password from macOS keychain using `/usr/bin/security`
-4. Performs authentication POST and saves new cookies
+3. If unauthorized, resolves the password via `credentials.fetch_password()`
+4. Performs authentication POST and saves new cookies with mode 0600
 
 **Logging**: Uses Python's logging module with three levels controlled by CLI flags:
 - Default: INFO level
@@ -97,6 +104,8 @@ python -m build
 
 ### Running the CLI
 ```bash
+# All commands accept --password-file FILE in addition to -v/-q.
+
 # Available console scripts:
 download-ticket <ticket_id> [--output-dir DIR]   # Download complete RT ticket data to rt{ticket_id} subdirectory
 dump-ticket <ticket_id> [additional_path_parts]  # Dump RT ticket information
@@ -123,10 +132,33 @@ download-ticket --verbose 37603 --output-dir /tmp  # Verbose download to /tmp/rt
 ## Configuration Requirements
 
 The package expects:
-- **Keychain Access**: macOS keychain entry with service "foobar" containing RT password
+- **RT Password**: available from one of the sources in the credential resolution order below
 - **RT Server**: Configured to work with `https://rt.hgsc.bcm.edu/REST/1.0/` endpoint
 
 **Note**: The SSL certificate for RT server verification is bundled as package data and loaded automatically.
+
+### Credential Resolution
+
+1. `--password-file FILE` command-line option
+2. `$RT_PASSWORD_FILE` environment variable
+3. `~/.secrets/rt-tools/password`, then `~/.secrets/rt`
+4. macOS keychain, service "foobar" (skipped where `/usr/bin/security` is absent)
+
+A file named by 1 or 2 must exist; a missing one is an error, not a fallback. Only
+the first line is read and its trailing newline stripped. Secret files must be mode
+0600 or 0400 — any group or other permission bit causes an error.
+
+On macOS the keychain still works with no configuration. On Linux (notably the HPC)
+create the secret file:
+
+```bash
+mkdir -m 700 -p ~/.secrets/rt-tools
+chmod 600 ~/.secrets/rt-tools/password
+```
+
+Note that on an NFS-mounted HPC home directory, Unix permissions are the only
+protection: storage administrators and node root can read the file. This is
+acceptable for the RT password specifically, which unlocks nothing else.
 
 ### Target Directory Configuration
 
@@ -159,7 +191,7 @@ The resolution follows this exact priority order, with higher-numbered options o
 
 **Parsing Architecture**: Uses centralized parser module (`parser.py`) to eliminate duplicate parsing logic. All RT responses are parsed into structured dataclasses with string attributes to match RT API format.
 
-**Cookie Management**: Uses `http.cookiejar.MozillaCookieJar` for persistent authentication across sessions. Cookies are automatically loaded on RTSession initialization and saved after successful authentication.
+**Cookie Management**: Uses `http.cookiejar.MozillaCookieJar` for persistent authentication across sessions. Cookies are automatically loaded on RTSession initialization and saved after successful authentication. The jar lives at `~/.secrets/rt-tools/cookies.txt`; the session cookie is a bearer credential, so the file is created mode 0600 in a mode 0700 directory and tightened on load if found more permissive. Earlier versions used `./cookies.txt`, which is no longer read.
 
 **Error Handling**: Authentication and request failures cause immediate program exit with error logging. The package does not implement retry logic.
 
@@ -195,11 +227,12 @@ resolved_target_dir/          # From resolution order: --output-dir > env var > 
 **Testing Architecture**: Comprehensive test suite with:
 - Parser tests covering all parsing functions and dataclasses (14 tests)
 - Downloader tests covering all methods and error scenarios (25 tests)
+- Credential tests covering the resolution order, permission enforcement, and cookie file modes
 - Mock fixtures for RT responses using real captured data
 - Session-scoped fixtures for optimal performance
 - Edge case and error handling validation
 
-**Security**: Passwords are fetched from macOS keychain rather than being stored in code or configuration files. The keychain lookup uses partial command `["/usr/bin/security", "find-generic-password", "-w", "-s", "foobar", "-a"]` with username appended.
+**Security**: Passwords are never stored in code or configuration files. The keychain lookup uses `["/usr/bin/security", "find-generic-password", "-w", "-s", "foobar", "-a", user]`. Where no keychain exists, the password comes from a private file under `~/.secrets`. Every secret file read or written is checked for group and other permission bits.
 
 ## RT REST API Documentation
 

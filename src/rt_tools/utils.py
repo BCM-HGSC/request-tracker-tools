@@ -1,50 +1,5 @@
 """Utility functions for RT tools."""
 
-import http.cookiejar as cookiejar
-import logging
-from subprocess import CalledProcessError, run
-from sys import exit
-
-logger = logging.getLogger(__name__)
-
-PARTIAL_EXTERNAL_COMMAND = [
-    "/usr/bin/security",
-    "find-generic-password",
-    "-w",
-    "-s",
-    "foobar",
-    "-a",
-]
-
-
-def load_cookies(cookie_file: str) -> cookiejar.CookieJar:
-    """Load cookies from file, creating empty jar if file doesn't exist."""
-    cookie_jar = cookiejar.MozillaCookieJar(cookie_file)
-    try:  # If file exists, load existing cookies
-        cookie_jar.load(ignore_discard=True, ignore_expires=True)
-        logger.debug(f"Loaded existing cookies from {cookie_file}")
-    except FileNotFoundError:
-        logger.debug(f"Cookie file {cookie_file} not found, starting with empty jar")
-    return cookie_jar
-
-
-def fetch_password(user: str) -> str:
-    """Fetch password from keychain using security command."""
-    try:
-        command = PARTIAL_EXTERNAL_COMMAND + [user]
-        logger.debug(f"Executing command: {' '.join(command[:3])} ...")
-        cli_response = run(command, capture_output=True, text=True, check=True)
-        result = cli_response.stdout.rstrip()
-        logger.debug("Password fetched successfully")
-        return result
-    except CalledProcessError as e:
-        logger.error(f"External program failed with exit code {e.returncode}")
-        logger.error(f"Error output: {e.stderr}")
-        exit(1)
-    except FileNotFoundError:
-        logger.error(f"External program not found: {command[0]}")
-        exit(1)
-
 
 def remove_fixed_string(multiline_string: str, fixed_string: str) -> str:
     """Remove a fixed string from each line of a multiline string."""

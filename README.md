@@ -7,7 +7,8 @@ A Python package and command-line tool for interacting with RT (Request Tracker)
 - **Complete Ticket Downloads**: Download entire tickets with metadata, complete history, individual history items, and attachments
 - **Smart Attachment Processing**: Automatically skips zero-byte attachments and outgoing emails, with automatic XLSX→TSV conversion
 - **Recursive History Fetching**: Handles broken RT API parameters with robust fallback methods
-- **Persistent Authentication**: Automatically manages RT session cookies with secure keychain integration
+- **Persistent Authentication**: Automatically manages RT session cookies, stored privately under `~/.secrets/rt-tools/`
+- **Portable Credentials**: Reads the RT password from a `~/.secrets` file on Linux (including the HPC) or the macOS keychain
 - **SSL Certificate Verification**: Custom certificate support for secure RT server connections
 - **Flexible Logging**: Configurable log levels (quiet, normal, verbose) for debugging and production use
 - **Command-line Interface**: Multiple CLI tools for accessing RT ticket data and attachments
@@ -36,12 +37,44 @@ pip install rt-tools
 
 ## Configuration
 
-Before using RT Tools, you need to set up:
+Before using RT Tools, you need to make your RT password available through one of
+the sources below. RT Tools consults them in this order and uses the first one it
+finds:
 
-1. **Keychain Entry**: Store your RT password in macOS keychain with service name "foobar"
-   ```bash
-   security add-generic-password -s "foobar" -a "your_username" -w "your_password"
-   ```
+1. **`--password-file FILE`** command-line option (highest priority)
+2. **`$RT_PASSWORD_FILE`** environment variable
+3. **Secret file**: `~/.secrets/rt-tools/password`, then `~/.secrets/rt`
+4. **macOS keychain**, service name "foobar" (only where `/usr/bin/security` exists)
+
+A file named by option 1 or 2 must exist; a missing one is an error rather than a
+reason to fall through to a later source.
+
+### Secret file (Linux, including the HPC)
+
+```bash
+mkdir -m 700 -p ~/.secrets/rt-tools
+touch ~/.secrets/rt-tools/password
+chmod 600 ~/.secrets/rt-tools/password
+# then put the password on the first line
+```
+
+Only the first line is read, and its trailing newline is stripped. RT Tools
+**refuses to read a secret file that has any group or other permission bit set**
+— use mode 600 or 400.
+
+### macOS keychain
+
+```bash
+security add-generic-password -s "foobar" -a "your_username" -w "your_password"
+```
+
+### Cookie file
+
+Session cookies are written to `~/.secrets/rt-tools/cookies.txt`, in a directory
+created mode 700 with the file created mode 600. The cookie is a bearer
+credential, so it is treated as a secret in its own right. Earlier versions wrote
+`cookies.txt` into the current working directory; that file is no longer used and
+can be deleted.
 
 **Note**: The SSL certificate for RT server verification is bundled with the package and requires no manual setup.
 
@@ -70,6 +103,9 @@ download-ticket --verbose 37525
 
 # With quiet mode for minimal output
 download-ticket --quiet 37525 --output-dir /tmp
+
+# With an explicit password file (all four commands accept this)
+download-ticket 37525 --password-file ~/.secrets/rt-tools/password
 ```
 
 **Target Directory Resolution**:
@@ -191,15 +227,16 @@ returns a dict mapping each ticket ID to `"open"` (new/open/stalled), `"resolved
 
 - **`RTSession`**: Extends `requests.Session` with RT-specific authentication and cookie management
 - **Authentication**: Automatic login using stored credentials with session persistence
+- **`credentials`**: Resolves the password across secret files and the keychain, and enforces private permissions on every secret it reads or writes
 - **Cookie Management**: Mozilla-format cookie jar for maintaining authentication across sessions
 - **Logging**: Structured logging with configurable levels
 
 ### Authentication Flow
 
-1. Loads existing cookies from `cookies.txt` if available
+1. Loads existing cookies from `~/.secrets/rt-tools/cookies.txt` if available
 2. Checks authorization status by parsing RT server responses
-3. If unauthorized, fetches password from macOS keychain
-4. Performs authentication POST request and saves new cookies
+3. If unauthorized, resolves the password from a secret file or the macOS keychain
+4. Performs authentication POST request and saves new cookies mode 600
 5. Subsequent requests use stored authentication cookies
 
 ### URL Construction
@@ -254,14 +291,21 @@ python -m build
 
 ## Security
 
-- Passwords are stored in macOS keychain, never in code or configuration files
+- Passwords are never stored in code or configuration files — they come from the macOS keychain or a private file under `~/.secrets`
+- Secret files must be mode 600 or 400; a file readable by group or other is rejected with an error
+- Cookie files are created mode 600 in a mode 700 directory, and tightened on load if they are found to be more permissive
 - SSL certificate verification prevents man-in-the-middle attacks
 - Session cookies are stored locally and reused to minimize authentication requests
+
+On a shared filesystem such as an NFS-mounted HPC home directory, Unix permissions
+are the only barrier protecting a secret file. Storage administrators and node root
+can read it. Use this mechanism only for credentials where that exposure is
+acceptable.
 
 ## Requirements
 
 - Python 3.13+
-- macOS (for keychain integration)
+- macOS or Linux (the keychain is used on macOS; Linux uses a `~/.secrets` file)
 - Network access to RT server
 - Valid RT user credentials
 
