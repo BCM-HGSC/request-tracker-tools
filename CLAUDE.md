@@ -104,13 +104,16 @@ python -m build
 
 ### Running the CLI
 ```bash
-# All commands accept --password-file FILE in addition to -v/-q.
+# The commands that talk to the REST API accept --password-file FILE in
+# addition to -v/-q. open-ticket takes none of them: it opens a browser and
+# never authenticates.
 
 # Available console scripts:
 download-ticket <ticket_id> [--output-dir DIR]   # Download complete RT ticket data to rt{ticket_id} subdirectory
 dump-ticket <ticket_id> [additional_path_parts]  # Dump RT ticket information
 dump-rest [rest_path_parts]                      # Dump content from RT REST API URLs
 dump-url [url_path_parts]                        # Dump content from RT URLs
+open-ticket <ticket_id>...                       # Open tickets in the web UI
 
 # Target directory resolution (in order of priority):
 # 1. --output-dir command-line option

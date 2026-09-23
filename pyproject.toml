@@ -25,6 +25,7 @@ download-ticket = "rt_tools.cli:download_ticket_cli"
 dump-ticket = "rt_tools.cli:dump_ticket"
 dump-rest = "rt_tools.cli:dump_rest"
 dump-url = "rt_tools.cli:dump_url"
+open-ticket = "rt_tools.cli:open_ticket"
 
 [tool.setuptools.packages.find]
 where = ["src"]
