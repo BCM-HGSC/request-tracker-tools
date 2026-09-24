@@ -7,6 +7,7 @@ import webbrowser
 from argparse import ArgumentParser, Namespace, RawDescriptionHelpFormatter
 from pathlib import Path
 
+from . import __version__
 from .credentials import (
     PASSWORD_FILE_CANDIDATES,
     PASSWORD_FILE_ENV_VAR,
@@ -178,6 +179,9 @@ def parse_open_ticket_arguments() -> Namespace:
     """Parse command line arguments for open-ticket."""
     parser = ArgumentParser(description="Open RT tickets in a browser")
     parser.add_argument("ticket_ids", nargs="+", help="One or more RT ticket IDs")
+    parser.add_argument(
+        "--version", action="version", version=f"%(prog)s {__version__}"
+    )
     return parser.parse_args()
 
 
@@ -194,6 +198,9 @@ def add_common_arguments(parser: ArgumentParser) -> None:
     )
     parser.add_argument(
         "-q", "--quiet", action="store_true", help="Suppress INFO and below messages"
+    )
+    parser.add_argument(
+        "--version", action="version", version=f"%(prog)s {__version__}"
     )
     parser.add_argument(
         "--password-file",
