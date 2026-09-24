@@ -3,6 +3,7 @@
 import logging
 import os
 import tomllib
+import webbrowser
 from argparse import ArgumentParser, Namespace, RawDescriptionHelpFormatter
 from pathlib import Path
 
@@ -13,6 +14,8 @@ from .credentials import (
 )
 from .downloader import download_ticket
 from .session import BASE_URL, REST_URL, RTSession
+
+TICKET_DISPLAY_URL = f"{BASE_URL}/Ticket/Display.html?id={{}}"
 
 
 def download_ticket_cli():
@@ -157,6 +160,24 @@ def parse_dump_url_arguments() -> Namespace:
     parser.add_argument(
         "parts", nargs="*", help=f"URL path components relative to {BASE_URL}"
     )
+    return parser.parse_args()
+
+
+def open_ticket():
+    """Entry point for opening RT tickets in a browser.
+
+    No session is created: RT's web UI handles its own authentication, and
+    the browser already holds that cookie.
+    """
+    args = parse_open_ticket_arguments()
+    for ticket_id in args.ticket_ids:
+        webbrowser.open(TICKET_DISPLAY_URL.format(ticket_id))
+
+
+def parse_open_ticket_arguments() -> Namespace:
+    """Parse command line arguments for open-ticket."""
+    parser = ArgumentParser(description="Open RT tickets in a browser")
+    parser.add_argument("ticket_ids", nargs="+", help="One or more RT ticket IDs")
     return parser.parse_args()
 
 

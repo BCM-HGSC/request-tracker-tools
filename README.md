@@ -199,6 +199,18 @@ dump-url --verbose REST/1.0/ticket/37525/show
 dump-url --quiet some/path
 ```
 
+**`open-ticket`** - Opens tickets in the web UI. Unlike the other commands it
+creates no session and needs no password: the browser already holds RT's
+cookie.
+
+```bash
+# Open one ticket
+open-ticket 37525
+
+# Open several at once
+open-ticket 37525 37526
+```
+
 ### Python API
 
 ```python
