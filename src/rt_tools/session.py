@@ -14,7 +14,7 @@ from typing import BinaryIO
 from requests import RequestException, Response, Session
 
 from .credentials import DEFAULT_COOKIE_FILE, fetch_password, load_cookies, save_cookies
-from .parser import parse_ticket_status
+from .parser import parse_queue_names, parse_ticket_status
 
 logger = logging.getLogger(__name__)
 
@@ -270,6 +270,24 @@ def search_tickets(
             "fields": fields,
         },
     )
+
+
+def fetch_queue_names(session: RTSession) -> list[str]:
+    """Fetch the names of every queue visible to the authenticated user.
+
+    Args:
+        session: Authenticated RTSession to use for the request
+
+    Returns:
+        Queue names in the order RT returned them
+
+    Raises:
+        RTResponseError: if RT returns a non-OK response
+    """
+    response = session.fetch_rest_params("search", "queue", params={"query": "id > 0"})
+    if not response.is_ok:
+        raise RTResponseError(f"Queue listing failed: {response.status_text}")
+    return parse_queue_names(response.payload)
 
 
 def get_ticket_statuses(ticket_ids: list[str], session: RTSession) -> dict[str, str]:

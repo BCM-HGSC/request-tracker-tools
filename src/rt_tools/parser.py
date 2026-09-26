@@ -252,6 +252,24 @@ def parse_search_results(payload: bytes) -> list[TicketSummary]:
     return result
 
 
+def parse_queue_names(payload: bytes) -> list[str]:
+    """Parse a search/queue response payload into queue names.
+
+    RT returns one "{queue-id}: {queue-name}" line per queue.
+
+    Args:
+        payload: Raw payload bytes from RTResponseData (RT header already stripped)
+
+    Returns:
+        Queue names in the order RT returned them
+    """
+    text = payload.decode("utf-8", errors="replace")
+    if _NO_MATCH_PATTERN.search(text):
+        return []
+    return [match.group(2) for match in _QUEUE_LINE_PATTERN.finditer(text)]
+
+
+_QUEUE_LINE_PATTERN = compile(r"^(\d+): (.+)$", MULTILINE)
 _NO_MATCH_PATTERN = compile(r"^No matching results\.", MULTILINE)
 _FIELD_PATTERN = compile(r"^([A-Za-z][\w.{} ]*): ?(.*)$")
 

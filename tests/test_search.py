@@ -11,12 +11,24 @@ from rt_tools.cli import (
     SEARCH_FIELDS,
     build_ticket_query,
     resolve_queues,
+    validate_queues,
     write_ticket_tsv,
 )
-from rt_tools.parser import TicketSummary, parse_search_results
-from rt_tools.session import BASE_URL, RTResponseData, RTSession, search_tickets
+from rt_tools.parser import TicketSummary, parse_queue_names, parse_search_results
+from rt_tools.session import (
+    BASE_URL,
+    RTResponseData,
+    RTResponseError,
+    RTSession,
+    fetch_queue_names,
+    search_tickets,
+)
 
 BOTH_QUEUES = "( Queue = 'Managed File Transfer' OR Queue = 'Submissions' )"
+
+KNOWN_QUEUES = ["General", "Managed File Transfer", "Submissions"]
+
+QUEUE_PAYLOAD = b"1: General\n8: Managed File Transfer\n6: Submissions\n\n\n"
 
 SEARCH_PAYLOAD = b"""\
 
@@ -91,11 +103,11 @@ def test_search_tickets_honors_orderby():
 
 
 def test_query_defaults_to_both_queues():
-    assert build_ticket_query(None, None, None) == BOTH_QUEUES
+    assert build_ticket_query(None, None, resolve_queues(None)) == BOTH_QUEUES
 
 
 def test_query_with_both_dates():
-    query = build_ticket_query(date(2026, 1, 1), date(2026, 3, 31), ["sub"])
+    query = build_ticket_query(date(2026, 1, 1), date(2026, 3, 31), ["Submissions"])
     assert query == (
         "( Queue = 'Submissions' ) "
         "AND Created >= '2026-01-01' "
@@ -105,23 +117,23 @@ def test_query_with_both_dates():
 
 def test_query_end_date_is_inclusive():
     """A single-day range must span that whole day."""
-    query = build_ticket_query(date(2026, 9, 25), date(2026, 9, 25), ["sub"])
+    query = build_ticket_query(date(2026, 9, 25), date(2026, 9, 25), ["Submissions"])
     assert "Created >= '2026-09-25'" in query
     assert "Created < '2026-09-26'" in query
 
 
 def test_query_with_only_start_date():
-    query = build_ticket_query(date(2026, 5, 1), None, ["mft"])
+    query = build_ticket_query(date(2026, 5, 1), None, ["Managed File Transfer"])
     assert query == "( Queue = 'Managed File Transfer' ) AND Created >= '2026-05-01'"
 
 
 def test_query_with_only_end_date():
-    query = build_ticket_query(None, date(2026, 5, 1), ["mft"])
+    query = build_ticket_query(None, date(2026, 5, 1), ["Managed File Transfer"])
     assert query == "( Queue = 'Managed File Transfer' ) AND Created < '2026-05-02'"
 
 
 def test_query_with_multiple_queues():
-    query = build_ticket_query(None, None, ["sub", "Other Queue"])
+    query = build_ticket_query(None, None, ["Submissions", "Other Queue"])
     assert query == "( Queue = 'Submissions' OR Queue = 'Other Queue' )"
 
 
@@ -147,6 +159,75 @@ def test_query_escapes_single_quotes():
 )
 def test_resolve_queues(given, expected):
     assert resolve_queues(given) == expected
+
+
+# validate_queues
+
+
+def test_validate_queues_accepts_known_names():
+    assert validate_queues(["Submissions", "General"], KNOWN_QUEUES) == [
+        "Submissions",
+        "General",
+    ]
+
+
+def test_validate_queues_normalizes_case():
+    """RT's own spelling wins, so the query matches regardless of input case."""
+    assert validate_queues(["submissions", "MANAGED FILE TRANSFER"], KNOWN_QUEUES) == [
+        "Submissions",
+        "Managed File Transfer",
+    ]
+
+
+def test_validate_queues_rejects_unknown_name():
+    with pytest.raises(SystemExit) as exc_info:
+        validate_queues(["Submisions"], KNOWN_QUEUES)
+    assert exc_info.value.code == 2
+
+
+def test_validate_queues_reports_every_unknown_name(caplog):
+    with pytest.raises(SystemExit):
+        validate_queues(["Submissions", "Nope", "Also Nope"], KNOWN_QUEUES)
+
+    messages = " ".join(record.getMessage() for record in caplog.records)
+    assert "'Nope'" in messages
+    assert "'Also Nope'" in messages
+    assert "Submissions" in messages  # listed among the known queues
+
+
+# fetch_queue_names
+
+
+def test_fetch_queue_names():
+    session = MagicMock(spec=RTSession)
+    session.fetch_rest_params.return_value = _ok_response(QUEUE_PAYLOAD)
+
+    assert fetch_queue_names(session) == [
+        "General",
+        "Managed File Transfer",
+        "Submissions",
+    ]
+    session.fetch_rest_params.assert_called_once_with(
+        "search", "queue", params={"query": "id > 0"}
+    )
+
+
+def test_fetch_queue_names_raises_on_error_response():
+    session = MagicMock(spec=RTSession)
+    session.fetch_rest_params.return_value = RTResponseData(
+        version="4.4.3",
+        status_code=500,
+        status_text="Internal Server Error",
+        is_ok=False,
+        payload=b"",
+    )
+
+    with pytest.raises(RTResponseError):
+        fetch_queue_names(session)
+
+
+def test_parse_queue_names_no_matches():
+    assert parse_queue_names(b"\nNo matching results.\n\n") == []
 
 
 # parse_search_results

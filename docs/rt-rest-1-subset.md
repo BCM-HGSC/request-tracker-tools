@@ -111,6 +111,25 @@ id: ticket/{ticket-id}
 ```
 
 A query matching nothing returns `200 Ok` with a `No matching results.` payload.
+An unknown queue name is not an error: RT simply matches no tickets. Validate
+queue names against the queue list rather than relying on the search to fail.
+
+### Search Queues
+**Endpoint**: `GET /REST/1.0/search/queue?query={query}`
+
+Lists queues. `query=id > 0` returns every queue visible to the user.
+
+**Response**:
+```
+RT/4.4.3 200 Ok
+
+{queue-id}: {queue-name}
+{queue-id}: {queue-name}
+```
+
+Note that `GET /REST/1.0/queue/{name}` also answers `200 Ok` for a queue that
+does not exist, with a `# No queue named {name} exists.` comment in the payload,
+so the payload — not the status — decides.
 
 **Important — CSRF guard**: RT treats a cookie-authenticated request that
 carries arguments as a possible cross-site request forgery and serves an HTML

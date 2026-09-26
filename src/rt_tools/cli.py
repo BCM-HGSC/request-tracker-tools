@@ -17,7 +17,13 @@ from .credentials import (
 )
 from .downloader import download_ticket
 from .parser import TicketSummary, parse_search_results
-from .session import BASE_URL, REST_URL, RTSession, search_tickets
+from .session import (
+    BASE_URL,
+    REST_URL,
+    RTSession,
+    fetch_queue_names,
+    search_tickets,
+)
 
 TICKET_DISPLAY_URL = f"{BASE_URL}/Ticket/Display.html?id={{}}"
 
@@ -109,12 +115,12 @@ def search_tickets_cli():
     args = parse_search_arguments()
     config_logging(args)
 
-    query = build_ticket_query(args.start_date, args.end_date, args.queue)
-
     with RTSession(password_file=args.password_file) as session:
         session.authenticate()
         if args.verbose:
             session.print_cookies()
+        queues = validate_queues(resolve_queues(args.queue), fetch_queue_names(session))
+        query = build_ticket_query(args.start_date, args.end_date, queues)
         response = search_tickets(session, query, SEARCH_FIELDS)
 
     if not response.is_ok:
@@ -145,21 +151,58 @@ def parse_search_arguments() -> Namespace:
         metavar="QUEUE",
         action="append",
         help=f"Queue to search; repeatable. Aliases: {alias_help}. "
-        "Any other value is used as a literal RT queue name. "
+        "Any other value is used as a literal RT queue name, matched "
+        "case-insensitively and checked against the queues RT knows. "
         "Default: every alias above.",
     )
     return parser.parse_args()
 
 
+def resolve_queues(queue_args: list[str] | None) -> list[str]:
+    """Expand queue aliases, passing other values through as literal names."""
+    if not queue_args:
+        return list(QUEUE_ALIASES.values())
+    return [QUEUE_ALIASES.get(q, q) for q in queue_args]
+
+
+def validate_queues(queues: list[str], known_names: list[str]) -> list[str]:
+    """Check queue names against RT and return them in RT's own spelling.
+
+    Matching is case-insensitive, so "submissions" resolves to "Submissions".
+    RT reports an unknown queue as zero search results rather than an error,
+    so an unrecognized name is rejected here instead.
+
+    Raises:
+        SystemExit: with status 2 if any name is not a queue RT knows
+    """
+    by_lowered = {name.lower(): name for name in known_names}
+    resolved = []
+    unknown = []
+
+    for queue in queues:
+        canonical = by_lowered.get(queue.lower())
+        if canonical is None:
+            unknown.append(queue)
+        else:
+            resolved.append(canonical)
+
+    if unknown:
+        listed = ", ".join(repr(name) for name in unknown)
+        logging.error("Unknown queue: %s", listed)
+        logging.error("Known queues: %s", ", ".join(sorted(known_names)))
+        raise SystemExit(2)
+
+    return resolved
+
+
 def build_ticket_query(
-    start_date: date | None, end_date: date | None, queue_args: list[str] | None
+    start_date: date | None, end_date: date | None, queues: list[str]
 ) -> str:
     """Build the TicketSQL query for a ticket search.
 
     The end date is rendered as "Created < end_date + 1 day" so that tickets
     created during the named day are included despite Created being a timestamp.
     """
-    queues = resolve_queues(queue_args)
     queue_clause = " OR ".join(f"Queue = '{_quote(q)}'" for q in queues)
     clauses = [f"( {queue_clause} )"]
 
@@ -170,13 +213,6 @@ def build_ticket_query(
         clauses.append(f"Created < '{day_after.isoformat()}'")
 
     return " AND ".join(clauses)
-
-
-def resolve_queues(queue_args: list[str] | None) -> list[str]:
-    """Expand queue aliases, passing unknown values through as literal names."""
-    if not queue_args:
-        return list(QUEUE_ALIASES.values())
-    return [QUEUE_ALIASES.get(q, q) for q in queue_args]
 
 
 def write_ticket_tsv(tickets: list[TicketSummary], file=None) -> None:

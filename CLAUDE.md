@@ -28,7 +28,8 @@ The codebase follows a standard Python package structure with src layout:
 - Authentication status checking via RT API responses
 - `fetch_rest()` for plain path GETs; `fetch_rest_params()` for GETs with query
   parameters, which also sends a same-origin `Referer` to satisfy RT's CSRF guard
-- `search_tickets()` module-level helper wrapping the `search/ticket` endpoint
+- `search_tickets()` and `fetch_queue_names()` module-level helpers wrapping the
+  `search/ticket` and `search/queue` endpoints
 
 **TicketDownloader Class**: Handles comprehensive ticket data retrieval:
 - Downloads ticket metadata, complete history, and all attachments
@@ -46,6 +47,7 @@ The codebase follows a standard Python package structure with src layout:
 - Parses `search/ticket` `format=l` responses into `TicketSummary` records via
   `parse_search_results()`, handling `--`-separated blocks, indented continuation
   lines, and the `No matching results.` payload
+- Parses `search/queue` responses into queue names via `parse_queue_names()`
 - Filters outgoing emails during history parsing
 - Uses string-based dataclasses to match RT API format
 - Handles multi-line content and attachment extraction
@@ -135,8 +137,10 @@ export DOWNLOAD_TICKET_DIR=~/tickets && download-ticket 37603  # Downloads to ~/
 
 # search-tickets: filters on Created (inclusive on both ends) and queue.
 # --queue is repeatable; values are OR'd. Aliases: mft="Managed File Transfer",
-# sub="Submissions". Any other value is a literal RT queue name. Omitting
-# --queue searches both aliases. Output is TSV on stdout with a header row:
+# sub="Submissions". Any other value is a literal RT queue name, matched
+# case-insensitively against RT's queue list; an unknown name exits 2 and logs
+# the known queues. Omitting --queue searches both aliases.
+# Output is TSV on stdout with a header row:
 # id, subject, status, created, last_updated, owner. All statuses are included.
 search-tickets --start-date 2026-08-01 --end-date 2026-08-31
 search-tickets --queue mft --queue sub --start-date 2026-09-01
