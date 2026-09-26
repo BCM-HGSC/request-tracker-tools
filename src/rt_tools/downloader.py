@@ -78,6 +78,7 @@ class TicketDownloader:
         *,
         create_ticket_dir: bool = True,
         transcript: bool = False,
+        prune: bool = False,
     ) -> None:
         """Download all relevant content for a ticket to target directory.
 
@@ -108,6 +109,11 @@ class TicketDownloader:
                 is False
             create_ticket_dir: Create an rt{ticket_id} level under target_dir
             transcript: Also write ticket.md, a chronological Markdown index
+            prune: Skip message.txt and content.txt, whose information the
+                transcript already carries, and remove history directories
+                left empty. After pruning, a history directory exists if and
+                only if the entry had at least one non-empty attachment.
+                Requires transcript.
         """
         target_dir = Path(target_dir)
         ticket_dir = target_dir / f"rt{ticket_id}" if create_ticket_dir else target_dir
@@ -144,13 +150,16 @@ class TicketDownloader:
         for history_meta in parse_history_list(history_text):
             history_id = history_meta.history_id
             history_item_payload = self._download_individual_history_item(
-                ticket_id, ticket_dir, history_id
+                ticket_id, ticket_dir, history_id, write_message=not prune
             )
             if not history_item_payload:
                 continue
             history_item_text = history_item_payload.decode("utf-8")
             history_message = parse_history_message(history_item_text)
-            self._save_stripped_content(ticket_dir, history_id, history_message.content)
+            if not prune:
+                self._save_stripped_content(
+                    ticket_dir, history_id, history_message.content
+                )
             transcript_attachments = []
             for attachment in history_message.attachments:
                 if attachment.size != "0b":
@@ -168,6 +177,8 @@ class TicketDownloader:
                                 ticket_dir, attachment.id, meta, saved
                             )
                         )
+            if prune:
+                self._prune_history_dir(ticket_dir, history_id)
             entries.append(
                 self._build_transcript_entry(
                     history_id, history_message, transcript_attachments
@@ -178,6 +189,24 @@ class TicketDownloader:
             self._write_transcript(ticket_dir, metadata_payload, entries)
 
         logger.info(f"Completed downloading ticket {ticket_id}")
+
+    def _prune_history_dir(self, ticket_dir: Path, history_id: str) -> None:
+        """Remove transcript-redundant files from one history directory.
+
+        Deletes only message.txt and content.txt, then removes the directory
+        itself if that left it empty. Attachments, converted TSVs, and
+        anything else the downloader did not put there are never touched.
+        Handles re-downloading over a tree written by an earlier unpruned run.
+        """
+        history_dir = ticket_dir / history_id
+        for filename in ("message.txt", "content.txt"):
+            path = history_dir / filename
+            if path.exists():
+                path.unlink()
+                logger.debug(f"Pruned {path}")
+        if not any(history_dir.iterdir()):
+            history_dir.rmdir()
+            logger.debug(f"Pruned empty {history_dir}")
 
     def _write_transcript(
         self,
@@ -288,7 +317,11 @@ class TicketDownloader:
         return rt_data.payload
 
     def _download_individual_history_item(
-        self, ticket_id: str, target_dir: Path, history_id: str
+        self,
+        ticket_id: str,
+        target_dir: Path,
+        history_id: str,
+        write_message: bool = True,
     ) -> bytes | None:
         """Download an individual history item to its directory.
 
@@ -302,6 +335,8 @@ class TicketDownloader:
             ticket_id: RT ticket ID
             target_dir: Directory to save files
             history_id: history item ID
+            write_message: Save message.txt. The payload is returned either
+                way, since the parse of it drives everything downstream.
         """
         logger.debug(f"Downloading history item {history_id} for ticket {ticket_id}")
         rt_data = self.session.fetch_rest(
@@ -313,12 +348,13 @@ class TicketDownloader:
                 f"{rt_data.status_code} {rt_data.status_text}"
             )
             return
-        # Create history ID directory and save message
+        # Create history ID directory; attachments land here even when pruning
         history_item_dir = target_dir / history_id
         history_item_dir.mkdir(exist_ok=True)
-        message_file = history_item_dir / "message.txt"
-        message_file.write_bytes(strip_history_counter(rt_data.payload))
-        logger.info(f"Created {message_file}")
+        if write_message:
+            message_file = history_item_dir / "message.txt"
+            message_file.write_bytes(strip_history_counter(rt_data.payload))
+            logger.info(f"Created {message_file}")
         return rt_data.payload
 
     def _save_stripped_content(
@@ -519,6 +555,7 @@ def download_ticket(
     *,
     create_ticket_dir: bool = True,
     transcript: bool = False,
+    prune: bool = False,
 ) -> None:
     """Convenience function to download a ticket using TicketDownloader.
 
@@ -530,6 +567,8 @@ def download_ticket(
             False
         create_ticket_dir: Create an rt{ticket_id} level under target_dir
         transcript: Also write ticket.md, a chronological Markdown index
+        prune: Skip message.txt and content.txt and remove emptied history
+            directories; requires transcript
     """
     downloader = TicketDownloader(session)
     downloader.download_ticket(
@@ -537,4 +576,5 @@ def download_ticket(
         target_dir,
         create_ticket_dir=create_ticket_dir,
         transcript=transcript,
+        prune=prune,
     )

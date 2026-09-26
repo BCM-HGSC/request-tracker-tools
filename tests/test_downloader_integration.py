@@ -5,6 +5,7 @@ the complete downloader workflow. The tests account for differences between live
 RT data and sanitized fixture data while verifying core functionality.
 """
 
+import re
 import tempfile
 from pathlib import Path
 from unittest.mock import Mock, patch
@@ -469,3 +470,97 @@ def test_multi_sheet_xlsx_converts_every_sheet(tmp_path, caplog):
     assert (tmp_path / "n801.Second_Sheet__v2_.tsv").read_text() == "c\td\n"
     assert not (tmp_path / "n801.tsv").exists()
     assert "has 2 worksheets" in caplog.text
+
+
+# --prune
+
+
+def test_prune_removes_redundant_files_and_empty_dirs(
+    mock_session_with_rt37525_data, tmp_path
+):
+    """Pruning drops message.txt/content.txt and the dirs they left empty."""
+    downloader = TicketDownloader(mock_session_with_rt37525_data)
+    downloader.download_ticket("37525", tmp_path, transcript=True, prune=True)
+
+    ticket_dir = tmp_path / "rt37525"
+
+    assert list(ticket_dir.glob("*/message.txt")) == []
+    assert list(ticket_dir.glob("*/content.txt")) == []
+
+    # The three no-content entries had no attachments, so nothing is left
+    for history_id in ("1489289", "1489291", "1489984"):
+        assert not (ticket_dir / history_id).exists()
+
+    # An entry with attachments keeps its directory and all of its files
+    assert sorted(p.name for p in (ticket_dir / "1489286").iterdir()) == [
+        "n1483996.html",
+        "n1483997.Remapped_list.tsv",
+        "n1483997.Samples_with_2__merge.tsv",
+        "n1483997.xlsx",
+    ]
+
+
+def test_prune_leaves_ticket_level_files_alone(
+    mock_session_with_rt37525_data, tmp_path
+):
+    """Pruning never touches the three ticket-level files, none of which
+    the transcript makes redundant."""
+    downloader = TicketDownloader(mock_session_with_rt37525_data)
+    downloader.download_ticket("37525", tmp_path, transcript=True, prune=True)
+
+    ticket_dir = tmp_path / "rt37525"
+    assert (ticket_dir / "metadata.txt").exists()
+    assert (ticket_dir / "history.txt").exists()
+    assert (ticket_dir / "attachments.txt").exists()
+    assert (ticket_dir / "ticket.md").exists()
+
+
+def test_prune_leaves_transcript_identical_and_resolvable(
+    mock_session_with_rt37525_data, tmp_path
+):
+    """The transcript is unchanged by pruning and still indexes real files."""
+    downloader = TicketDownloader(mock_session_with_rt37525_data)
+    downloader.download_ticket("37525", tmp_path / "full", transcript=True)
+    downloader.download_ticket("37525", tmp_path / "lean", transcript=True, prune=True)
+
+    lean_dir = tmp_path / "lean" / "rt37525"
+    full_text = (tmp_path / "full" / "rt37525" / "ticket.md").read_text()
+    lean_text = (lean_dir / "ticket.md").read_text()
+
+    assert lean_text == full_text
+
+    # Every backtick-quoted path in an attachment bullet must resolve
+    cited = re.findall(r"^\s*(?:- |  - converted: )`([^`]+)`", lean_text, re.M)
+    assert cited, "expected the transcript to cite attachments"
+    for relative_path in cited:
+        assert (lean_dir / relative_path).exists(), f"dangling path {relative_path}"
+
+
+def test_prune_cleans_up_an_earlier_unpruned_download(
+    mock_session_with_rt37525_data, tmp_path
+):
+    """Re-downloading with prune removes files left by a previous run."""
+    downloader = TicketDownloader(mock_session_with_rt37525_data)
+    downloader.download_ticket("37525", tmp_path, transcript=True)
+
+    ticket_dir = tmp_path / "rt37525"
+    assert list(ticket_dir.glob("*/message.txt")), "setup should leave files behind"
+
+    downloader.download_ticket("37525", tmp_path, transcript=True, prune=True)
+
+    assert list(ticket_dir.glob("*/message.txt")) == []
+    assert list(ticket_dir.glob("*/content.txt")) == []
+    assert not (ticket_dir / "1489984").exists()
+    assert (ticket_dir / "1489286" / "n1483997.xlsx").exists()
+
+
+def test_transcript_without_prune_keeps_the_tree(
+    mock_session_with_rt37525_data, tmp_path
+):
+    """Pruning is opt-in; --transcript alone changes nothing on disk."""
+    downloader = TicketDownloader(mock_session_with_rt37525_data)
+    downloader.download_ticket("37525", tmp_path, transcript=True)
+
+    ticket_dir = tmp_path / "rt37525"
+    assert (ticket_dir / "1489984" / "message.txt").exists()
+    assert (ticket_dir / "1489984" / "content.txt").exists()

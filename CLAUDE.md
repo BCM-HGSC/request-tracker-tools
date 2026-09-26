@@ -41,6 +41,7 @@ The codebase follows a standard Python package structure with src layout:
 - Automatically converts XLSX attachments to TSV format, one file per worksheet
 - Strips RT's leading `# N/M (id/.../total)` counter when writing `message.txt`
 - Optionally writes `ticket.md`, a chronological transcript (`transcript=True`)
+- Optionally omits the per-entry files the transcript covers (`prune=True`)
 - Writes into `target_dir` itself rather than `rt{id}` when `create_ticket_dir=False`
 - Provides detailed logging of all file creation operations
 
@@ -124,7 +125,7 @@ python -m build
 # never authenticates.
 
 # Available console scripts:
-download-ticket <ticket_id> [--output-dir DIR | --into DIR] [--transcript]  # Download complete RT ticket data
+download-ticket <ticket_id> [--output-dir DIR | --into DIR] [--transcript] [--prune]  # Download complete RT ticket data
 search-tickets [--start-date D] [--end-date D] [--queue Q]...  # Search tickets, print TSV
 dump-ticket <ticket_id> [additional_path_parts]  # Dump RT ticket information
 dump-rest [rest_path_parts]                      # Dump content from RT REST API URLs
@@ -142,6 +143,7 @@ download-ticket 37603                           # Downloads to ./rt37603/
 download-ticket 37603 --output-dir local/output # Downloads to local/output/rt37603/
 download-ticket 37603 --into work/ticket        # Downloads into work/ticket/ (no rt37603 level)
 download-ticket 37603 --transcript              # Also writes ./rt37603/ticket.md
+download-ticket 37603 --transcript --prune      # ...and drops the files it makes redundant
 export DOWNLOAD_TICKET_DIR=~/tickets && download-ticket 37603  # Downloads to ~/tickets/rt37603/
 
 # search-tickets: filters on Created (inclusive on both ends) and queue.
@@ -226,6 +228,16 @@ The resolution follows this exact priority order, with higher-numbered options o
 `--transcript` additionally writes `ticket.md` at the top of the ticket directory: YAML frontmatter (id, subject, queue, status, owner, requestors, created, last_updated) followed by one `##` section per history entry in chronological order — author, timestamp, type, RT's description, the quote-stripped body, and attachments cited by original filename and relative path. The transcript is an index over the tree, not a replacement, and stays opt-in; making it the default would be a 2.x change.
 
 RT's `This transaction appears to have no content` sentinel is filtered from the transcript only, so such entries render as heading plus description. `content.txt` still receives the sentinel, keeping existing consumers unchanged.
+
+### Pruning
+
+`--prune` omits `message.txt` and `content.txt` and removes history directories left empty, giving the invariant: **a `{history_id}/` directory survives only if that entry had a non-empty attachment**. It requires `--transcript` and exits 2 otherwise. `ticket.md` is byte-identical either way and every path it cites still resolves.
+
+Two mechanisms, both needed: `_download_individual_history_item(write_message=False)` and the skipped `_save_stripped_content()` call avoid writing, while `_prune_history_dir()` removes files left by an earlier unpruned run over the same directory. Deletion is scoped to those two filenames plus an empty-directory `rmdir` — it never touches an attachment or a converted TSV.
+
+`metadata.txt`, `history.txt`, and `attachments.txt` are never pruned: the frontmatter carries only 8 of `metadata.txt`'s ~22 fields, `history.txt` is the only record of outgoing-email entries, and `attachments.txt` holds MIME types and skipped zero-byte attachments.
+
+A pruned tree loses the quoted-reply text and `Data` (email subject) from `message.txt`; both are recoverable by re-downloading. Do not point `rt-analysis` at a pruned tree — its `lib.read_content()` returns `""` for a missing `content.txt`, so extraction degrades silently. `rt-sanitizer` and `text-processing` select by extension and are unaffected.
 
 ## Important Implementation Details
 

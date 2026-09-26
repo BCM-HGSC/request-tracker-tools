@@ -59,6 +59,7 @@ def download_ticket_cli():
                     target_dir,
                     create_ticket_dir=create_ticket_dir,
                     transcript=args.transcript,
+                    prune=args.prune,
                 )
             except Exception as e:
                 logging.error("Failed to download ticket %s: %s", ticket_id, e)
@@ -81,6 +82,11 @@ Output structure:
       content.txt      new content only, quoted replies stripped
                        (primary file for automated and human processing)
       n{att_id}.pdf    attachments (n-prefix for correct sort order)
+
+With --prune, message.txt and content.txt are omitted and history
+directories left empty are removed, so a {history_id}/ directory
+survives only if that entry had an attachment. ticket.md is unchanged
+and every path it cites still resolves.
 """,
     )
     add_common_arguments(parser)
@@ -107,9 +113,18 @@ Output structure:
         help="Also write ticket.md, a chronological Markdown transcript, "
         "at the top of the ticket directory",
     )
+    parser.add_argument(
+        "--prune",
+        action="store_true",
+        help="Omit message.txt and content.txt, whose information ticket.md "
+        "already carries, and remove history directories left empty. "
+        "Requires --transcript.",
+    )
     args = parser.parse_args()
     if args.into and len(args.ticket_ids) > 1:
         parser.error("--into takes a single ticket ID; N tickets cannot share DIR")
+    if args.prune and not args.transcript:
+        parser.error("--prune requires --transcript")
     return args
 
 

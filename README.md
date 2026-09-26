@@ -5,7 +5,7 @@ A Python package and command-line tool for interacting with RT (Request Tracker)
 ## Features
 
 - **Complete Ticket Downloads**: Download entire tickets with metadata, complete history, individual history items, and attachments
-- **Chronological Transcript**: `--transcript` writes `ticket.md`, the whole ticket as one readable Markdown file with attribution, ordering, and attachment names inline
+- **Chronological Transcript**: `--transcript` writes `ticket.md`, the whole ticket as one readable Markdown file with attribution, ordering, and attachment names inline; add `--prune` to drop the per-entry files it makes redundant
 - **Smart Attachment Processing**: Automatically skips zero-byte attachments and outgoing emails, with automatic XLSX→TSV conversion of every worksheet
 - **Recursive History Fetching**: Handles broken RT API parameters with robust fallback methods
 - **Persistent Authentication**: Automatically manages RT session cookies, stored privately under `~/.secrets/rt-tools/`
@@ -94,6 +94,9 @@ download-ticket 37525 --output-dir local/output
 
 # Also write ticket.md, the whole ticket as one chronological Markdown file
 download-ticket 37525 --transcript
+
+# Transcript plus nothing the transcript already covers
+download-ticket 37525 --transcript --prune
 
 # Write the contents directly into a fixed path, with no rt37525 level
 download-ticket 37525 --into work/submission-a/ticket --transcript
@@ -188,6 +191,34 @@ folders, there should be 2 files per sample.
 Entries with no body — status changes, ownership assignment — render as the
 heading and description alone. RT's `This transaction appears to have no
 content` sentinel is filtered from the transcript; `content.txt` is unchanged.
+
+**Pruning (`--prune`)**:
+
+`--prune` omits `message.txt` and `content.txt` and removes history
+directories left empty, so **a `{history_id}/` directory survives only if that
+entry had an attachment**. It requires `--transcript`; on its own it would
+delete content with nothing replacing it, and the command exits 2.
+
+`ticket.md` is byte-identical with or without `--prune`, and every path it
+cites still resolves. On the rt37525 test fixture the tree drops from 136 KB
+to 72 KB, and from 8 history directories to 5.
+
+`metadata.txt`, `history.txt`, and `attachments.txt` are never pruned — none
+is redundant. The transcript frontmatter carries 8 of `metadata.txt`'s ~22
+fields, `history.txt` is the only record of the outgoing-email entries the
+transcript omits, and `attachments.txt` holds MIME types and the zero-byte
+attachments that were skipped.
+
+What a pruned tree loses: the accumulated quoted-reply text and the `Data`
+field (email subject) from `message.txt`. Quoted text is normally just earlier
+RT entries repeated, all of which the transcript holds, but a thread forwarded
+into RT can quote a message that never became its own entry. Re-download
+without `--prune` to recover it.
+
+> **Do not point rt-analysis at a pruned tree.** Its `lib.read_content()`
+> returns `""` for a missing `content.txt`, so the extraction scripts degrade
+> to subject-line-only prompts silently rather than failing. `rt-sanitizer`
+> and `text-processing` select files by extension and are unaffected.
 
 **`dump-ticket`** - Retrieves and displays RT ticket information:
 
