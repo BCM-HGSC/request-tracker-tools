@@ -18,6 +18,8 @@ and uses the parser module for consistent response parsing.
 """
 
 import logging
+from dataclasses import dataclass
+from dataclasses import field as dc_field
 from pathlib import Path
 
 try:
@@ -26,14 +28,36 @@ except ImportError:
     openpyxl = None
 
 from .parser import (
+    is_no_content,
     parse_attachment_list,
     parse_history_list,
     parse_history_message,
+    parse_ticket_metadata,
+    strip_history_counter,
     strip_quoted_reply,
 )
 from .session import RTSession
+from .transcript import (
+    TRANSCRIPT_FILENAME,
+    TranscriptAttachment,
+    TranscriptEntry,
+    render_transcript,
+)
 
 logger = logging.getLogger(__name__)
+
+
+@dataclass
+class SavedAttachment:
+    """An attachment written to disk, plus any files derived from it.
+
+    Args:
+        path: Absolute path to the saved attachment
+        conversions: (sheet name, TSV path) pairs for XLSX conversions
+    """
+
+    path: Path
+    conversions: list[tuple[str, Path]] = dc_field(default_factory=list)
 
 
 class TicketDownloader:
@@ -47,12 +71,20 @@ class TicketDownloader:
         """
         self.session = session
 
-    def download_ticket(self, ticket_id: str, target_dir: Path) -> None:
+    def download_ticket(
+        self,
+        ticket_id: str,
+        target_dir: Path,
+        *,
+        create_ticket_dir: bool = True,
+        transcript: bool = False,
+    ) -> None:
         """Download all relevant content for a ticket to target directory.
 
         Creates directory structure:
         target_dir/
         └── rt{ticket_id}/    # Ticket subdirectory
+            ├── ticket.md         # Chronological transcript (only with transcript=True)
             ├── metadata.txt      # Ticket basic information
             ├── history.txt       # Complete ticket history
             ├── {history_id}/     # Directory for each history entry
@@ -72,16 +104,19 @@ class TicketDownloader:
         Args:
             ticket_id: RT ticket ID (without 'ticket/' prefix)
             target_dir: Parent directory where rt{ticket_id} subdirectory will be
-                created
+                created, or the ticket directory itself when create_ticket_dir
+                is False
+            create_ticket_dir: Create an rt{ticket_id} level under target_dir
+            transcript: Also write ticket.md, a chronological Markdown index
         """
         target_dir = Path(target_dir)
-        ticket_dir = target_dir / f"rt{ticket_id}"
+        ticket_dir = target_dir / f"rt{ticket_id}" if create_ticket_dir else target_dir
         ticket_dir.mkdir(parents=True, exist_ok=True)
 
         logger.info(f"Downloading ticket {ticket_id} to {ticket_dir}")
 
         # Download ticket metadata
-        self._download_metadata(ticket_id, ticket_dir)
+        metadata_payload = self._download_metadata(ticket_id, ticket_dir)
 
         attachment_list_payload = self._download_attachment_ist(ticket_id, ticket_dir)
         if not attachment_list_payload:
@@ -105,29 +140,113 @@ class TicketDownloader:
 
         history_text = history_payload.decode("utf-8")
         logger.debug(f"Downloading individual history items for ticket {ticket_id}")
+        entries: list[TranscriptEntry] = []
         for history_meta in parse_history_list(history_text):
             history_id = history_meta.history_id
             history_item_payload = self._download_individual_history_item(
                 ticket_id, ticket_dir, history_id
             )
+            if not history_item_payload:
+                continue
             history_item_text = history_item_payload.decode("utf-8")
             history_message = parse_history_message(history_item_text)
             self._save_stripped_content(ticket_dir, history_id, history_message.content)
+            transcript_attachments = []
             for attachment in history_message.attachments:
                 if attachment.size != "0b":
-                    mime_type = attachment_index[attachment.id].mime_type
-                    self._download_history_attachment(
+                    meta = attachment_index[attachment.id]
+                    saved = self._download_history_attachment(
                         ticket_id,
                         ticket_dir,
                         history_id,
                         attachment.id,
-                        mime_type,
+                        meta.mime_type,
                     )
+                    if saved:
+                        transcript_attachments.append(
+                            self._describe_attachment(
+                                ticket_dir, attachment.id, meta, saved
+                            )
+                        )
+            entries.append(
+                self._build_transcript_entry(
+                    history_id, history_message, transcript_attachments
+                )
+            )
+
+        if transcript:
+            self._write_transcript(ticket_dir, metadata_payload, entries)
 
         logger.info(f"Completed downloading ticket {ticket_id}")
 
-    def _download_metadata(self, ticket_id: str, target_dir: Path) -> None:
-        """Download ticket metadata to metadata.txt."""
+    def _write_transcript(
+        self,
+        ticket_dir: Path,
+        metadata_payload: bytes | None,
+        entries: list[TranscriptEntry],
+    ) -> None:
+        """Render and write ticket.md at the top of the ticket directory."""
+        if not metadata_payload:
+            logger.warning("No ticket metadata available, skipping transcript")
+            return
+        metadata = parse_ticket_metadata(metadata_payload)
+        transcript_file = ticket_dir / TRANSCRIPT_FILENAME
+        transcript_file.write_text(
+            render_transcript(metadata, entries), encoding="utf-8"
+        )
+        logger.info(f"Created {transcript_file}")
+
+    def _build_transcript_entry(
+        self,
+        history_id: str,
+        history_message,
+        attachments: list[TranscriptAttachment],
+    ) -> TranscriptEntry:
+        """Build one transcript entry from a parsed history message.
+
+        RT's no-content sentinel is dropped here, so the entry renders as its
+        description alone. The sentinel is still written to content.txt.
+        """
+        content = history_message.content
+        if is_no_content(content):
+            content = None
+        else:
+            content = strip_quoted_reply(content) or None
+        return TranscriptEntry(
+            history_id=history_id,
+            creator=history_message.creator,
+            created=history_message.created,
+            type=history_message.type,
+            description=history_message.description,
+            content=content,
+            attachments=attachments,
+        )
+
+    def _describe_attachment(
+        self,
+        ticket_dir: Path,
+        attachment_id: str,
+        meta,
+        saved: "SavedAttachment",
+    ) -> TranscriptAttachment:
+        """Describe a saved attachment with ticket-directory-relative paths."""
+        return TranscriptAttachment(
+            id=attachment_id,
+            name=meta.name,
+            size=meta.size_str,
+            path=saved.path.relative_to(ticket_dir).as_posix(),
+            conversions=[
+                (sheet_name, tsv_path.relative_to(ticket_dir).as_posix())
+                for sheet_name, tsv_path in saved.conversions
+            ],
+        )
+
+    def _download_metadata(self, ticket_id: str, target_dir: Path) -> bytes | None:
+        """Download ticket metadata to metadata.txt and return payload for reuse.
+
+        Returns:
+            Metadata payload bytes if successful, None if failed
+        """
         logger.debug(f"Downloading metadata for ticket {ticket_id}")
 
         rt_data = self.session.fetch_rest("ticket", ticket_id)
@@ -137,11 +256,13 @@ class TicketDownloader:
                 f"Failed to get metadata for ticket {ticket_id}: "
                 f"{rt_data.status_code} {rt_data.status_text}"
             )
-            return
+            return None
 
         metadata_file = target_dir / "metadata.txt"
         metadata_file.write_bytes(rt_data.payload)
         logger.info(f"Created {metadata_file}")
+
+        return rt_data.payload
 
     def _download_history(self, ticket_id: str, target_dir: Path) -> bytes | None:
         """Download ticket history to history.txt and return payload for reuse.
@@ -174,6 +295,9 @@ class TicketDownloader:
         Each history item is saved as {history_id}/message.txt, equivalent to:
         dump-ticket -q {ticket_id} history/id/{history_id} > {history_id}/message.txt
 
+        RT's leading "# N/M (id/.../total)" counter is stripped before saving,
+        so adding one entry to a ticket does not rewrite every message.txt.
+
         Args:
             ticket_id: RT ticket ID
             target_dir: Directory to save files
@@ -193,7 +317,7 @@ class TicketDownloader:
         history_item_dir = target_dir / history_id
         history_item_dir.mkdir(exist_ok=True)
         message_file = history_item_dir / "message.txt"
-        message_file.write_bytes(rt_data.payload)
+        message_file.write_bytes(strip_history_counter(rt_data.payload))
         logger.info(f"Created {message_file}")
         return rt_data.payload
 
@@ -245,8 +369,13 @@ class TicketDownloader:
         history_id: str,
         attachment_id: str,
         mime_type: str,
-    ) -> None:
-        """Download attachment using n{attachment_id} filename format."""
+    ) -> "SavedAttachment | None":
+        """Download attachment using n{attachment_id} filename format.
+
+        Returns:
+            SavedAttachment describing the saved file and any derived TSV
+            files, or None if the download failed
+        """
         logger.debug(
             f"Downloading attachment {attachment_id} from history {history_id} "
             f"for ticket {ticket_id}"
@@ -261,7 +390,7 @@ class TicketDownloader:
                 f"Failed to get content for attachment {attachment_id}: "
                 f"{rt_data.status_code} {rt_data.status_text}"
             )
-            return
+            return None
 
         extension = self._mime_type_to_extension(mime_type)
 
@@ -274,9 +403,11 @@ class TicketDownloader:
         logger.info(f"Created {attachment_file}")
 
         # If this is an XLSX file, automatically convert to TSV
+        conversions = []
         if extension == "xlsx":
-            tsv_file = attachment_file.with_suffix(".tsv")
-            self._convert_xlsx_to_tsv(attachment_file, tsv_file)
+            conversions = self._convert_xlsx_to_tsv(attachment_file)
+
+        return SavedAttachment(path=attachment_file, conversions=conversions)
 
     def _mime_type_to_extension(self, mime_type: str) -> str:
         """Convert MIME type to file extension."""
@@ -307,32 +438,64 @@ class TicketDownloader:
 
         return mime_to_ext.get(mime_type.lower(), "bin")
 
-    def _convert_xlsx_to_tsv(self, xlsx_path: Path, tsv_path: Path) -> None:
-        """Convert XLSX file to TSV format using openpyxl.
+    def _convert_xlsx_to_tsv(self, xlsx_path: Path) -> list[tuple[str, Path]]:
+        """Convert every worksheet of an XLSX file to TSV using openpyxl.
+
+        A single-sheet workbook produces n{id}.tsv, as before. A workbook with
+        more than one sheet produces n{id}.{sheet}.tsv per sheet and no bare
+        n{id}.tsv, because silently attaching one sheet's data to the
+        unqualified name is exactly the ambiguity being avoided.
 
         Args:
             xlsx_path: Path to the source XLSX file
-            tsv_path: Path where the TSV file should be saved
+
+        Returns:
+            (sheet name, TSV path) pairs for each sheet written, empty on failure
         """
         if not openpyxl:
             logger.warning("openpyxl not available, skipping XLSX conversion")
-            return
+            return []
 
         try:
             logger.debug(f"Converting {xlsx_path} to TSV format")
             wb = openpyxl.load_workbook(xlsx_path, read_only=True, data_only=True)
-            worksheet = wb.active  # Use active worksheet
+            sheet_names = wb.sheetnames
+            if len(sheet_names) > 1:
+                logger.warning(
+                    f"{xlsx_path.name} has {len(sheet_names)} worksheets "
+                    f"({', '.join(sheet_names)}); converting each separately"
+                )
 
-            with open(tsv_path, "w", encoding="utf-8") as f:
-                for row in worksheet.rows:
-                    values = [self._normalize_xlsx_value(cell) for cell in row]
-                    f.write("\t".join(values) + "\n")
+            written = []
+            for sheet_name in sheet_names:
+                tsv_path = self._tsv_path_for_sheet(
+                    xlsx_path, sheet_name, qualify=len(sheet_names) > 1
+                )
+                self._write_worksheet_tsv(wb[sheet_name], tsv_path)
+                logger.info(f"Created {tsv_path}")
+                written.append((sheet_name, tsv_path))
 
-            logger.info(f"Created {tsv_path}")
-            logger.debug("Successfully converted XLSX to TSV format")
+            return written
 
         except Exception as e:
             logger.error(f"Failed to convert {xlsx_path} to TSV: {e}")
+            return []
+
+    def _write_worksheet_tsv(self, worksheet, tsv_path: Path) -> None:
+        """Write one worksheet to a TSV file, one row per line."""
+        with open(tsv_path, "w", encoding="utf-8") as f:
+            for row in worksheet.rows:
+                values = [self._normalize_xlsx_value(cell) for cell in row]
+                f.write("\t".join(values) + "\n")
+
+    def _tsv_path_for_sheet(
+        self, xlsx_path: Path, sheet_name: str, qualify: bool
+    ) -> Path:
+        """Build the TSV path for one worksheet of an XLSX attachment."""
+        if not qualify:
+            return xlsx_path.with_suffix(".tsv")
+        slug = "".join(c if c.isalnum() or c in "-_" else "_" for c in sheet_name)
+        return xlsx_path.with_name(f"{xlsx_path.stem}.{slug}.tsv")
 
     def _normalize_xlsx_value(self, cell) -> str:
         """Normalize Excel cell value to string (from vxlsx script).
@@ -349,14 +512,29 @@ class TicketDownloader:
         return str(value)
 
 
-def download_ticket(session: RTSession, ticket_id: str, target_dir: Path) -> None:
+def download_ticket(
+    session: RTSession,
+    ticket_id: str,
+    target_dir: Path,
+    *,
+    create_ticket_dir: bool = True,
+    transcript: bool = False,
+) -> None:
     """Convenience function to download a ticket using TicketDownloader.
 
     Args:
         session: Authenticated RTSession
         ticket_id: RT ticket ID (without 'ticket/' prefix)
         target_dir: Parent directory where rt{ticket_id} subdirectory will be
-            created
+            created, or the ticket directory itself when create_ticket_dir is
+            False
+        create_ticket_dir: Create an rt{ticket_id} level under target_dir
+        transcript: Also write ticket.md, a chronological Markdown index
     """
     downloader = TicketDownloader(session)
-    downloader.download_ticket(ticket_id, target_dir)
+    downloader.download_ticket(
+        ticket_id,
+        target_dir,
+        create_ticket_dir=create_ticket_dir,
+        transcript=transcript,
+    )

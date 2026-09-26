@@ -5,7 +5,8 @@ A Python package and command-line tool for interacting with RT (Request Tracker)
 ## Features
 
 - **Complete Ticket Downloads**: Download entire tickets with metadata, complete history, individual history items, and attachments
-- **Smart Attachment Processing**: Automatically skips zero-byte attachments and outgoing emails, with automatic XLSX→TSV conversion
+- **Chronological Transcript**: `--transcript` writes `ticket.md`, the whole ticket as one readable Markdown file with attribution, ordering, and attachment names inline
+- **Smart Attachment Processing**: Automatically skips zero-byte attachments and outgoing emails, with automatic XLSX→TSV conversion of every worksheet
 - **Recursive History Fetching**: Handles broken RT API parameters with robust fallback methods
 - **Persistent Authentication**: Automatically manages RT session cookies, stored privately under `~/.secrets/rt-tools/`
 - **Portable Credentials**: Reads the RT password from a `~/.secrets` file on Linux (including the HPC) or the macOS keychain
@@ -91,6 +92,12 @@ download-ticket 37525
 # Download to specific directory (creates local/output/rt37525/)
 download-ticket 37525 --output-dir local/output
 
+# Also write ticket.md, the whole ticket as one chronological Markdown file
+download-ticket 37525 --transcript
+
+# Write the contents directly into a fixed path, with no rt37525 level
+download-ticket 37525 --into work/submission-a/ticket --transcript
+
 # Download multiple tickets (authenticate once, loop sequentially)
 download-ticket 37525 37526 37527
 
@@ -115,6 +122,10 @@ The `download-ticket` command resolves the output directory in the following ord
 3. `~/.config/download-ticket/config.toml` config file (`default_dir` setting)
 4. Current working directory (fallback)
 
+`--into DIR` bypasses this resolution entirely: the ticket contents are written
+straight into `DIR`, with no `rt{ticket_id}` level. It is mutually exclusive
+with `--output-dir` and takes a single ticket ID.
+
 ```bash
 # Environment variable example
 export DOWNLOAD_TICKET_DIR="~/Downloads/rt-tickets"
@@ -129,6 +140,7 @@ download-ticket 37525  # Creates ~/Documents/rt-data/rt37525/
 ```
 output_directory/         # Resolved from --output-dir, env var, config, or cwd
 └── rt37525/              # Ticket directory (rt{ticket_id} format)
+    ├── ticket.md         # Chronological transcript (--transcript only)
     ├── metadata.txt      # Ticket basic information
     ├── history.txt       # Complete ticket history
     ├── attachments.txt   # Attachment index
@@ -148,9 +160,34 @@ Features:
 - **Consistent filtering**: Automatically skips zero-byte attachments and outgoing emails from both attachments and individual history items
 - Uses recursive history fetching to handle broken RT API parameters
 - Downloads attachments with format: `n{attachment_id}.{extension}` within each history directory (the "n" prefix ensures message.txt sorts first)
-- **Individual history items**: Each history entry is saved as `{history_id}/message.txt` (full raw entry) and `{history_id}/content.txt` (new content only, with quoted replies stripped). `content.txt` is the primary file for automated and human processing.
-- **Automatic XLSX→TSV conversion**: Excel files are automatically converted to tab-separated values for easier analysis
+- **Individual history items**: Each history entry is saved as `{history_id}/message.txt` (full raw entry) and `{history_id}/content.txt` (new content only, with quoted replies stripped). `content.txt` is the primary file for automated and human processing. RT's leading `# N/M (id/.../total)` counter is stripped from `message.txt`, so re-downloading a ticket that gained one entry does not rewrite every file.
+- **Automatic XLSX→TSV conversion**: Excel files are automatically converted to tab-separated values for easier analysis. A single-sheet workbook becomes `n{id}.tsv`; a multi-sheet workbook becomes one `n{id}.{sheet}.tsv` per sheet, with a warning, and no unqualified `n{id}.tsv`.
 - Creates comprehensive ticket metadata and history files
+
+**Transcript (`--transcript`)**:
+
+`ticket.md` is an index over the tree, not a replacement for it. It holds YAML
+frontmatter (id, subject, queue, status, owner, requestors, created,
+last_updated) followed by one section per history entry in chronological order,
+each with its author, timestamp, type, RT's description, the quote-stripped
+body, and any attachments cited by original filename and relative path:
+
+```markdown
+## 1489286 — user001 — 2025-07-30 17:23:55 — Create
+
+*Ticket created by user001*
+
+Please see the excel for the paths and transfer all files in the /alignment
+folders, there should be 2 files per sample.
+
+**Attachments**
+- `1489286/n1483997.xlsx` — Example Workbook.xlsx (21.2k)
+  - converted: `1489286/n1483997.Remapped_list.tsv` (sheet "Remapped list")
+```
+
+Entries with no body — status changes, ownership assignment — render as the
+heading and description alone. RT's `This transaction appears to have no
+content` sentinel is filtered from the transcript; `content.txt` is unchanged.
 
 **`dump-ticket`** - Retrieves and displays RT ticket information:
 

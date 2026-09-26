@@ -14,6 +14,7 @@ import pytest
 from rt_tools import RTSession
 from rt_tools.downloader import TicketDownloader
 from rt_tools.parser import (
+    NO_CONTENT_SENTINEL,
     parse_attachment_list,
     parse_history_list,
     parse_history_message,
@@ -342,3 +343,129 @@ def test_downloader_error_handling_integration(mock_session_with_rt37525_data):
         assert len(history_dirs) == 0, (
             "Should not create history directories when history download fails"
         )
+
+
+# Transcript, --into, and message.txt counter
+
+
+def test_downloader_writes_transcript(mock_session_with_rt37525_data, tmp_path):
+    """transcript=True writes ticket.md covering every history entry in order."""
+    downloader = TicketDownloader(mock_session_with_rt37525_data)
+    downloader.download_ticket("37525", tmp_path, transcript=True)
+
+    transcript = (tmp_path / "rt37525" / "ticket.md").read_text()
+
+    # Frontmatter comes from metadata.txt
+    assert transcript.startswith("---\nid: 37525\n")
+    assert 'queue: "Submissions"\n' in transcript
+    assert 'owner: "user002"\n' in transcript
+    assert 'requestors: ["user001@example.com"]\n' in transcript
+
+    # One heading per downloaded history directory, in history order
+    headings = [
+        line.split()[1] for line in transcript.split("\n") if line.startswith("## ")
+    ]
+    expected = [
+        item.history_id
+        for item in parse_history_list(
+            (tmp_path / "rt37525" / "history.txt").read_text()
+        )
+    ]
+    assert headings == expected
+
+
+def test_transcript_omits_no_content_sentinel_but_content_txt_keeps_it(
+    mock_session_with_rt37525_data, tmp_path
+):
+    """RT's no-content sentinel is filtered from the transcript only."""
+    downloader = TicketDownloader(mock_session_with_rt37525_data)
+    downloader.download_ticket("37525", tmp_path, transcript=True)
+
+    ticket_dir = tmp_path / "rt37525"
+    transcript = (ticket_dir / "ticket.md").read_text()
+
+    assert NO_CONTENT_SENTINEL not in transcript
+
+    # The three sentinel entries still get a heading and a description
+    sentinel_entries = ["1489289", "1489291", "1489984"]
+    for history_id in sentinel_entries:
+        assert f"## {history_id} — " in transcript
+        # content.txt is unchanged, so existing consumers still see the sentinel
+        content = (ticket_dir / history_id / "content.txt").read_text()
+        assert content.strip() == NO_CONTENT_SENTINEL
+
+
+def test_transcript_cites_attachments_with_original_names(
+    mock_session_with_rt37525_data, tmp_path
+):
+    """Attachment bullets carry the real filename and a relative path."""
+    downloader = TicketDownloader(mock_session_with_rt37525_data)
+    downloader.download_ticket("37525", tmp_path, transcript=True)
+
+    transcript = (tmp_path / "rt37525" / "ticket.md").read_text()
+
+    assert "**Attachments**" in transcript
+    assert "- `1489286/n1483997.xlsx` — " in transcript
+    # The fixture workbook has two sheets, each cited by name
+    assert 'converted: `1489286/n1483997.Samples_with_2__merge.tsv"' not in transcript
+    assert '(sheet "Samples with 2+ merge")' in transcript
+    assert '(sheet "Remapped list")' in transcript
+
+
+def test_downloader_without_transcript_writes_no_ticket_md(
+    mock_session_with_rt37525_data, tmp_path
+):
+    """The transcript stays opt-in."""
+    downloader = TicketDownloader(mock_session_with_rt37525_data)
+    downloader.download_ticket("37525", tmp_path)
+
+    assert not (tmp_path / "rt37525" / "ticket.md").exists()
+
+
+def test_downloader_into_skips_ticket_directory_level(
+    mock_session_with_rt37525_data, tmp_path
+):
+    """create_ticket_dir=False writes the contents directly into target_dir."""
+    into = tmp_path / "submission" / "ticket"
+    downloader = TicketDownloader(mock_session_with_rt37525_data)
+
+    downloader.download_ticket("37525", into, create_ticket_dir=False)
+
+    assert (into / "metadata.txt").exists()
+    assert (into / "history.txt").exists()
+    assert (into / "1489286" / "message.txt").exists()
+    assert not (into / "rt37525").exists()
+
+
+def test_message_txt_has_no_history_counter(mock_session_with_rt37525_data, tmp_path):
+    """No saved message.txt carries RT's renumbering counter line."""
+    downloader = TicketDownloader(mock_session_with_rt37525_data)
+    downloader.download_ticket("37525", tmp_path)
+
+    saved = list((tmp_path / "rt37525").glob("*/message.txt"))
+    assert saved, "expected at least one message.txt"
+    for message_file in saved:
+        text = message_file.read_text()
+        assert text.startswith("id: "), f"{message_file} starts with {text[:40]!r}"
+
+
+def test_multi_sheet_xlsx_converts_every_sheet(tmp_path, caplog):
+    """A multi-sheet workbook yields one TSV per sheet and no bare n{id}.tsv."""
+    openpyxl = pytest.importorskip("openpyxl")
+
+    xlsx_path = tmp_path / "n801.xlsx"
+    wb = openpyxl.Workbook()
+    wb.active.title = "First Sheet"
+    wb.active.append(["a", "b"])
+    second = wb.create_sheet("Second Sheet (v2)")
+    second.append(["c", "d"])
+    wb.save(xlsx_path)
+
+    with caplog.at_level("WARNING"):
+        written = TicketDownloader(None)._convert_xlsx_to_tsv(xlsx_path)
+
+    assert [sheet for sheet, _ in written] == ["First Sheet", "Second Sheet (v2)"]
+    assert (tmp_path / "n801.First_Sheet.tsv").read_text() == "a\tb\n"
+    assert (tmp_path / "n801.Second_Sheet__v2_.tsv").read_text() == "c\td\n"
+    assert not (tmp_path / "n801.tsv").exists()
+    assert "has 2 worksheets" in caplog.text

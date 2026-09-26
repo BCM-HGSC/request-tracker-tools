@@ -15,6 +15,7 @@ The codebase follows a standard Python package structure with src layout:
   - **`session.py`** - `RTSession` class that extends `requests.Session` for RT-specific authentication and operations
   - **`downloader.py`** - `TicketDownloader` class for comprehensive ticket data download and organization
   - **`parser.py`** - Centralized RT response parsing with dataclasses and filtering logic
+  - **`transcript.py`** - Pure rendering of `ticket.md`, the chronological Markdown transcript
   - **`credentials.py`** - Password resolution across secret files and the macOS keychain, plus cookie file handling and permission enforcement
   - **`utils.py`** - Small shared helpers
   - **`__init__.py`** - Package initialization with dynamic version loading
@@ -37,13 +38,19 @@ The codebase follows a standard Python package structure with src layout:
 - Uses centralized parser module for consistent data handling
 - Filters outgoing emails and zero-byte attachments automatically
 - Uses n-prefixed attachment naming for proper sorting (`n800.pdf`)
-- Automatically converts XLSX attachments to TSV format
+- Automatically converts XLSX attachments to TSV format, one file per worksheet
+- Strips RT's leading `# N/M (id/.../total)` counter when writing `message.txt`
+- Optionally writes `ticket.md`, a chronological transcript (`transcript=True`)
+- Writes into `target_dir` itself rather than `rt{id}` when `create_ticket_dir=False`
 - Provides detailed logging of all file creation operations
 
 **Parser Module**: Provides centralized RT response parsing:
 - Defines structured dataclasses for RT data (AttachmentMeta, HistoryMessage, etc.)
 - Parses attachment lists, history items, and individual messages
 - Parses ticket status from `ticket/{id}` responses via `parse_ticket_status()`
+- Parses full ticket fields via `parse_ticket_metadata()` into `TicketMetadata`
+- `strip_history_counter()` removes RT's leading history counter line
+- `is_no_content()` / `NO_CONTENT_SENTINEL` identify RT's empty-transaction marker
 - Parses `search/ticket` `format=l` responses into `TicketSummary` records via
   `parse_search_results()`, handling `--`-separated blocks, indented continuation
   lines, and the `No matching results.` payload
@@ -117,7 +124,7 @@ python -m build
 # never authenticates.
 
 # Available console scripts:
-download-ticket <ticket_id> [--output-dir DIR]   # Download complete RT ticket data to rt{ticket_id} subdirectory
+download-ticket <ticket_id> [--output-dir DIR | --into DIR] [--transcript]  # Download complete RT ticket data
 search-tickets [--start-date D] [--end-date D] [--queue Q]...  # Search tickets, print TSV
 dump-ticket <ticket_id> [additional_path_parts]  # Dump RT ticket information
 dump-rest [rest_path_parts]                      # Dump content from RT REST API URLs
@@ -133,6 +140,8 @@ open-ticket <ticket_id>...                       # Open tickets in the web UI
 # Examples:
 download-ticket 37603                           # Downloads to ./rt37603/
 download-ticket 37603 --output-dir local/output # Downloads to local/output/rt37603/
+download-ticket 37603 --into work/ticket        # Downloads into work/ticket/ (no rt37603 level)
+download-ticket 37603 --transcript              # Also writes ./rt37603/ticket.md
 export DOWNLOAD_TICKET_DIR=~/tickets && download-ticket 37603  # Downloads to ~/tickets/rt37603/
 
 # search-tickets: filters on Created (inclusive on both ends) and queue.
@@ -210,6 +219,14 @@ The `download-ticket` command supports flexible target directory configuration t
 
 The resolution follows this exact priority order, with higher-numbered options overriding lower-numbered ones.
 
+`--into DIR` bypasses the whole order and writes the ticket contents into `DIR` with no `rt{ticket_id}` level. It is mutually exclusive with `--output-dir` and rejects more than one ticket ID.
+
+### Transcript
+
+`--transcript` additionally writes `ticket.md` at the top of the ticket directory: YAML frontmatter (id, subject, queue, status, owner, requestors, created, last_updated) followed by one `##` section per history entry in chronological order — author, timestamp, type, RT's description, the quote-stripped body, and attachments cited by original filename and relative path. The transcript is an index over the tree, not a replacement, and stays opt-in; making it the default would be a 2.x change.
+
+RT's `This transaction appears to have no content` sentinel is filtered from the transcript only, so such entries render as heading plus description. `content.txt` still receives the sentinel, keeping existing consumers unchanged.
+
 ## Important Implementation Details
 
 **Parsing Architecture**: Uses centralized parser module (`parser.py`) to eliminate duplicate parsing logic. All RT responses are parsed into structured dataclasses with string attributes to match RT API format.
@@ -226,6 +243,7 @@ The resolution follows this exact priority order, with higher-numbered options o
 ```
 resolved_target_dir/          # From resolution order: --output-dir > env var > config > cwd
 ├── rt37603/                  # Ticket directory (rt{ticket_id} format)
+│   ├── ticket.md             # Chronological transcript (--transcript only)
 │   ├── metadata.txt          # Basic ticket information
 │   ├── 1492666/              # History entry directory
 │   │   ├── message.txt       # Full RT history entry (raw format)

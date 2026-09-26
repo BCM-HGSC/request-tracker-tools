@@ -1,13 +1,17 @@
 from pytest import fixture
 
 from rt_tools.parser import (
+    NO_CONTENT_SENTINEL,
     Attachment,
     AttachmentMeta,
     HistoryItemMeta,
     HistoryMessage,
+    is_no_content,
     parse_attachment_list,
     parse_history_list,
     parse_history_message,
+    parse_ticket_metadata,
+    strip_history_counter,
     strip_quoted_reply,
 )
 
@@ -346,3 +350,99 @@ def test_history_message_dataclass():
     assert msg.ticket == "222"
     assert msg.type == "Create"
     assert len(msg.attachments) == 0  # Default empty list
+
+
+# Ticket metadata parsing
+
+
+def test_parse_ticket_metadata(fixtures_dir):
+    # Parse the real sanitized metadata.txt fixture
+    payload = (fixtures_dir / "rt37525_sanitized" / "metadata.txt").read_bytes()
+
+    metadata = parse_ticket_metadata(payload)
+
+    assert metadata.id == "37525"  # "ticket/" prefix removed
+    assert metadata.queue == "Submissions"
+    assert metadata.owner == "user002"
+    assert metadata.creator == "user001"
+    assert metadata.status == "open"
+    assert metadata.subject.startswith("[SUBMISSION] MFTS Submission")
+    assert metadata.requestors == ["user001@example.com"]
+    assert metadata.created == "Wed Jul 30 12:23:55 2025"
+    assert metadata.last_updated == "Tue Aug 05 11:45:05 2025"
+
+
+def test_parse_ticket_metadata_multiple_requestors():
+    # RT joins extra requestors onto indented continuation lines
+    payload = (
+        b"id: ticket/1\n"
+        b"Subject: Test\n"
+        b"Requestors: one@example.com, two@example.com\n"
+        b"    three@example.com\n"
+        b"Cc:\n"
+    )
+
+    metadata = parse_ticket_metadata(payload)
+
+    assert metadata.requestors == [
+        "one@example.com",
+        "two@example.com",
+        "three@example.com",
+    ]
+
+
+def test_parse_ticket_metadata_missing_fields():
+    # Absent fields become empty rather than None
+    metadata = parse_ticket_metadata(b"id: ticket/42\n")
+
+    assert metadata.id == "42"
+    assert metadata.subject == ""
+    assert metadata.owner == ""
+    assert metadata.requestors == []
+
+
+# No-content sentinel
+
+
+def test_is_no_content_sentinel():
+    assert is_no_content(NO_CONTENT_SENTINEL)
+    assert is_no_content(f"  {NO_CONTENT_SENTINEL}\n")
+    assert is_no_content(None)
+    assert is_no_content("")
+
+
+def test_is_no_content_real_content():
+    assert not is_no_content("Please submit the files.")
+    assert not is_no_content(f"{NO_CONTENT_SENTINEL} but actually here is more")
+
+
+# History counter stripping
+
+
+def test_strip_history_counter(fixtures_dir):
+    # The real fixture still carries RT's counter line
+    payload = (
+        fixtures_dir / "rt37525_sanitized" / "1489286" / "message.txt"
+    ).read_bytes()
+    assert payload.startswith(b"# 18/18 (id/1489286/total)\n")
+
+    stripped = strip_history_counter(payload)
+
+    assert stripped.startswith(b"id: 1489286\n")
+    assert b"# 18/18" not in stripped
+
+
+def test_strip_history_counter_without_counter():
+    # A payload with no counter is returned unchanged
+    payload = b"id: 1489286\nTicket: 37525\n"
+
+    assert strip_history_counter(payload) == payload
+
+
+def test_strip_history_counter_leaves_later_hashes():
+    # Only a leading counter is removed, not a "#" line inside the content
+    payload = b"# 3/3 (id/7/total)\n\nid: 7\nContent: # 1/1 (id/9/total)\n"
+
+    stripped = strip_history_counter(payload)
+
+    assert stripped == b"id: 7\nContent: # 1/1 (id/9/total)\n"

@@ -194,6 +194,27 @@ def parse_history_message(text: str) -> HistoryMessage:
     )
 
 
+_HISTORY_COUNTER_PATTERN = compile(rb"\A# \d+/\d+ \([^)\n]*\)\n\n?")
+
+
+def strip_history_counter(payload: bytes) -> bytes:
+    """Remove RT's leading "# N/M (id/.../total)" counter line from a payload.
+
+    RT prefixes each history item with a running counter over the whole
+    history. Adding one entry to a ticket renumbers the counter in every
+    item, so saving the counter makes a re-download look like every entry
+    changed. The counter carries no information that is not already in
+    history.txt.
+
+    Args:
+        payload: Raw history item payload bytes
+
+    Returns:
+        The payload without the counter line, unchanged if no counter is present
+    """
+    return _HISTORY_COUNTER_PATTERN.sub(b"", payload, count=1)
+
+
 @dataclass
 class TicketSummary:
     """One ticket from a format=l search result.
@@ -295,6 +316,79 @@ def _parse_field_block(block: str) -> dict[str, str]:
             fields[current] = f"{fields[current]}\n{line.strip()}".strip()
 
     return fields
+
+
+@dataclass
+class TicketMetadata:
+    """Ticket-level fields from a ticket/{id} REST response.
+
+    All fields are strings, matching RT API format, except requestors which
+    RT may return as a comma- or newline-separated list. Missing fields
+    become the empty string rather than None.
+
+    Args:
+        id: Bare numeric ticket ID, with RT's "ticket/" prefix removed
+        subject: Ticket subject line
+        queue: Queue name (e.g., "Submissions")
+        status: Raw RT status ("new", "open", "resolved", ...)
+        owner: Owner username, or "Nobody" for unowned tickets
+        creator: Username who created the ticket
+        requestors: Requestor addresses, empty when RT reported none
+        created: RT-formatted creation timestamp
+        last_updated: RT-formatted last-update timestamp
+    """
+
+    id: str
+    subject: str
+    queue: str
+    status: str
+    owner: str
+    creator: str
+    requestors: list[str]
+    created: str
+    last_updated: str
+
+
+def parse_ticket_metadata(payload: bytes) -> TicketMetadata:
+    """Parse a ticket/{id} REST response payload into ticket-level metadata.
+
+    Args:
+        payload: Raw payload bytes from RTResponseData (RT header already stripped)
+
+    Returns:
+        TicketMetadata with missing fields defaulted to the empty string
+    """
+    fields = _parse_field_block(payload.decode("utf-8", errors="replace"))
+    return TicketMetadata(
+        id=fields.get("id", "").removeprefix("ticket/"),
+        subject=fields.get("subject", ""),
+        queue=fields.get("queue", ""),
+        status=fields.get("status", ""),
+        owner=fields.get("owner", ""),
+        creator=fields.get("creator", ""),
+        requestors=_split_addresses(fields.get("requestors", "")),
+        created=fields.get("created", ""),
+        last_updated=fields.get("lastupdated", ""),
+    )
+
+
+def _split_addresses(value: str) -> list[str]:
+    """Split an RT address field on commas and continuation newlines."""
+    return [
+        part.strip() for part in value.replace("\n", ",").split(",") if part.strip()
+    ]
+
+
+NO_CONTENT_SENTINEL = "This transaction appears to have no content"
+
+
+def is_no_content(content: str | None) -> bool:
+    """Report whether a history item's content is absent or RT's sentinel.
+
+    RT returns the literal string "This transaction appears to have no
+    content" for entries such as status changes and ownership assignments.
+    """
+    return not content or content.strip() == NO_CONTENT_SENTINEL
 
 
 _OPEN_STATUSES = {"new", "open", "stalled"}

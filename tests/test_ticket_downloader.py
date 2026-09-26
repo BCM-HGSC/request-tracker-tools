@@ -194,65 +194,66 @@ def test_mock_session_get_requests(mock_session):
 
 
 def test_xlsx_to_tsv_conversion(rt37525_xlsx_fixtures):
-    """Test XLSX to TSV conversion functionality using real fixture file."""
+    """Test XLSX to TSV conversion using the real multi-sheet fixture file."""
+    import shutil
+
+    import pytest
+
     from rt_tools.downloader import TicketDownloader
 
-    xlsx_path = rt37525_xlsx_fixtures["xlsx"]
-    tsv_fixture_path = rt37525_xlsx_fixtures["tsv"]
+    fixture_path = rt37525_xlsx_fixtures["xlsx"]
 
-    if not xlsx_path.exists():
-        # Skip test if fixture doesn't exist
-        import pytest
-
-        pytest.skip(f"XLSX fixture not found: {xlsx_path}")
+    if not fixture_path.exists():
+        pytest.skip(f"XLSX fixture not found: {fixture_path}")
+    try:
+        import openpyxl  # noqa: F401
+    except ImportError:
+        pytest.skip("XLSX conversion skipped - openpyxl not available")
 
     with tempfile.TemporaryDirectory() as temp_dir:
-        temp_path = Path(temp_dir)
-        tsv_path = temp_path / "test_output.tsv"
+        # Copy into the temp dir: conversion writes the TSVs alongside the XLSX
+        xlsx_path = Path(temp_dir) / fixture_path.name
+        shutil.copy(fixture_path, xlsx_path)
 
-        # Create downloader and test conversion
         downloader = TicketDownloader(None)
-        downloader._convert_xlsx_to_tsv(xlsx_path, tsv_path)
+        written = downloader._convert_xlsx_to_tsv(xlsx_path)
 
-        if tsv_path.exists():
-            # Verify TSV file was created and has content
-            tsv_content = tsv_path.read_text()
-            lines = tsv_content.strip().split("\n")
+        # This workbook has two sheets, so each is converted separately and
+        # the ambiguous unqualified name is not written.
+        assert [sheet for sheet, _ in written] == [
+            "Samples with 2+ merge",
+            "Remapped list",
+        ]
+        assert not xlsx_path.with_suffix(".tsv").exists()
 
-            # Should have at least header and some data
+        for sheet_name, tsv_path in written:
+            assert tsv_path.exists(), f"No TSV written for sheet {sheet_name}"
+            lines = tsv_path.read_text().strip().split("\n")
             assert len(lines) >= 2, "TSV should have header and data rows"
-
-            # Check header (should be tab-separated)
-            header = lines[0]
-            assert "\t" in header, "Header should be tab-separated"
-
-            # Check data rows are tab-separated
-            for i, line in enumerate(lines[1:], 2):
-                if line.strip():  # Skip empty lines
+            for i, line in enumerate(lines, 1):
+                if line.strip():
                     assert "\t" in line, f"Line {i} should be tab-separated: {line}"
 
-            # Compare with fixture TSV for structure validation
-            if tsv_fixture_path.exists():
-                fixture_content = tsv_fixture_path.read_text().strip()
-                fixture_lines = fixture_content.split("\n")
 
-                # Both should have similar structure
-                assert len(lines) > 0, "Generated TSV should have content"
-                assert len(fixture_lines) > 0, "Fixture TSV should have content"
-        else:
-            # If conversion failed, check if openpyxl is available
-            try:
-                import openpyxl  # noqa: F401
+def test_xlsx_to_tsv_conversion_single_sheet(tmp_path):
+    """A single-sheet workbook keeps the unqualified n{id}.tsv name."""
+    import pytest
 
-                # If openpyxl is available but conversion failed, that's an error
-                raise AssertionError(
-                    "XLSX conversion failed despite openpyxl being available"
-                )
-            except ImportError:
-                # If openpyxl is not available, skip the test
-                import pytest
+    from rt_tools.downloader import TicketDownloader
 
-                pytest.skip("XLSX conversion skipped - openpyxl not available")
+    openpyxl = pytest.importorskip("openpyxl")
+
+    xlsx_path = tmp_path / "n801.xlsx"
+    wb = openpyxl.Workbook()
+    wb.active.append(["header", "value"])
+    wb.active.append(["a", 1])
+    wb.save(xlsx_path)
+
+    written = TicketDownloader(None)._convert_xlsx_to_tsv(xlsx_path)
+
+    tsv_path = tmp_path / "n801.tsv"
+    assert written == [(wb.sheetnames[0], tsv_path)]
+    assert tsv_path.read_text() == "header\tvalue\na\t1\n"
 
 
 def test_xlsx_to_tsv_conversion_with_invalid_file():
@@ -262,14 +263,14 @@ def test_xlsx_to_tsv_conversion_with_invalid_file():
     with tempfile.TemporaryDirectory() as temp_dir:
         temp_path = Path(temp_dir)
         invalid_xlsx = temp_path / "invalid.xlsx"
-        tsv_path = temp_path / "output.tsv"
+        tsv_path = temp_path / "invalid.tsv"
 
         # Create an invalid XLSX file
         invalid_xlsx.write_text("This is not a valid XLSX file")
 
         # Create downloader and attempt conversion
         downloader = TicketDownloader(None)
-        downloader._convert_xlsx_to_tsv(invalid_xlsx, tsv_path)
+        assert downloader._convert_xlsx_to_tsv(invalid_xlsx) == []
 
         # TSV file should not be created due to error
         assert not tsv_path.exists(), "TSV file should not be created for invalid XLSX"
@@ -308,12 +309,10 @@ def test_xlsx_conversion_trigger():
 
             # Test the conversion trigger logic
             if extension == "xlsx":
-                tsv_filename = f"n{attachment_id}.tsv"
-                tsv_file = history_dir / tsv_filename
-                downloader._convert_xlsx_to_tsv(xlsx_file, tsv_file)
+                downloader._convert_xlsx_to_tsv(xlsx_file)
 
             # Verify that the conversion method was called
-            mock_convert.assert_called_once_with(xlsx_file, history_dir / "n801.tsv")
+            mock_convert.assert_called_once_with(xlsx_file)
 
 
 def test_normalize_xlsx_value():
@@ -574,8 +573,7 @@ def test_download_history_attachment_xlsx_conversion(mock_session):
             assert xlsx_file.exists()
 
             # Should trigger TSV conversion
-            tsv_file = history_dir / "n801.tsv"
-            mock_convert.assert_called_once_with(xlsx_file, tsv_file)
+            mock_convert.assert_called_once_with(xlsx_file)
 
 
 def test_download_history_attachment_failure(mock_session):
@@ -621,7 +619,7 @@ def test_convert_xlsx_to_tsv_no_openpyxl():
         # Mock openpyxl as None
         with patch("rt_tools.downloader.openpyxl", None):
             downloader = TicketDownloader(None)
-            downloader._convert_xlsx_to_tsv(xlsx_file, tsv_file)
+            assert downloader._convert_xlsx_to_tsv(xlsx_file) == []
 
             # Should not create TSV file
             assert not tsv_file.exists()

@@ -40,8 +40,12 @@ def download_ticket_cli():
     args = parse_download_ticket_arguments()
     config_logging(args)
 
-    # resolve target_dir according to resolution order
-    target_dir = resolve_target_dir(args)
+    # --into names the ticket directory itself; otherwise resolve the parent
+    create_ticket_dir = not args.into
+    if args.into:
+        target_dir = os.path.expanduser(args.into)
+    else:
+        target_dir = resolve_target_dir(args)
 
     with RTSession(password_file=args.password_file) as session:
         session.authenticate()
@@ -49,7 +53,13 @@ def download_ticket_cli():
             session.print_cookies()
         for ticket_id in args.ticket_ids:
             try:
-                download_ticket(session, ticket_id, target_dir)
+                download_ticket(
+                    session,
+                    ticket_id,
+                    target_dir,
+                    create_ticket_dir=create_ticket_dir,
+                    transcript=args.transcript,
+                )
             except Exception as e:
                 logging.error("Failed to download ticket %s: %s", ticket_id, e)
 
@@ -62,6 +72,7 @@ def parse_download_ticket_arguments() -> Namespace:
         epilog="""
 Output structure:
   rt{id}/
+    ticket.md          chronological transcript (--transcript only)
     metadata.txt       ticket fields
     history.txt        full history listing
     attachments.txt    attachment index
@@ -74,7 +85,8 @@ Output structure:
     )
     add_common_arguments(parser)
     parser.add_argument("ticket_ids", nargs="+", help="One or more RT ticket IDs")
-    parser.add_argument(
+    destination = parser.add_mutually_exclusive_group()
+    destination.add_argument(
         "--output-dir",
         metavar="DIR",
         help="Parent directory for rt{ticket_id}. "
@@ -83,7 +95,22 @@ Output structure:
         "3. config file "
         "4. current directory",
     )
-    return parser.parse_args()
+    destination.add_argument(
+        "--into",
+        metavar="DIR",
+        help="Write the ticket contents directly into DIR, with no "
+        "rt{ticket_id} level. Only valid for a single ticket ID.",
+    )
+    parser.add_argument(
+        "--transcript",
+        action="store_true",
+        help="Also write ticket.md, a chronological Markdown transcript, "
+        "at the top of the ticket directory",
+    )
+    args = parser.parse_args()
+    if args.into and len(args.ticket_ids) > 1:
+        parser.error("--into takes a single ticket ID; N tickets cannot share DIR")
+    return args
 
 
 def resolve_target_dir(args) -> str:
