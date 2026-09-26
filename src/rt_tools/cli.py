@@ -5,7 +5,9 @@ import os
 import tomllib
 import webbrowser
 from argparse import ArgumentParser, Namespace, RawDescriptionHelpFormatter
+from datetime import date, timedelta
 from pathlib import Path
+from sys import stdout
 
 from . import __version__
 from .credentials import (
@@ -14,9 +16,17 @@ from .credentials import (
     SECRET_FILE_MODE,
 )
 from .downloader import download_ticket
-from .session import BASE_URL, REST_URL, RTSession
+from .parser import TicketSummary, parse_search_results
+from .session import BASE_URL, REST_URL, RTSession, search_tickets
 
 TICKET_DISPLAY_URL = f"{BASE_URL}/Ticket/Display.html?id={{}}"
+
+QUEUE_ALIASES = {
+    "mft": "Managed File Transfer",
+    "sub": "Submissions",
+}
+SEARCH_FIELDS = "id,Subject,Status,Created,LastUpdated,Owner"
+TSV_COLUMNS = ("id", "subject", "status", "created", "last_updated", "owner")
 
 
 def download_ticket_cli():
@@ -92,6 +102,106 @@ def resolve_target_dir(args) -> str:
 
     # 4. Fallback = current working directory
     return os.getcwd()
+
+
+def search_tickets_cli():
+    """Entry point for searching RT tickets and writing TSV to stdout."""
+    args = parse_search_arguments()
+    config_logging(args)
+
+    query = build_ticket_query(args.start_date, args.end_date, args.queue)
+
+    with RTSession(password_file=args.password_file) as session:
+        session.authenticate()
+        if args.verbose:
+            session.print_cookies()
+        response = search_tickets(session, query, SEARCH_FIELDS)
+
+    if not response.is_ok:
+        logging.error("Search failed: RT returned %s", response.status_text)
+        raise SystemExit(1)
+
+    write_ticket_tsv(parse_search_results(response.payload))
+
+
+def parse_search_arguments() -> Namespace:
+    """Parse command line arguments for search-tickets."""
+    alias_help = ", ".join(f"{k}={v!r}" for k, v in QUEUE_ALIASES.items())
+    parser = make_parser("Search RT tickets and print a TSV summary")
+    parser.add_argument(
+        "--start-date",
+        metavar="YYYY-MM-DD",
+        type=date.fromisoformat,
+        help="Earliest ticket creation date, inclusive",
+    )
+    parser.add_argument(
+        "--end-date",
+        metavar="YYYY-MM-DD",
+        type=date.fromisoformat,
+        help="Latest ticket creation date, inclusive",
+    )
+    parser.add_argument(
+        "--queue",
+        metavar="QUEUE",
+        action="append",
+        help=f"Queue to search; repeatable. Aliases: {alias_help}. "
+        "Any other value is used as a literal RT queue name. "
+        "Default: every alias above.",
+    )
+    return parser.parse_args()
+
+
+def build_ticket_query(
+    start_date: date | None, end_date: date | None, queue_args: list[str] | None
+) -> str:
+    """Build the TicketSQL query for a ticket search.
+
+    The end date is rendered as "Created < end_date + 1 day" so that tickets
+    created during the named day are included despite Created being a timestamp.
+    """
+    queues = resolve_queues(queue_args)
+    queue_clause = " OR ".join(f"Queue = '{_quote(q)}'" for q in queues)
+    clauses = [f"( {queue_clause} )"]
+
+    if start_date:
+        clauses.append(f"Created >= '{start_date.isoformat()}'")
+    if end_date:
+        day_after = end_date + timedelta(days=1)
+        clauses.append(f"Created < '{day_after.isoformat()}'")
+
+    return " AND ".join(clauses)
+
+
+def resolve_queues(queue_args: list[str] | None) -> list[str]:
+    """Expand queue aliases, passing unknown values through as literal names."""
+    if not queue_args:
+        return list(QUEUE_ALIASES.values())
+    return [QUEUE_ALIASES.get(q, q) for q in queue_args]
+
+
+def write_ticket_tsv(tickets: list[TicketSummary], file=None) -> None:
+    """Write ticket summaries as TSV with a header row.
+
+    Tabs and newlines inside a field are replaced with single spaces so that
+    every ticket occupies exactly one line.
+    """
+    if file is None:
+        file = stdout
+    print("\t".join(TSV_COLUMNS), file=file)
+    for ticket in tickets:
+        values = (getattr(ticket, column) for column in TSV_COLUMNS)
+        print("\t".join(_flatten(value) for value in values), file=file)
+    file.flush()
+
+
+def _quote(value: str) -> str:
+    """Escape single quotes for embedding in a TicketSQL string literal."""
+    return value.replace("'", "''")
+
+
+def _flatten(value: str) -> str:
+    """Collapse tabs and line breaks to single spaces for TSV output."""
+    return " ".join(value.split()) if value else ""
 
 
 def dump_ticket():

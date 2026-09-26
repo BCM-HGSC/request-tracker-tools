@@ -7,6 +7,7 @@ from rt_tools import __version__, cli
 ENTRY_POINTS = [
     ("download-ticket", cli.download_ticket_cli),
     ("dump-ticket", cli.dump_ticket),
+    ("search-tickets", cli.search_tickets_cli),
     ("dump-rest", cli.dump_rest),
     ("dump-url", cli.dump_url),
     ("open-ticket", cli.open_ticket),

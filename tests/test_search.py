@@ -1,0 +1,261 @@
+"""Tests for the search-tickets command and its supporting functions."""
+
+import io
+from datetime import date
+from unittest.mock import MagicMock
+
+import pytest
+from requests import Response
+
+from rt_tools.cli import (
+    SEARCH_FIELDS,
+    build_ticket_query,
+    resolve_queues,
+    write_ticket_tsv,
+)
+from rt_tools.parser import TicketSummary, parse_search_results
+from rt_tools.session import BASE_URL, RTResponseData, RTSession, search_tickets
+
+BOTH_QUEUES = "( Queue = 'Managed File Transfer' OR Queue = 'Submissions' )"
+
+SEARCH_PAYLOAD = b"""\
+
+id: ticket/37525
+Subject: Delivery of WGS data
+Status: resolved
+Created: Mon Aug 04 14:22:11 2026
+LastUpdated: Tue Aug 12 09:01:45 2026
+Owner: hale
+
+--
+
+id: ticket/37603
+Subject: MFT account request
+Status: open
+Created: Wed Aug 06 08:15:00 2026
+LastUpdated: Wed Aug 06 08:15:00 2026
+Owner: Nobody
+
+"""
+
+
+def test_fetch_rest_params_sends_referer():
+    """RT serves an HTML CSRF interstitial without a same-origin Referer."""
+    session = MagicMock()
+    session.get.return_value = _raw_response(
+        b"RT/4.4.3 200 Ok\n\nid: ticket/42\n",
+        "https://rt.hgsc.bcm.edu/REST/1.0/search/ticket?query=id+%3D+42",
+    )
+
+    result = RTSession.fetch_rest_params(
+        session, "search", "ticket", params={"query": "id = 42"}
+    )
+
+    assert result.is_ok
+    (url,) = session.get.call_args.args
+    assert url == "https://rt.hgsc.bcm.edu/REST/1.0/search/ticket"
+    assert session.get.call_args.kwargs["params"] == {"query": "id = 42"}
+    assert session.get.call_args.kwargs["headers"] == {"Referer": f"{BASE_URL}/"}
+
+
+def test_search_tickets_sends_expected_params():
+    session = MagicMock(spec=RTSession)
+    session.fetch_rest_params.return_value = _ok_response(SEARCH_PAYLOAD)
+
+    result = search_tickets(session, "Queue = 'Submissions'", SEARCH_FIELDS)
+
+    assert result.is_ok
+    session.fetch_rest_params.assert_called_once_with(
+        "search",
+        "ticket",
+        params={
+            "query": "Queue = 'Submissions'",
+            "orderby": "+Created",
+            "format": "l",
+            "fields": SEARCH_FIELDS,
+        },
+    )
+
+
+def test_search_tickets_honors_orderby():
+    session = MagicMock(spec=RTSession)
+    session.fetch_rest_params.return_value = _ok_response(SEARCH_PAYLOAD)
+
+    search_tickets(session, "id = 1", SEARCH_FIELDS, orderby="-Created")
+
+    params = session.fetch_rest_params.call_args.kwargs["params"]
+    assert params["orderby"] == "-Created"
+
+
+# build_ticket_query
+
+
+def test_query_defaults_to_both_queues():
+    assert build_ticket_query(None, None, None) == BOTH_QUEUES
+
+
+def test_query_with_both_dates():
+    query = build_ticket_query(date(2026, 1, 1), date(2026, 3, 31), ["sub"])
+    assert query == (
+        "( Queue = 'Submissions' ) "
+        "AND Created >= '2026-01-01' "
+        "AND Created < '2026-04-01'"
+    )
+
+
+def test_query_end_date_is_inclusive():
+    """A single-day range must span that whole day."""
+    query = build_ticket_query(date(2026, 9, 25), date(2026, 9, 25), ["sub"])
+    assert "Created >= '2026-09-25'" in query
+    assert "Created < '2026-09-26'" in query
+
+
+def test_query_with_only_start_date():
+    query = build_ticket_query(date(2026, 5, 1), None, ["mft"])
+    assert query == "( Queue = 'Managed File Transfer' ) AND Created >= '2026-05-01'"
+
+
+def test_query_with_only_end_date():
+    query = build_ticket_query(None, date(2026, 5, 1), ["mft"])
+    assert query == "( Queue = 'Managed File Transfer' ) AND Created < '2026-05-02'"
+
+
+def test_query_with_multiple_queues():
+    query = build_ticket_query(None, None, ["sub", "Other Queue"])
+    assert query == "( Queue = 'Submissions' OR Queue = 'Other Queue' )"
+
+
+def test_query_escapes_single_quotes():
+    query = build_ticket_query(None, None, ["Bob's Queue"])
+    assert query == "( Queue = 'Bob''s Queue' )"
+
+
+# resolve_queues
+
+
+@pytest.mark.parametrize(
+    "given, expected",
+    [
+        (None, ["Managed File Transfer", "Submissions"]),
+        ([], ["Managed File Transfer", "Submissions"]),
+        (["mft"], ["Managed File Transfer"]),
+        (["sub"], ["Submissions"]),
+        (["sub", "mft"], ["Submissions", "Managed File Transfer"]),
+        (["General"], ["General"]),
+        (["sub", "General"], ["Submissions", "General"]),
+    ],
+)
+def test_resolve_queues(given, expected):
+    assert resolve_queues(given) == expected
+
+
+# parse_search_results
+
+
+def test_parse_search_results_full_payload():
+    tickets = parse_search_results(SEARCH_PAYLOAD)
+
+    assert [t.id for t in tickets] == ["37525", "37603"]
+    assert tickets[0] == TicketSummary(
+        id="37525",
+        subject="Delivery of WGS data",
+        status="resolved",
+        created="Mon Aug 04 14:22:11 2026",
+        last_updated="Tue Aug 12 09:01:45 2026",
+        owner="hale",
+    )
+    assert tickets[1].owner == "Nobody"
+
+
+def test_parse_search_results_no_matches():
+    assert parse_search_results(b"\nNo matching results.\n\n") == []
+
+
+def test_parse_search_results_empty_payload():
+    assert parse_search_results(b"\n") == []
+
+
+def test_parse_search_results_missing_field():
+    payload = b"\nid: ticket/42\nSubject: No owner recorded\nStatus: new\n"
+    (ticket,) = parse_search_results(payload)
+    assert ticket.owner == ""
+    assert ticket.created == ""
+
+
+def test_parse_search_results_continuation_lines():
+    payload = b"\nid: ticket/42\nSubject: First line\n    second line\nStatus: open\n"
+    (ticket,) = parse_search_results(payload)
+    assert ticket.subject == "First line\nsecond line"
+    assert ticket.status == "open"
+
+
+def test_parse_search_results_strips_ticket_prefix():
+    (ticket,) = parse_search_results(b"\nid: ticket/99\nSubject: x\n")
+    assert ticket.id == "99"
+
+
+# write_ticket_tsv
+
+
+def test_write_ticket_tsv_header_and_row():
+    out = io.StringIO()
+    write_ticket_tsv([_summary()], file=out)
+
+    header, row = out.getvalue().splitlines()
+    assert header == "id\tsubject\tstatus\tcreated\tlast_updated\towner"
+    assert row.split("\t") == [
+        "37525",
+        "Delivery of WGS data",
+        "resolved",
+        "Mon Aug 04 14:22:11 2026",
+        "Tue Aug 12 09:01:45 2026",
+        "hale",
+    ]
+
+
+def test_write_ticket_tsv_header_only_when_empty():
+    out = io.StringIO()
+    write_ticket_tsv([], file=out)
+    assert out.getvalue() == "id\tsubject\tstatus\tcreated\tlast_updated\towner\n"
+
+
+def test_write_ticket_tsv_scrubs_tabs_and_newlines():
+    out = io.StringIO()
+    write_ticket_tsv([_summary(subject="tab\there\nand a break")], file=out)
+
+    lines = out.getvalue().splitlines()
+    assert len(lines) == 2
+    assert lines[1].split("\t")[1] == "tab here and a break"
+
+
+# Helpers
+
+
+def _ok_response(payload: bytes) -> RTResponseData:
+    return RTResponseData(
+        version="4.4.3",
+        status_code=200,
+        status_text="Ok",
+        is_ok=True,
+        payload=payload,
+    )
+
+
+def _raw_response(content: bytes, url: str) -> Response:
+    response = Response()
+    response._content = content
+    response.status_code = 200
+    response.url = url
+    return response
+
+
+def _summary(**overrides) -> TicketSummary:
+    defaults = {
+        "id": "37525",
+        "subject": "Delivery of WGS data",
+        "status": "resolved",
+        "created": "Mon Aug 04 14:22:11 2026",
+        "last_updated": "Tue Aug 12 09:01:45 2026",
+        "owner": "hale",
+    }
+    return TicketSummary(**(defaults | overrides))

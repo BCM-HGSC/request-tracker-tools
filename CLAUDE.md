@@ -26,6 +26,9 @@ The codebase follows a standard Python package structure with src layout:
 - SSL certificate verification with bundled certificate (loaded from package data)
 - Cookie persistence using Mozilla cookie jar format
 - Authentication status checking via RT API responses
+- `fetch_rest()` for plain path GETs; `fetch_rest_params()` for GETs with query
+  parameters, which also sends a same-origin `Referer` to satisfy RT's CSRF guard
+- `search_tickets()` module-level helper wrapping the `search/ticket` endpoint
 
 **TicketDownloader Class**: Handles comprehensive ticket data retrieval:
 - Downloads ticket metadata, complete history, and all attachments
@@ -40,6 +43,9 @@ The codebase follows a standard Python package structure with src layout:
 - Defines structured dataclasses for RT data (AttachmentMeta, HistoryMessage, etc.)
 - Parses attachment lists, history items, and individual messages
 - Parses ticket status from `ticket/{id}` responses via `parse_ticket_status()`
+- Parses `search/ticket` `format=l` responses into `TicketSummary` records via
+  `parse_search_results()`, handling `--`-separated blocks, indented continuation
+  lines, and the `No matching results.` payload
 - Filters outgoing emails during history parsing
 - Uses string-based dataclasses to match RT API format
 - Handles multi-line content and attachment extraction
@@ -110,6 +116,7 @@ python -m build
 
 # Available console scripts:
 download-ticket <ticket_id> [--output-dir DIR]   # Download complete RT ticket data to rt{ticket_id} subdirectory
+search-tickets [--start-date D] [--end-date D] [--queue Q]...  # Search tickets, print TSV
 dump-ticket <ticket_id> [additional_path_parts]  # Dump RT ticket information
 dump-rest [rest_path_parts]                      # Dump content from RT REST API URLs
 dump-url [url_path_parts]                        # Dump content from RT URLs
@@ -125,6 +132,15 @@ open-ticket <ticket_id>...                       # Open tickets in the web UI
 download-ticket 37603                           # Downloads to ./rt37603/
 download-ticket 37603 --output-dir local/output # Downloads to local/output/rt37603/
 export DOWNLOAD_TICKET_DIR=~/tickets && download-ticket 37603  # Downloads to ~/tickets/rt37603/
+
+# search-tickets: filters on Created (inclusive on both ends) and queue.
+# --queue is repeatable; values are OR'd. Aliases: mft="Managed File Transfer",
+# sub="Submissions". Any other value is a literal RT queue name. Omitting
+# --queue searches both aliases. Output is TSV on stdout with a header row:
+# id, subject, status, created, last_updated, owner. All statuses are included.
+search-tickets --start-date 2026-08-01 --end-date 2026-08-31
+search-tickets --queue mft --queue sub --start-date 2026-09-01
+search-tickets --queue sub --start-date 2026-09-01 | tail -n +2 | cut -f1
 
 # With logging options
 dump-ticket --verbose <ticket_id>   # Debug level logging

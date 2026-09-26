@@ -207,6 +207,25 @@ class RTSession(Session):
         result = parse_rt_response(response)
         return result
 
+    def fetch_rest_params(
+        self, *parts: str, params: dict[str, str] | None = None
+    ) -> RTResponseData:
+        """GET a REST URL with query parameters and return the parsed result.
+
+        RT treats a cookie-authenticated GET carrying arguments as a possible
+        CSRF attempt and serves an HTML interstitial instead of the REST
+        payload. Sending a same-origin Referer satisfies that check.
+
+        Args:
+            *parts: Parts of the REST URL path.
+            params: Query parameters; requests handles the URL encoding.
+        """
+        url = RTSession.rest_url(*parts)
+        response = self.get(url, params=params, headers={"Referer": f"{BASE_URL}/"})
+        log_response(response)
+        result = parse_rt_response(response)
+        return result
+
     def dump_url(self, url: str) -> None:
         """GET a URL and dump the response."""
         dump_response(self.get(url))
@@ -224,6 +243,33 @@ class RTSession(Session):
     def rest_url(*parts) -> str:
         """Generate a REST 1.0 URL using any supplied parts."""
         return "/".join([REST_URL] + list(parts))
+
+
+def search_tickets(
+    session: RTSession, query: str, fields: str, orderby: str = "+Created"
+) -> RTResponseData:
+    """Run a TicketSQL search and return the raw parsed response.
+
+    Args:
+        session: Authenticated RTSession to use for the request
+        query: TicketSQL query string (see cli.build_ticket_query)
+        fields: Comma-separated RT field names to include in the result
+        orderby: RT sort field, prefixed with + (ascending) or - (descending)
+
+    Returns:
+        RTResponseData whose payload is a format=l search result
+    """
+    logger.debug(f"ticket search query: {query}")
+    return session.fetch_rest_params(
+        "search",
+        "ticket",
+        params={
+            "query": query,
+            "orderby": orderby,
+            "format": "l",
+            "fields": fields,
+        },
+    )
 
 
 def get_ticket_statuses(ticket_ids: list[str], session: RTSession) -> dict[str, str]:

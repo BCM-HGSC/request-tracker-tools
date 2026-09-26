@@ -76,6 +76,49 @@ TimeWorked: {time-worked}
 TimeLeft: {time-left}
 ```
 
+### Search Tickets
+**Endpoint**: `GET /REST/1.0/search/ticket?query={query}&orderby={sort}&format={format}&fields={fields}`
+
+Runs a TicketSQL query and returns matching tickets.
+
+**Parameters**:
+- `query`: TicketSQL expression, e.g.
+  `Queue = 'Submissions' AND Created >= '2026-08-01' AND Created < '2026-09-01'`.
+  Dates compare against timestamps, so an inclusive end date must be expressed
+  as `Created < {end-date + 1 day}`.
+- `orderby`: sort field prefixed with `+` (ascending) or `-` (descending),
+  e.g. `+Created`
+- `format`: `i` (`ticket/{id}` only), `s` (`{id}: {subject}`), or `l`
+  (multi-line, full ticket details without content)
+- `fields`: comma-separated field names to include
+
+**Response** (`format=l`), one block per ticket separated by a `--` line:
+```
+RT/4.4.3 200 Ok
+
+id: ticket/{ticket-id}
+Queue: {queue-name}
+Subject: {subject}
+Status: {status}
+Created: {created-date}
+LastUpdated: {last-updated-date}
+Owner: {owner}
+
+--
+
+id: ticket/{ticket-id}
+...
+```
+
+A query matching nothing returns `200 Ok` with a `No matching results.` payload.
+
+**Important — CSRF guard**: RT treats a cookie-authenticated request that
+carries arguments as a possible cross-site request forgery and serves an HTML
+interstitial ("Possible cross-site request forgery") instead of the REST
+payload, with HTTP status 200. Sending a same-origin `Referer` header satisfies
+the check. `RTSession.fetch_rest_params()` does this for every parameterized
+request; `fetch_rest()` needs no such header because it sends no arguments.
+
 ## History Operations
 
 ### Get Basic History

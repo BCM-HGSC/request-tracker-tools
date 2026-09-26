@@ -194,6 +194,91 @@ def parse_history_message(text: str) -> HistoryMessage:
     )
 
 
+@dataclass
+class TicketSummary:
+    """One ticket from a format=l search result.
+
+    All fields are strings to match RT API response format. Missing fields
+    become the empty string rather than None, so the row is always writable.
+
+    Args:
+        id: Bare numeric ticket ID, with RT's "ticket/" prefix removed
+        subject: Ticket subject line
+        status: Raw RT status ("new", "open", "resolved", "rejected", ...)
+        created: RT-formatted creation timestamp
+        last_updated: RT-formatted last-update timestamp
+        owner: Owner username, or "Nobody" for unowned tickets
+    """
+
+    id: str
+    subject: str
+    status: str
+    created: str
+    last_updated: str
+    owner: str
+
+
+def parse_search_results(payload: bytes) -> list[TicketSummary]:
+    """Parse a search/ticket format=l response payload into ticket summaries.
+
+    RT returns one "key: value" block per ticket, blocks separated by a line
+    containing only "--". Values may continue onto following indented lines.
+
+    Args:
+        payload: Raw payload bytes from RTResponseData (RT header already stripped)
+
+    Returns:
+        List of TicketSummary objects, empty when nothing matched
+    """
+    text = payload.decode("utf-8", errors="replace")
+    if _NO_MATCH_PATTERN.search(text):
+        return []
+
+    result = []
+    for block in text.split("\n--\n"):
+        fields = _parse_field_block(block)
+        if not fields:
+            continue
+        result.append(
+            TicketSummary(
+                id=fields.get("id", "").removeprefix("ticket/"),
+                subject=fields.get("subject", ""),
+                status=fields.get("status", ""),
+                created=fields.get("created", ""),
+                last_updated=fields.get("lastupdated", ""),
+                owner=fields.get("owner", ""),
+            )
+        )
+    return result
+
+
+_NO_MATCH_PATTERN = compile(r"^No matching results\.", MULTILINE)
+_FIELD_PATTERN = compile(r"^([A-Za-z][\w.{} ]*): ?(.*)$")
+
+
+def _parse_field_block(block: str) -> dict[str, str]:
+    """Parse one "key: value" block into a dict keyed by lowercased field name.
+
+    Continuation lines (indented, no "key:" of their own) are appended to the
+    preceding field, joined with a newline.
+    """
+    fields: dict[str, str] = {}
+    current: str | None = None
+
+    for line in block.split("\n"):
+        if not line.strip():
+            current = None
+            continue
+        m = _FIELD_PATTERN.match(line)
+        if m:
+            current = m.group(1).lower()
+            fields[current] = m.group(2).strip()
+        elif current is not None:
+            fields[current] = f"{fields[current]}\n{line.strip()}".strip()
+
+    return fields
+
+
 _OPEN_STATUSES = {"new", "open", "stalled"}
 _RESOLVED_STATUSES = {"resolved"}
 
