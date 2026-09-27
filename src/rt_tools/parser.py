@@ -418,6 +418,42 @@ def parse_ticket_status(payload: bytes) -> str:
     return "unknown"
 
 
+_QUOTE_BOUNDARY = r"(^|\n)(On .+, .+ wrote:|From: .+\nSent: )"
+_OUTLOOK_BOUNDARY = r"(^|\n)From: .+\nSent: "
+
+
+def split_quoted_reply(content: str) -> tuple[str, list[str]]:
+    """Split content into new text plus quoted text worth preserving.
+
+    `strip_quoted_reply()` discards everything from the first quote boundary
+    onward, which is correct for RT quoting its own entries — the transcript
+    holds those entries in full. It is wrong for a thread forwarded or CC'd
+    into RT, where the quoted text is the only record of a message that never
+    became its own history entry.
+
+    This increment separates the two cheaply, by marker style: RT and webmail
+    generate "On <date>, <user> wrote:" when quoting an RT entry, while an
+    Outlook-style "From: ...\\nSent: ..." block is almost always a forwarded
+    external thread. Matching quoted blocks back to sibling entries would be
+    more robust; see the follow-up issue.
+
+    Args:
+        content: Dedented message content from parse_history_message()
+
+    Returns:
+        (new_content, external_quotes). `new_content` is what
+        `strip_quoted_reply()` would return. `external_quotes` holds at most
+        one block: the tail from the first Outlook-style marker, if any.
+    """
+    new_content = strip_quoted_reply(content)
+    match = search(_OUTLOOK_BOUNDARY, content, MULTILINE)
+    if not match:
+        return new_content, []
+    start = match.start() if content[match.start()] == "\n" else 0
+    quoted = content[start:].strip()
+    return new_content, [quoted] if quoted else []
+
+
 def strip_quoted_reply(content: str) -> str:
     """Strip quoted reply sections, keeping only new content.
 
@@ -435,11 +471,7 @@ def strip_quoted_reply(content: str) -> str:
         Content up to the first quoted reply boundary, rstripped.
         Returns the original content rstripped if no quoting is found.
     """
-    match = search(
-        r"(^|\n)(On .+, .+ wrote:|From: .+\nSent: )",
-        content,
-        MULTILINE,
-    )
+    match = search(_QUOTE_BOUNDARY, content, MULTILINE)
     if match:
         cut = match.start() if content[match.start()] == "\n" else 0
         return content[:cut].rstrip()

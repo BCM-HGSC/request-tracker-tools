@@ -33,6 +33,7 @@ from .parser import (
     parse_history_list,
     parse_history_message,
     parse_ticket_metadata,
+    split_quoted_reply,
     strip_history_counter,
     strip_quoted_reply,
 )
@@ -79,6 +80,7 @@ class TicketDownloader:
         create_ticket_dir: bool = True,
         transcript: bool = False,
         prune: bool = False,
+        lean: bool = False,
     ) -> None:
         """Download all relevant content for a ticket to target directory.
 
@@ -114,7 +116,14 @@ class TicketDownloader:
                 left empty. After pruning, a history directory exists if and
                 only if the entry had at least one non-empty attachment.
                 Requires transcript.
+            lean: Additionally skip downloading the (Unnamed) text/html body
+                alternates that no mode cites in the transcript. Implies
+                transcript and prune. ticket.md is byte-identical across all
+                three modes; they differ only in the files beside it.
         """
+        if lean:
+            transcript = True
+            prune = True
         target_dir = Path(target_dir)
         ticket_dir = target_dir / f"rt{ticket_id}" if create_ticket_dir else target_dir
         ticket_dir.mkdir(parents=True, exist_ok=True)
@@ -160,28 +169,41 @@ class TicketDownloader:
                 self._save_stripped_content(
                     ticket_dir, history_id, history_message.content
                 )
+            content, external_quotes = _entry_body(history_message)
             transcript_attachments = []
             for attachment in history_message.attachments:
-                if attachment.size != "0b":
-                    meta = attachment_index[attachment.id]
-                    saved = self._download_history_attachment(
-                        ticket_id,
-                        ticket_dir,
-                        history_id,
-                        attachment.id,
-                        meta.mime_type,
+                if attachment.size == "0b":
+                    continue
+                meta = attachment_index[attachment.id]
+                redundant = is_redundant_html_alternate(meta, content is not None)
+                if redundant and lean:
+                    logger.debug(
+                        f"Skipping redundant HTML alternate {attachment.id} "
+                        f"for history {history_id}"
                     )
-                    if saved:
-                        transcript_attachments.append(
-                            self._describe_attachment(
-                                ticket_dir, attachment.id, meta, saved
-                            )
+                    continue
+                saved = self._download_history_attachment(
+                    ticket_id,
+                    ticket_dir,
+                    history_id,
+                    attachment.id,
+                    meta.mime_type,
+                )
+                if saved and not redundant:
+                    transcript_attachments.append(
+                        self._describe_attachment(
+                            ticket_dir, attachment.id, meta, saved
                         )
+                    )
             if prune:
                 self._prune_history_dir(ticket_dir, history_id)
             entries.append(
                 self._build_transcript_entry(
-                    history_id, history_message, transcript_attachments
+                    history_id,
+                    history_message,
+                    content,
+                    external_quotes,
+                    transcript_attachments,
                 )
             )
 
@@ -229,25 +251,20 @@ class TicketDownloader:
         self,
         history_id: str,
         history_message,
+        content: str | None,
+        external_quotes: list[str],
         attachments: list[TranscriptAttachment],
     ) -> TranscriptEntry:
-        """Build one transcript entry from a parsed history message.
-
-        RT's no-content sentinel is dropped here, so the entry renders as its
-        description alone. The sentinel is still written to content.txt.
-        """
-        content = history_message.content
-        if is_no_content(content):
-            content = None
-        else:
-            content = strip_quoted_reply(content) or None
+        """Build one transcript entry from a parsed history message."""
         return TranscriptEntry(
             history_id=history_id,
             creator=history_message.creator,
             created=history_message.created,
             type=history_message.type,
             description=history_message.description,
+            subject=_entry_subject(history_message),
             content=content,
+            external_quotes=external_quotes,
             attachments=attachments,
         )
 
@@ -548,6 +565,51 @@ class TicketDownloader:
         return str(value)
 
 
+# Transcript helpers
+
+#: RT's placeholder for a mail with no Subject header. Rendering it would put
+#: a line carrying no information on most Correspond entries.
+_NO_SUBJECT = "No Subject"
+
+
+def _entry_subject(history_message) -> str:
+    """Return the entry's email subject line, or "" when there is none."""
+    subject = (history_message.data or "").strip()
+    return "" if subject == _NO_SUBJECT else subject
+
+
+def _entry_body(history_message) -> tuple[str | None, list[str]]:
+    """Split a history message into transcript body and preserved quotes.
+
+    RT's no-content sentinel becomes None, so such an entry renders as its
+    description alone. The sentinel is still written verbatim to content.txt,
+    which keeps existing consumers unchanged.
+    """
+    content = history_message.content
+    if is_no_content(content):
+        return None, []
+    body, external_quotes = split_quoted_reply(content)
+    return body or None, external_quotes
+
+
+def is_redundant_html_alternate(meta, entry_has_content: bool) -> bool:
+    """Report whether an attachment is just the HTML twin of the entry body.
+
+    Every RT `Correspond` entry sourced from a multipart email carries an
+    unnamed text/html part holding the same words as the entry text. Citing it
+    in the transcript adds a path and no information.
+
+    The `entry_has_content` guard is the important half: when the entry has no
+    text body, the HTML part is the only record of what was said, so it is kept
+    and cited. That way the transcript never omits an entry's only content.
+    """
+    return (
+        entry_has_content
+        and meta.name == "(Unnamed)"
+        and meta.mime_type.split(";")[0].strip().lower() == "text/html"
+    )
+
+
 def download_ticket(
     session: RTSession,
     ticket_id: str,
@@ -556,6 +618,7 @@ def download_ticket(
     create_ticket_dir: bool = True,
     transcript: bool = False,
     prune: bool = False,
+    lean: bool = False,
 ) -> None:
     """Convenience function to download a ticket using TicketDownloader.
 
@@ -569,12 +632,15 @@ def download_ticket(
         transcript: Also write ticket.md, a chronological Markdown index
         prune: Skip message.txt and content.txt and remove emptied history
             directories; requires transcript
+        lean: Also skip the redundant HTML body alternates; implies transcript
+            and prune
     """
     downloader = TicketDownloader(session)
     downloader.download_ticket(
         ticket_id,
         target_dir,
         create_ticket_dir=create_ticket_dir,
+        lean=lean,
         transcript=transcript,
         prune=prune,
     )

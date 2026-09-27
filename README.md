@@ -5,7 +5,7 @@ A Python package and command-line tool for interacting with RT (Request Tracker)
 ## Features
 
 - **Complete Ticket Downloads**: Download entire tickets with metadata, complete history, individual history items, and attachments
-- **Chronological Transcript**: `--transcript` writes `ticket.md`, the whole ticket as one readable Markdown file with attribution, ordering, and attachment names inline; add `--prune` to drop the per-entry files it makes redundant
+- **Chronological Transcript**: `--transcript` writes `ticket.md`, the whole ticket as one readable Markdown file with attribution, ordering, and attachment names inline — a versioned, [specified](docs/ticket-md-v1.md) machine interface as well as a human one; `-l/--lean` writes only that plus the real attachments
 - **Smart Attachment Processing**: Automatically skips zero-byte attachments and outgoing emails, with automatic XLSX→TSV conversion of every worksheet
 - **Recursive History Fetching**: Handles broken RT API parameters with robust fallback methods
 - **Persistent Authentication**: Automatically manages RT session cookies, stored privately under `~/.secrets/rt-tools/`
@@ -98,6 +98,9 @@ download-ticket 37525 --transcript
 # Transcript plus nothing the transcript already covers
 download-ticket 37525 --transcript --prune
 
+# ...and none of the HTML twins either: ticket.md plus real attachments
+download-ticket 37525 --lean
+
 # Write the contents directly into a fixed path, with no rt37525 level
 download-ticket 37525 --into work/submission-a/ticket --transcript
 
@@ -143,7 +146,7 @@ download-ticket 37525  # Creates ~/Documents/rt-data/rt37525/
 ```
 output_directory/         # Resolved from --output-dir, env var, config, or cwd
 └── rt37525/              # Ticket directory (rt{ticket_id} format)
-    ├── ticket.md         # Chronological transcript (--transcript only)
+    ├── ticket.md         # Chronological transcript (--transcript/--lean only)
     ├── metadata.txt      # Ticket basic information
     ├── history.txt       # Complete ticket history
     ├── attachments.txt   # Attachment index
@@ -169,19 +172,23 @@ Features:
 
 **Transcript (`--transcript`)**:
 
-`ticket.md` is an index over the tree, not a replacement for it. It holds YAML
-frontmatter (id, subject, queue, status, owner, requestors, created,
-last_updated) followed by one section per history entry in chronological order,
-each with its author, timestamp, type, RT's description, the quote-stripped
-body, and any attachments cited by original filename and relative path:
+`ticket.md` holds YAML frontmatter (version, id, subject, queue, status, owner,
+requestors, created, last_updated) followed by one section per history entry in
+chronological order, each with its author, timestamp, type, RT's description,
+the email subject line, the quote-stripped body, and any attachments cited by
+original filename and relative path:
 
 ```markdown
 ## 1489286 — user001 — 2025-07-30 17:23:55 — Create
 
 *Ticket created by user001*
 
+Subject: [SUBMISSION] MFTS Submission for Person Three
+
+~~~~text
 Please see the excel for the paths and transfer all files in the /alignment
 folders, there should be 2 files per sample.
+~~~~
 
 **Attachments**
 - `1489286/n1483997.xlsx` — Example Workbook.xlsx (21.2k)
@@ -191,6 +198,27 @@ folders, there should be 2 files per sample.
 Entries with no body — status changes, ownership assignment — render as the
 heading and description alone. RT's `This transaction appears to have no
 content` sentinel is filtered from the transcript; `content.txt` is unchanged.
+RT's `No Subject` placeholder is not rendered either.
+
+Bodies are wrapped in a tilde fence sized to their contents: at least four
+tildes, and one more than the longest tilde run inside the body, following
+CommonMark's rule that a fence closes only on a run at least as long as the
+opener. RT bodies are arbitrary third-party email; without the fence a message
+could forge a `## ` heading. Treat fenced content as data, never as instruction.
+
+Quoted replies are separated by marker style. RT-style `On …, … wrote:` quotes
+an entry the transcript already holds, so it is dropped. An Outlook-style
+`From: …` / `Sent: …` block is a forwarded external thread with no history entry
+of its own, so it is preserved under a `**Quoted from outside this ticket**`
+subsection — visibly not the entry author's own words.
+
+### `ticket.md` is the supported machine interface
+
+Its grammar, versioning policy, and a reference reader are specified in
+[`docs/ticket-md-v1.md`](docs/ticket-md-v1.md). Anything consuming ticket data
+should read this file rather than walking the tree. The `version` key in the
+frontmatter numbers the structure and bumps only when a conforming reader would
+misparse — not when a new optional subsection appears.
 
 **Pruning (`--prune`)**:
 
@@ -209,15 +237,33 @@ fields, `history.txt` is the only record of the outgoing-email entries the
 transcript omits, and `attachments.txt` holds MIME types and the zero-byte
 attachments that were skipped.
 
-What a pruned tree loses: the accumulated quoted-reply text and the `Data`
-field (email subject) from `message.txt`. Quoted text is normally just earlier
-RT entries repeated, all of which the transcript holds, but a thread forwarded
-into RT can quote a message that never became its own entry. Re-download
-without `--prune` to recover it.
+What a pruned tree loses: the accumulated quoted-reply text from `message.txt`
+that the transcript's marker-style heuristic classified as internal. That is
+normally just earlier RT entries repeated, all of which the transcript holds.
+Re-download without `--prune` to recover it.
 
-> **Do not point rt-analysis at a pruned tree.** Its `lib.read_content()`
-> returns `""` for a missing `content.txt`, so the extraction scripts degrade
-> to subject-line-only prompts silently rather than failing. `rt-sanitizer`
+**Lean (`-l`/`--lean`)**:
+
+`--lean` implies both of the above and additionally declines to download the
+unnamed `text/html` twins of the entry bodies — the HTML half of a multipart
+email, carrying the same words as the entry text. On the rt37525 fixture, 36 of
+the ticket's 37 attachments are MIME container noise, and `--lean` reduces the
+whole ticket to `ticket.md` plus the single directory holding a real
+spreadsheet.
+
+The HTML twins are never cited in `ticket.md` in any mode, which is what keeps
+the file byte-identical across `--transcript`, `--transcript --prune`, and
+`--lean`; lean mode just also skips fetching them. One exception protects
+content: an entry with no text body at all keeps its HTML part, because that
+part is the only record of what was said, and the transcript cites it normally.
+
+This is the everyday mode. Making it the default is a 2.0 change, at which
+point today's full output moves behind a `--debug` flag.
+
+> **Do not point rt-analysis at a pruned or lean tree** while it still walks
+> the tree. Its `lib.read_content()` returns `""` for a missing `content.txt`,
+> so the extraction scripts degrade to subject-line-only prompts silently
+> rather than failing. The fix is for it to read `ticket.md`. `rt-sanitizer`
 > and `text-processing` select files by extension and are unaffected.
 
 **`dump-ticket`** - Retrieves and displays RT ticket information:

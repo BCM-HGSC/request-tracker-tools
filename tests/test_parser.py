@@ -11,6 +11,7 @@ from rt_tools.parser import (
     parse_history_list,
     parse_history_message,
     parse_ticket_metadata,
+    split_quoted_reply,
     strip_history_counter,
     strip_quoted_reply,
 )
@@ -210,6 +211,67 @@ def test_strip_quoted_reply_fixture_1490011(fixtures_dir):
     stripped = strip_quoted_reply(msg.content)
     assert "On Fri Aug 01 16:02:30 2025, user001 wrote:" not in stripped
     assert "No problem! The files are copying now." in stripped
+
+
+def test_split_quoted_reply_drops_rt_quoting_itself():
+    """An "On ..., ... wrote:" block quotes an RT entry the transcript holds."""
+    content = (
+        "Files are ready.\n"
+        "On Fri Aug 01 17:00:00 2025, user001 wrote:\n\n"
+        "  Original message."
+    )
+
+    body, quotes = split_quoted_reply(content)
+
+    assert body == "Files are ready."
+    assert quotes == []
+
+
+def test_split_quoted_reply_keeps_an_outlook_thread():
+    """A forwarded Outlook thread has no RT entry, so it is the only record."""
+    content = (
+        "Hi Evette,\n\n"
+        "I cc ed you on the e-mail with SRA.\n\n"
+        "From: Evette Skinner via RT <rt@hgsc.bcm.tmc.edu>\n"
+        "Sent: Monday, September 8, 2025 1:06 PM\n"
+        "Subject: RE: [MFTS #37719] Replace existing data\n\n"
+        "Previous message content."
+    )
+
+    body, quotes = split_quoted_reply(content)
+
+    assert body == "Hi Evette,\n\nI cc ed you on the e-mail with SRA."
+    assert len(quotes) == 1
+    assert quotes[0].startswith("From: Evette Skinner via RT")
+    assert quotes[0].endswith("Previous message content.")
+
+
+def test_split_quoted_reply_finds_an_outlook_thread_inside_an_rt_quote():
+    """RT quoting a reply that itself forwarded an external thread."""
+    content = (
+        "Done.\n"
+        "On Mon Aug 04 16:47:07 2025, user002 wrote:\n\n"
+        "  Passing this along.\n"
+        "From: someone@example.com\n"
+        "Sent: Friday\n\n"
+        "The original external message."
+    )
+
+    body, quotes = split_quoted_reply(content)
+
+    assert body == "Done."
+    assert len(quotes) == 1
+    assert "The original external message." in quotes[0]
+
+
+def test_split_quoted_reply_body_matches_strip_quoted_reply(fixtures_dir):
+    """The body half stays exactly what content.txt consumers already get."""
+    text = (fixtures_dir / "rt37525_sanitized" / "1490742" / "message.txt").read_text()
+    content = parse_history_message(text).content
+
+    body, _ = split_quoted_reply(content)
+
+    assert body == strip_quoted_reply(content)
 
 
 def test_parse_attachment_list_edge_cases():

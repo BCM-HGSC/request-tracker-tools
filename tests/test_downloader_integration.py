@@ -357,7 +357,7 @@ def test_downloader_writes_transcript(mock_session_with_rt37525_data, tmp_path):
     transcript = (tmp_path / "rt37525" / "ticket.md").read_text()
 
     # Frontmatter comes from metadata.txt
-    assert transcript.startswith("---\nid: 37525\n")
+    assert transcript.startswith("---\nversion: 1\nid: 37525\n")
     assert 'queue: "Submissions"\n' in transcript
     assert 'owner: "user002"\n' in transcript
     assert 'requestors: ["user001@example.com"]\n' in transcript
@@ -515,25 +515,37 @@ def test_prune_leaves_ticket_level_files_alone(
     assert (ticket_dir / "ticket.md").exists()
 
 
-def test_prune_leaves_transcript_identical_and_resolvable(
+def test_transcript_identical_across_all_three_modes(
     mock_session_with_rt37525_data, tmp_path
 ):
-    """The transcript is unchanged by pruning and still indexes real files."""
+    """ticket.md is the same bytes however much of the tree is kept.
+
+    This is the contract that lets --lean be a storage decision rather than a
+    format decision: the three modes differ only in the files beside ticket.md,
+    and every path it cites resolves in each of them.
+    """
     downloader = TicketDownloader(mock_session_with_rt37525_data)
     downloader.download_ticket("37525", tmp_path / "full", transcript=True)
-    downloader.download_ticket("37525", tmp_path / "lean", transcript=True, prune=True)
+    downloader.download_ticket(
+        "37525", tmp_path / "pruned", transcript=True, prune=True
+    )
+    downloader.download_ticket("37525", tmp_path / "lean", lean=True)
 
-    lean_dir = tmp_path / "lean" / "rt37525"
-    full_text = (tmp_path / "full" / "rt37525" / "ticket.md").read_text()
-    lean_text = (lean_dir / "ticket.md").read_text()
+    texts = {}
+    for mode in ("full", "pruned", "lean"):
+        mode_dir = tmp_path / mode / "rt37525"
+        texts[mode] = (mode_dir / "ticket.md").read_text()
 
-    assert lean_text == full_text
+        # Every backtick-quoted path in an attachment bullet must resolve
+        cited = re.findall(r"^\s*(?:- |  - converted: )`([^`]+)`", texts[mode], re.M)
+        assert cited, f"expected {mode} transcript to cite attachments"
+        for relative_path in cited:
+            assert (mode_dir / relative_path).exists(), (
+                f"dangling path {relative_path} in {mode}"
+            )
 
-    # Every backtick-quoted path in an attachment bullet must resolve
-    cited = re.findall(r"^\s*(?:- |  - converted: )`([^`]+)`", lean_text, re.M)
-    assert cited, "expected the transcript to cite attachments"
-    for relative_path in cited:
-        assert (lean_dir / relative_path).exists(), f"dangling path {relative_path}"
+    assert texts["pruned"] == texts["full"]
+    assert texts["lean"] == texts["full"]
 
 
 def test_prune_cleans_up_an_earlier_unpruned_download(
@@ -564,3 +576,55 @@ def test_transcript_without_prune_keeps_the_tree(
     ticket_dir = tmp_path / "rt37525"
     assert (ticket_dir / "1489984" / "message.txt").exists()
     assert (ticket_dir / "1489984" / "content.txt").exists()
+
+
+# --lean
+
+
+def test_lean_reduces_the_ticket_to_transcript_plus_real_attachments(
+    mock_session_with_rt37525_data, tmp_path
+):
+    """Of rt37525's eight history entries, only the one with a real
+    attachment survives; the rest were HTML twins of their entry text."""
+    downloader = TicketDownloader(mock_session_with_rt37525_data)
+    downloader.download_ticket("37525", tmp_path, lean=True)
+
+    ticket_dir = tmp_path / "rt37525"
+
+    assert sorted(p.name for p in ticket_dir.iterdir() if p.is_dir()) == ["1489286"]
+    assert sorted(p.name for p in (ticket_dir / "1489286").iterdir()) == [
+        "n1483997.Remapped_list.tsv",
+        "n1483997.Samples_with_2__merge.tsv",
+        "n1483997.xlsx",
+    ]
+
+
+def test_lean_implies_transcript_and_prune(mock_session_with_rt37525_data, tmp_path):
+    """--lean alone is enough; it is not a modifier on the other two."""
+    downloader = TicketDownloader(mock_session_with_rt37525_data)
+    downloader.download_ticket("37525", tmp_path, lean=True)
+
+    ticket_dir = tmp_path / "rt37525"
+    assert (ticket_dir / "ticket.md").exists()
+    assert list(ticket_dir.glob("*/message.txt")) == []
+    assert list(ticket_dir.glob("*/content.txt")) == []
+
+
+def test_html_twins_are_never_cited_but_are_kept_unless_lean(
+    mock_session_with_rt37525_data, tmp_path
+):
+    """The transcript ignores the HTML alternates in every mode; only --lean
+    also declines to download them, which is what keeps ticket.md identical."""
+    downloader = TicketDownloader(mock_session_with_rt37525_data)
+    downloader.download_ticket("37525", tmp_path, transcript=True)
+
+    ticket_dir = tmp_path / "rt37525"
+    transcript = (ticket_dir / "ticket.md").read_text()
+
+    assert "n1483996.html" not in transcript
+    assert "n1484849.html" not in transcript
+    # RT's "No Subject" placeholder carries nothing, so it is not rendered
+    assert "Subject:" not in transcript
+    # ...but the full tree still has them, for anyone debugging RT itself
+    assert (ticket_dir / "1489286" / "n1483996.html").exists()
+    assert (ticket_dir / "1489982" / "n1484849.html").exists()

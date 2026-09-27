@@ -7,7 +7,8 @@ from unittest.mock import Mock
 from pytest import fixture
 
 from rt_tools import RTSession, download_ticket
-from rt_tools.downloader import TicketDownloader
+from rt_tools.downloader import TicketDownloader, is_redundant_html_alternate
+from rt_tools.parser import AttachmentMeta
 
 
 @fixture
@@ -802,3 +803,41 @@ def test_unicode_in_history_messages():
                 assert "em dashes" in history_item_text
                 assert "smart quotes" in history_item_text
                 assert "café" in history_item_text
+
+
+# is_redundant_html_alternate
+
+
+def test_unnamed_html_twin_is_redundant_when_the_entry_has_text():
+    """The usual case: a multipart email's HTML half says nothing new."""
+    meta = AttachmentMeta("(Unnamed)", "text/html", "610b")
+
+    assert is_redundant_html_alternate(meta, entry_has_content=True)
+
+
+def test_unnamed_html_is_kept_when_it_is_the_entry_s_only_content():
+    """An HTML-only entry must not lose its body to the filter."""
+    meta = AttachmentMeta("(Unnamed)", "text/html", "610b")
+
+    assert not is_redundant_html_alternate(meta, entry_has_content=False)
+
+
+def test_a_named_html_file_is_a_real_attachment():
+    """Someone attaching report.html meant to attach a file."""
+    meta = AttachmentMeta("report.html", "text/html", "12.1k")
+
+    assert not is_redundant_html_alternate(meta, entry_has_content=True)
+
+
+def test_non_html_unnamed_parts_are_untouched():
+    """Only the HTML twin is redundant; other unnamed parts are not."""
+    meta = AttachmentMeta("(Unnamed)", "application/pdf", "21.2k")
+
+    assert not is_redundant_html_alternate(meta, entry_has_content=True)
+
+
+def test_mime_type_parameters_do_not_defeat_the_match():
+    """RT can hand back a charset-qualified type."""
+    meta = AttachmentMeta("(Unnamed)", "text/html; charset=utf-8", "610b")
+
+    assert is_redundant_html_alternate(meta, entry_has_content=True)

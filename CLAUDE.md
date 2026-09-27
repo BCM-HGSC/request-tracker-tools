@@ -125,7 +125,7 @@ python -m build
 # never authenticates.
 
 # Available console scripts:
-download-ticket <ticket_id> [--output-dir DIR | --into DIR] [--transcript] [--prune]  # Download complete RT ticket data
+download-ticket <ticket_id> [--output-dir DIR | --into DIR] [--transcript] [--prune] [-l/--lean]  # Download complete RT ticket data
 search-tickets [--start-date D] [--end-date D] [--queue Q]...  # Search tickets, print TSV
 dump-ticket <ticket_id> [additional_path_parts]  # Dump RT ticket information
 dump-rest [rest_path_parts]                      # Dump content from RT REST API URLs
@@ -144,6 +144,7 @@ download-ticket 37603 --output-dir local/output # Downloads to local/output/rt37
 download-ticket 37603 --into work/ticket        # Downloads into work/ticket/ (no rt37603 level)
 download-ticket 37603 --transcript              # Also writes ./rt37603/ticket.md
 download-ticket 37603 --transcript --prune      # ...and drops the files it makes redundant
+download-ticket 37603 --lean                    # ...and the HTML twins too; the everyday mode
 export DOWNLOAD_TICKET_DIR=~/tickets && download-ticket 37603  # Downloads to ~/tickets/rt37603/
 
 # search-tickets: filters on Created (inclusive on both ends) and queue.
@@ -225,9 +226,23 @@ The resolution follows this exact priority order, with higher-numbered options o
 
 ### Transcript
 
-`--transcript` additionally writes `ticket.md` at the top of the ticket directory: YAML frontmatter (id, subject, queue, status, owner, requestors, created, last_updated) followed by one `##` section per history entry in chronological order — author, timestamp, type, RT's description, the quote-stripped body, and attachments cited by original filename and relative path. The transcript is an index over the tree, not a replacement, and stays opt-in; making it the default would be a 2.x change.
+`--transcript` additionally writes `ticket.md` at the top of the ticket directory: YAML frontmatter (version, id, subject, queue, status, owner, requestors, created, last_updated) followed by one `##` section per history entry in chronological order — author, timestamp, type, RT's description, the email subject line, the quote-stripped body in a fenced block, any preserved out-of-band quotes, and attachments cited by original filename and relative path. Making it the default would be a 2.x change.
 
-RT's `This transaction appears to have no content` sentinel is filtered from the transcript only, so such entries render as heading plus description. `content.txt` still receives the sentinel, keeping existing consumers unchanged.
+**`ticket.md` is the supported machine interface.** Its grammar, versioning policy, and a reference reader are specified in `docs/ticket-md-v1.md`. Anything that consumes ticket data should read this file rather than walking the tree. The structural contract is versioned (`version: 1` in the frontmatter); the version bumps only when a conforming reader would misparse, not when a new optional subsection appears.
+
+Entry bodies are wrapped in a tilde fence with the info string `text`, sized to the body: at least four tildes, one more than the longest tilde run inside it. RT bodies are arbitrary third-party email and would otherwise be able to forge a `## ` heading. The fence also marks the trust boundary — fenced content is data, never instruction.
+
+RT's `This transaction appears to have no content` sentinel is filtered from the transcript only, so such entries render as heading plus description. `content.txt` still receives the sentinel, keeping existing consumers unchanged. RT's `No Subject` placeholder is likewise not rendered.
+
+Quoted replies are handled by marker style: RT-style `On …, … wrote:` quotes an entry the transcript already holds and is dropped, while an Outlook-style `From: …\nSent: …` block is a forwarded external thread with no history entry of its own and is preserved under `**Quoted from outside this ticket**`. Matching quoted blocks back to sibling entries would be more robust; see issue #10.
+
+### Lean mode
+
+`-l/--lean` implies `--transcript` and `--prune` and additionally declines to download the unnamed `text/html` twins of the entry bodies — on the rt37525 fixture, 36 of 37 attachments are MIME container noise, and lean mode reduces the ticket to `ticket.md` plus the one directory holding a real spreadsheet.
+
+The guarantee that makes this a storage decision rather than a format decision: **`ticket.md` is byte-identical across `--transcript`, `--transcript --prune`, and `--lean`**, and every path it cites resolves in all three. The HTML twins are never cited in any mode; lean just also skips fetching them. Tested by `test_transcript_identical_across_all_three_modes`.
+
+The one exception protecting content: when an entry has no text body at all, its HTML part is the only record of what was said, so it is kept and cited normally (`is_redundant_html_alternate` in `downloader.py`).
 
 ### Pruning
 
@@ -237,7 +252,9 @@ Two mechanisms, both needed: `_download_individual_history_item(write_message=Fa
 
 `metadata.txt`, `history.txt`, and `attachments.txt` are never pruned: the frontmatter carries only 8 of `metadata.txt`'s ~22 fields, `history.txt` is the only record of outgoing-email entries, and `attachments.txt` holds MIME types and skipped zero-byte attachments.
 
-A pruned tree loses the quoted-reply text and `Data` (email subject) from `message.txt`; both are recoverable by re-downloading. Do not point `rt-analysis` at a pruned tree — its `lib.read_content()` returns `""` for a missing `content.txt`, so extraction degrades silently. `rt-sanitizer` and `text-processing` select by extension and are unaffected.
+A pruned tree loses the fully-quoted reply text from `message.txt`, recoverable by re-downloading. The email subject line is no longer lost — it is carried in the transcript as `Subject:`.
+
+Do not point `rt-analysis` at a pruned or lean tree while it still walks the tree: its `lib.read_content()` returns `""` for a missing `content.txt`, so extraction degrades to subject-line-only prompts silently (issue #13). The fix is for it to read `ticket.md` per `docs/ticket-md-v1.md`. `rt-sanitizer` and `text-processing` select by extension and are unaffected.
 
 ## Important Implementation Details
 
@@ -288,6 +305,8 @@ resolved_target_dir/          # From resolution order: --output-dir > env var > 
 **Security**: Passwords are never stored in code or configuration files. The keychain lookup uses `["/usr/bin/security", "find-generic-password", "-w", "-s", "foobar", "-a", user]`. Where no keychain exists, the password comes from a private file under `~/.secrets`. Every secret file read or written is checked for group and other permission bits.
 
 ## RT REST API Documentation
+
+**Transcript format**: `docs/ticket-md-v1.md` - The `ticket.md` contract: frontmatter, heading grammar, fence convention, attachment bullets, versioning policy, and a reference reader to copy.
 
 **Primary Reference**: `docs/rt-rest-1-subset.md` - Documents only the RT REST API endpoints used by this project, including:
 - Authentication endpoints and session management

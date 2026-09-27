@@ -32,7 +32,20 @@ def test_flags_default_off(monkeypatch):
 
     assert args.prune is False
     assert args.transcript is False
+    assert args.lean is False
     assert args.into is None
+
+
+def test_lean_is_accepted_alone(monkeypatch):
+    # --lean implies the other two, so the --prune guard must not fire
+    args = parse(monkeypatch, "37525", "--lean")
+
+    assert args.lean is True
+
+
+def test_lean_has_a_short_form(monkeypatch):
+    # This is the everyday mode until 2.0 makes it the default
+    assert parse(monkeypatch, "37525", "-l").lean is True
 
 
 def test_into_rejects_multiple_tickets(monkeypatch, capsys):

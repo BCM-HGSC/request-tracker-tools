@@ -60,6 +60,7 @@ def download_ticket_cli():
                     create_ticket_dir=create_ticket_dir,
                     transcript=args.transcript,
                     prune=args.prune,
+                    lean=args.lean,
                 )
             except Exception as e:
                 logging.error("Failed to download ticket %s: %s", ticket_id, e)
@@ -87,6 +88,12 @@ With --prune, message.txt and content.txt are omitted and history
 directories left empty are removed, so a {history_id}/ directory
 survives only if that entry had an attachment. ticket.md is unchanged
 and every path it cites still resolves.
+
+With --lean (implies both), the unnamed text/html twins of the entry
+bodies are not downloaded either, so most tickets reduce to ticket.md
+plus the directories holding real attachments. ticket.md is
+byte-identical across all three modes; only the files beside it differ.
+It is the supported machine interface -- see docs/ticket-md-v1.md.
 """,
     )
     add_common_arguments(parser)
@@ -120,10 +127,18 @@ and every path it cites still resolves.
         "already carries, and remove history directories left empty. "
         "Requires --transcript.",
     )
+    parser.add_argument(
+        "-l",
+        "--lean",
+        action="store_true",
+        help="Write only what ticket.md does not already carry: implies "
+        "--transcript and --prune, and skips the unnamed text/html twins "
+        "of the entry bodies.",
+    )
     args = parser.parse_args()
     if args.into and len(args.ticket_ids) > 1:
         parser.error("--into takes a single ticket ID; N tickets cannot share DIR")
-    if args.prune and not args.transcript:
+    if args.prune and not args.transcript and not args.lean:
         parser.error("--prune requires --transcript")
     return args
 

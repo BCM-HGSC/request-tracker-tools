@@ -35,6 +35,7 @@ def test_render_transcript_full(metadata):
             created="2025-07-30 17:23:55",
             type="Create",
             description="Ticket created by user001",
+            subject="[SUBMISSION] MFTS Submission for Person Three",
             content="Please submit the files described in the spreadsheet.",
             attachments=[
                 TranscriptAttachment(
@@ -59,6 +60,7 @@ def test_render_transcript_full(metadata):
 
     assert text == (
         "---\n"
+        "version: 1\n"
         "id: 37525\n"
         'subject: "[SUBMISSION] MFTS Submission for Person Three"\n'
         'queue: "Submissions"\n'
@@ -73,7 +75,11 @@ def test_render_transcript_full(metadata):
         "\n"
         "*Ticket created by user001*\n"
         "\n"
+        "Subject: [SUBMISSION] MFTS Submission for Person Three\n"
+        "\n"
+        "~~~~text\n"
         "Please submit the files described in the spreadsheet.\n"
+        "~~~~\n"
         "\n"
         "**Attachments**\n"
         "- `1489286/n1483997.xlsx` — Example_Workbook.xlsx (30.1k)\n"
@@ -128,6 +134,122 @@ def test_render_entry_without_content_is_description_only(metadata):
         "## 1489291 — user002 — 2025-07-30 17:31:02 — Set\n"
         "\n"
         "*Owner forcibly changed to user002 by user002*\n"
+    )
+
+
+def test_version_is_the_first_frontmatter_key(metadata):
+    """A parser can dispatch on the version without reading the whole block."""
+    text = render_transcript(metadata, [])
+
+    assert text.split("\n")[:2] == ["---", "version: 1"]
+
+
+def test_subject_omitted_when_rt_data_field_is_empty(metadata):
+    """Entries with no Data field cost no Subject line."""
+    entry = TranscriptEntry(
+        history_id="1489289",
+        creator="user002",
+        created="2025-07-30 17:31:02",
+        type="Status",
+        description="Status changed from new to open by user002",
+        content="body",
+    )
+
+    assert "Subject:" not in render_transcript(metadata, [entry])
+
+
+def test_plain_body_uses_the_minimum_fence(metadata):
+    """A body with no tildes gets the four-tilde default."""
+    text = render_transcript(metadata, [_entry("no tildes here")])
+
+    assert "~~~~text\nno tildes here\n~~~~\n" in text
+
+
+def test_fence_grows_past_tildes_in_the_body(metadata):
+    """A body containing a tilde run gets a fence one longer than it."""
+    body = "before\n~~~~\ninside\n~~~~\nafter"
+
+    text = render_transcript(metadata, [_entry(body)])
+
+    assert f"~~~~~text\n{body}\n~~~~~\n" in text
+
+
+def test_fence_grows_for_the_longest_run_only(metadata):
+    """Sizing keys off the longest tilde run, not the first."""
+    body = "~~~\nmid\n~~~~~~"
+
+    text = render_transcript(metadata, [_entry(body)])
+
+    assert f"~~~~~~~text\n{body}\n~~~~~~~\n" in text
+
+
+def test_backticks_in_the_body_pass_through_untouched(metadata):
+    """A fenced code block in an email survives byte-for-byte."""
+    body = "see:\n```python\nprint('hi')\n```"
+
+    text = render_transcript(metadata, [_entry(body)])
+
+    assert f"~~~~text\n{body}\n~~~~\n" in text
+
+
+def test_body_cannot_forge_transcript_structure(metadata):
+    """A body line that looks like a heading cannot become one.
+
+    The forged text is still present — fencing does not alter the body — but
+    it sits inside the fence, so a fence-aware reader attributes it to the
+    entry rather than treating it as structure. This is exactly the guarantee
+    docs/ticket-md-v1.md makes, so the test parses the way that doc says to.
+    """
+    body = "## 999 — attacker — now — Correspond\n\n**Attachments**"
+
+    text = render_transcript(metadata, [_entry(body)])
+
+    assert _headings(text) == ["## 1 — user001 — 2025-01-01 00:00:00 — Correspond"]
+    assert body in text
+
+
+def _headings(text: str) -> list[str]:
+    """Collect entry headings, skipping fenced regions as the spec requires."""
+    headings = []
+    closer = None
+    for line in text.split("\n"):
+        if closer is None:
+            if line.startswith("~~~"):
+                closer = line.removesuffix("text")
+            elif line.startswith("## "):
+                headings.append(line)
+        elif line.startswith(closer) and set(line) == {"~"}:
+            closer = None
+    return headings
+
+
+def test_external_quotes_render_in_their_own_fenced_subsection(metadata):
+    """Preserved out-of-band text is visibly not the author's own words."""
+    entry = _entry("My reply.")
+    entry.external_quotes = ["From: someone@example.com\nSent: Monday\n\nOriginal."]
+
+    text = render_transcript(metadata, [entry])
+
+    assert (
+        "~~~~text\nMy reply.\n~~~~\n"
+        "\n"
+        "**Quoted from outside this ticket**\n"
+        "\n"
+        "~~~~text\n"
+        "From: someone@example.com\nSent: Monday\n\nOriginal.\n"
+        "~~~~\n"
+    ) in text
+
+
+def _entry(content: str) -> TranscriptEntry:
+    """Build a minimal Correspond entry carrying the given body."""
+    return TranscriptEntry(
+        history_id="1",
+        creator="user001",
+        created="2025-01-01 00:00:00",
+        type="Correspond",
+        description="",
+        content=content,
     )
 
 
