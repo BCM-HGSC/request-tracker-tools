@@ -5,6 +5,7 @@ the complete downloader workflow. The tests account for differences between live
 RT data and sanitized fixture data while verifying core functionality.
 """
 
+import re
 import tempfile
 from pathlib import Path
 from unittest.mock import Mock, patch
@@ -14,6 +15,7 @@ import pytest
 from rt_tools import RTSession
 from rt_tools.downloader import TicketDownloader
 from rt_tools.parser import (
+    NO_CONTENT_SENTINEL,
     parse_attachment_list,
     parse_history_list,
     parse_history_message,
@@ -342,3 +344,446 @@ def test_downloader_error_handling_integration(mock_session_with_rt37525_data):
         assert len(history_dirs) == 0, (
             "Should not create history directories when history download fails"
         )
+
+
+# Transcript, --into, and message.txt counter
+
+
+def test_downloader_writes_transcript(mock_session_with_rt37525_data, tmp_path):
+    """transcript=True writes ticket.md covering every history entry in order."""
+    downloader = TicketDownloader(mock_session_with_rt37525_data)
+    downloader.download_ticket("37525", tmp_path, transcript=True)
+
+    transcript = (tmp_path / "rt37525" / "ticket.md").read_text()
+
+    # Frontmatter comes from metadata.txt
+    assert transcript.startswith("---\nversion: 1\nid: 37525\n")
+    assert 'queue: "Submissions"\n' in transcript
+    assert 'owner: "user002"\n' in transcript
+    assert 'requestors: ["user001@example.com"]\n' in transcript
+
+    # One heading per downloaded history directory, in history order
+    headings = [
+        line.split()[1] for line in transcript.split("\n") if line.startswith("## ")
+    ]
+    expected = [
+        item.history_id
+        for item in parse_history_list(
+            (tmp_path / "rt37525" / "history.txt").read_text()
+        )
+    ]
+    assert headings == expected
+
+
+def test_transcript_omits_no_content_sentinel_but_content_txt_keeps_it(
+    mock_session_with_rt37525_data, tmp_path
+):
+    """RT's no-content sentinel is filtered from the transcript only."""
+    downloader = TicketDownloader(mock_session_with_rt37525_data)
+    downloader.download_ticket("37525", tmp_path, transcript=True)
+
+    ticket_dir = tmp_path / "rt37525"
+    transcript = (ticket_dir / "ticket.md").read_text()
+
+    assert NO_CONTENT_SENTINEL not in transcript
+
+    # The three sentinel entries still get a heading and a description
+    sentinel_entries = ["1489289", "1489291", "1489984"]
+    for history_id in sentinel_entries:
+        assert f"## {history_id} — " in transcript
+        # content.txt is unchanged, so existing consumers still see the sentinel
+        content = (ticket_dir / history_id / "content.txt").read_text()
+        assert content.strip() == NO_CONTENT_SENTINEL
+
+
+def test_transcript_cites_attachments_with_original_names(
+    mock_session_with_rt37525_data, tmp_path
+):
+    """Attachment bullets carry the real filename and a relative path."""
+    downloader = TicketDownloader(mock_session_with_rt37525_data)
+    downloader.download_ticket("37525", tmp_path, transcript=True)
+
+    transcript = (tmp_path / "rt37525" / "ticket.md").read_text()
+
+    assert "**Attachments**" in transcript
+    assert "- `1489286/n1483997.xlsx` — " in transcript
+    # The fixture workbook has two sheets, each cited by name
+    assert 'converted: `1489286/n1483997.Samples_with_2__merge.tsv"' not in transcript
+    assert '(sheet "Samples with 2+ merge")' in transcript
+    assert '(sheet "Remapped list")' in transcript
+
+
+def test_downloader_without_transcript_writes_no_ticket_md(
+    mock_session_with_rt37525_data, tmp_path
+):
+    """The transcript stays opt-in."""
+    downloader = TicketDownloader(mock_session_with_rt37525_data)
+    downloader.download_ticket("37525", tmp_path)
+
+    assert not (tmp_path / "rt37525" / "ticket.md").exists()
+
+
+def test_downloader_into_skips_ticket_directory_level(
+    mock_session_with_rt37525_data, tmp_path
+):
+    """create_ticket_dir=False writes the contents directly into target_dir."""
+    into = tmp_path / "submission" / "ticket"
+    downloader = TicketDownloader(mock_session_with_rt37525_data)
+
+    downloader.download_ticket("37525", into, create_ticket_dir=False)
+
+    assert (into / "metadata.txt").exists()
+    assert (into / "history.txt").exists()
+    assert (into / "1489286" / "message.txt").exists()
+    assert not (into / "rt37525").exists()
+
+
+def test_message_txt_has_no_history_counter(mock_session_with_rt37525_data, tmp_path):
+    """No saved message.txt carries RT's renumbering counter line."""
+    downloader = TicketDownloader(mock_session_with_rt37525_data)
+    downloader.download_ticket("37525", tmp_path)
+
+    saved = list((tmp_path / "rt37525").glob("*/message.txt"))
+    assert saved, "expected at least one message.txt"
+    for message_file in saved:
+        text = message_file.read_text()
+        assert text.startswith("id: "), f"{message_file} starts with {text[:40]!r}"
+
+
+def test_multi_sheet_xlsx_converts_every_sheet(tmp_path, caplog):
+    """A multi-sheet workbook yields one TSV per sheet and no bare n{id}.tsv."""
+    openpyxl = pytest.importorskip("openpyxl")
+
+    xlsx_path = tmp_path / "n801.xlsx"
+    wb = openpyxl.Workbook()
+    wb.active.title = "First Sheet"
+    wb.active.append(["a", "b"])
+    second = wb.create_sheet("Second Sheet (v2)")
+    second.append(["c", "d"])
+    wb.save(xlsx_path)
+
+    with caplog.at_level("WARNING"):
+        written = TicketDownloader(None)._convert_xlsx_to_tsv(xlsx_path)
+
+    assert [sheet for sheet, _ in written] == ["First Sheet", "Second Sheet (v2)"]
+    assert (tmp_path / "n801.First_Sheet.tsv").read_text() == "a\tb\n"
+    assert (tmp_path / "n801.Second_Sheet__v2_.tsv").read_text() == "c\td\n"
+    assert not (tmp_path / "n801.tsv").exists()
+    assert "has 2 worksheets" in caplog.text
+
+
+# --prune
+
+
+def test_prune_removes_redundant_files_and_empty_dirs(
+    mock_session_with_rt37525_data, tmp_path
+):
+    """Pruning drops message.txt/content.txt and the dirs they left empty."""
+    downloader = TicketDownloader(mock_session_with_rt37525_data)
+    downloader.download_ticket("37525", tmp_path, transcript=True, prune=True)
+
+    ticket_dir = tmp_path / "rt37525"
+
+    assert list(ticket_dir.glob("*/message.txt")) == []
+    assert list(ticket_dir.glob("*/content.txt")) == []
+
+    # The three no-content entries had no attachments, so nothing is left
+    for history_id in ("1489289", "1489291", "1489984"):
+        assert not (ticket_dir / history_id).exists()
+
+    # An entry with attachments keeps its directory and all of its files
+    assert sorted(p.name for p in (ticket_dir / "1489286").iterdir()) == [
+        "n1483996.html",
+        "n1483997.Remapped_list.tsv",
+        "n1483997.Samples_with_2__merge.tsv",
+        "n1483997.xlsx",
+    ]
+
+
+def test_prune_leaves_ticket_level_files_alone(
+    mock_session_with_rt37525_data, tmp_path
+):
+    """Pruning never touches the three ticket-level files, none of which
+    the transcript makes redundant."""
+    downloader = TicketDownloader(mock_session_with_rt37525_data)
+    downloader.download_ticket("37525", tmp_path, transcript=True, prune=True)
+
+    ticket_dir = tmp_path / "rt37525"
+    assert (ticket_dir / "metadata.txt").exists()
+    assert (ticket_dir / "history.txt").exists()
+    assert (ticket_dir / "attachments.txt").exists()
+    assert (ticket_dir / "ticket.md").exists()
+
+
+def test_transcript_identical_across_all_three_modes(
+    mock_session_with_rt37525_data, tmp_path
+):
+    """ticket.md is the same bytes however much of the tree is kept.
+
+    This is the contract that lets --lean be a storage decision rather than a
+    format decision: the three modes differ only in the files beside ticket.md,
+    and every path it cites resolves in each of them.
+    """
+    downloader = TicketDownloader(mock_session_with_rt37525_data)
+    downloader.download_ticket("37525", tmp_path / "full", transcript=True)
+    downloader.download_ticket(
+        "37525", tmp_path / "pruned", transcript=True, prune=True
+    )
+    downloader.download_ticket("37525", tmp_path / "lean", lean=True)
+
+    texts = {}
+    for mode in ("full", "pruned", "lean"):
+        mode_dir = tmp_path / mode / "rt37525"
+        texts[mode] = (mode_dir / "ticket.md").read_text()
+
+        # Every backtick-quoted path in an attachment bullet must resolve
+        cited = re.findall(r"^\s*(?:- |  - converted: )`([^`]+)`", texts[mode], re.M)
+        assert cited, f"expected {mode} transcript to cite attachments"
+        for relative_path in cited:
+            assert (mode_dir / relative_path).exists(), (
+                f"dangling path {relative_path} in {mode}"
+            )
+
+    assert texts["pruned"] == texts["full"]
+    assert texts["lean"] == texts["full"]
+
+
+def test_prune_cleans_up_an_earlier_unpruned_download(
+    mock_session_with_rt37525_data, tmp_path
+):
+    """Re-downloading with prune removes files left by a previous run."""
+    downloader = TicketDownloader(mock_session_with_rt37525_data)
+    downloader.download_ticket("37525", tmp_path, transcript=True)
+
+    ticket_dir = tmp_path / "rt37525"
+    assert list(ticket_dir.glob("*/message.txt")), "setup should leave files behind"
+
+    downloader.download_ticket("37525", tmp_path, transcript=True, prune=True)
+
+    assert list(ticket_dir.glob("*/message.txt")) == []
+    assert list(ticket_dir.glob("*/content.txt")) == []
+    assert not (ticket_dir / "1489984").exists()
+    assert (ticket_dir / "1489286" / "n1483997.xlsx").exists()
+
+
+def test_transcript_without_prune_keeps_the_tree(
+    mock_session_with_rt37525_data, tmp_path
+):
+    """Pruning is opt-in; --transcript alone changes nothing on disk."""
+    downloader = TicketDownloader(mock_session_with_rt37525_data)
+    downloader.download_ticket("37525", tmp_path, transcript=True)
+
+    ticket_dir = tmp_path / "rt37525"
+    assert (ticket_dir / "1489984" / "message.txt").exists()
+    assert (ticket_dir / "1489984" / "content.txt").exists()
+
+
+# --lean
+
+
+def test_lean_reduces_the_ticket_to_transcript_plus_real_attachments(
+    mock_session_with_rt37525_data, tmp_path
+):
+    """Of rt37525's eight history entries, only the one with a real
+    attachment survives; the rest were HTML twins of their entry text."""
+    downloader = TicketDownloader(mock_session_with_rt37525_data)
+    downloader.download_ticket("37525", tmp_path, lean=True)
+
+    ticket_dir = tmp_path / "rt37525"
+
+    assert sorted(p.name for p in ticket_dir.iterdir() if p.is_dir()) == ["1489286"]
+    assert sorted(p.name for p in (ticket_dir / "1489286").iterdir()) == [
+        "n1483997.Remapped_list.tsv",
+        "n1483997.Samples_with_2__merge.tsv",
+        "n1483997.xlsx",
+    ]
+
+
+def test_lean_implies_transcript_and_prune(mock_session_with_rt37525_data, tmp_path):
+    """--lean alone is enough; it is not a modifier on the other two."""
+    downloader = TicketDownloader(mock_session_with_rt37525_data)
+    downloader.download_ticket("37525", tmp_path, lean=True)
+
+    ticket_dir = tmp_path / "rt37525"
+    assert (ticket_dir / "ticket.md").exists()
+    assert list(ticket_dir.glob("*/message.txt")) == []
+    assert list(ticket_dir.glob("*/content.txt")) == []
+
+
+def test_html_twins_are_never_cited_but_are_kept_unless_lean(
+    mock_session_with_rt37525_data, tmp_path
+):
+    """The transcript ignores the HTML alternates in every mode; only --lean
+    also declines to download them, which is what keeps ticket.md identical."""
+    downloader = TicketDownloader(mock_session_with_rt37525_data)
+    downloader.download_ticket("37525", tmp_path, transcript=True)
+
+    ticket_dir = tmp_path / "rt37525"
+    transcript = (ticket_dir / "ticket.md").read_text()
+
+    assert "n1483996.html" not in transcript
+    assert "n1484849.html" not in transcript
+    # RT's "No Subject" placeholder carries nothing, so it is not rendered
+    assert "Subject:" not in transcript
+    # ...but the full tree still has them, for anyone debugging RT itself
+    assert (ticket_dir / "1489286" / "n1483996.html").exists()
+    assert (ticket_dir / "1489982" / "n1484849.html").exists()
+
+
+# --clean
+
+
+def test_clean_makes_redownloading_lean_match_a_fresh_lean_download(
+    mock_session_with_rt37525_data, tmp_path
+):
+    """The property --clean exists for: history stops mattering.
+
+    Without it, re-downloading --lean over a full tree keeps every HTML twin
+    --lean declined to fetch, so the mode silently does nothing.
+    """
+    downloader = TicketDownloader(mock_session_with_rt37525_data)
+    downloader.download_ticket("37525", tmp_path / "fresh", lean=True, clean=True)
+    downloader.download_ticket("37525", tmp_path / "reused", transcript=True)
+    downloader.download_ticket("37525", tmp_path / "reused", lean=True, clean=True)
+
+    assert _tree(tmp_path / "fresh" / "rt37525") == _tree(
+        tmp_path / "reused" / "rt37525"
+    )
+
+
+def test_clean_removes_attachments_rt_no_longer_has(
+    mock_session_with_rt37525_data, tmp_path
+):
+    """An attachment deleted from RT should not linger from an earlier run."""
+    downloader = TicketDownloader(mock_session_with_rt37525_data)
+    downloader.download_ticket("37525", tmp_path, lean=True)
+
+    ticket_dir = tmp_path / "rt37525"
+    orphan = ticket_dir / "1489286" / "n999999.pdf"
+    orphan.write_bytes(b"from a previous life")
+
+    downloader.download_ticket("37525", tmp_path, lean=True, clean=True)
+
+    assert not orphan.exists()
+    assert (ticket_dir / "1489286" / "n1483997.xlsx").exists()
+
+
+def test_clean_removes_directories_for_entries_that_are_gone(
+    mock_session_with_rt37525_data, tmp_path
+):
+    """A history directory holding only stale downloader files goes away."""
+    downloader = TicketDownloader(mock_session_with_rt37525_data)
+    downloader.download_ticket("37525", tmp_path, lean=True)
+
+    ticket_dir = tmp_path / "rt37525"
+    stale = ticket_dir / "1400000"
+    stale.mkdir()
+    (stale / "message.txt").write_text("gone from RT")
+
+    downloader.download_ticket("37525", tmp_path, lean=True, clean=True)
+
+    assert not stale.exists()
+
+
+def test_clean_leaves_files_the_downloader_never_writes(
+    mock_session_with_rt37525_data, tmp_path
+):
+    """--clean is the downloader cleaning up after itself, and only itself.
+
+    analysis.yaml really does live in ticket directories, and --into names an
+    arbitrary directory that may hold unrelated work.
+    """
+    downloader = TicketDownloader(mock_session_with_rt37525_data)
+    downloader.download_ticket("37525", tmp_path, lean=True)
+
+    ticket_dir = tmp_path / "rt37525"
+    analysis = ticket_dir / "analysis.yaml"
+    analysis.write_text("summary: hand-written\n")
+    notes = ticket_dir / "1489286" / "notes.md"
+    notes.write_text("what this spreadsheet means\n")
+
+    downloader.download_ticket("37525", tmp_path, lean=True, clean=True)
+
+    assert analysis.exists()
+    assert notes.exists()
+
+
+def test_clean_keeps_the_conversions_this_run_produced(
+    mock_session_with_rt37525_data, tmp_path
+):
+    """n{id}.{sheet}.tsv matches the attachment pattern, so only the
+    written-paths set keeps --clean from deleting what it just made."""
+    downloader = TicketDownloader(mock_session_with_rt37525_data)
+    downloader.download_ticket("37525", tmp_path, lean=True, clean=True)
+
+    entry_dir = tmp_path / "rt37525" / "1489286"
+    assert (entry_dir / "n1483997.Remapped_list.tsv").exists()
+    assert (entry_dir / "n1483997.Samples_with_2__merge.tsv").exists()
+
+
+def test_clean_is_skipped_when_the_download_aborts(
+    mock_session_with_rt37525_data, tmp_path
+):
+    """A run that never reached the history must not delete what is there."""
+    downloader = TicketDownloader(mock_session_with_rt37525_data)
+    downloader.download_ticket("37525", tmp_path, transcript=True)
+
+    ticket_dir = tmp_path / "rt37525"
+    before = _tree(ticket_dir)
+
+    failing = Mock()
+    failing.is_ok = False
+    failing.status_code = 500
+    failing.status_text = "Internal Server Error"
+    original = mock_session_with_rt37525_data.fetch_rest
+
+    def fetch(*parts):
+        return failing if parts[-1] == "history" else original(*parts)
+
+    mock_session_with_rt37525_data.fetch_rest = fetch
+    downloader.download_ticket("37525", tmp_path, lean=True, clean=True)
+
+    assert _tree(ticket_dir) == before
+
+
+def test_clean_is_opt_in(mock_session_with_rt37525_data, tmp_path):
+    """Without --clean, downloads stay additive, as they always were."""
+    downloader = TicketDownloader(mock_session_with_rt37525_data)
+    downloader.download_ticket("37525", tmp_path, transcript=True)
+    downloader.download_ticket("37525", tmp_path, lean=True)
+
+    assert (tmp_path / "rt37525" / "1489286" / "n1483996.html").exists()
+
+
+def test_a_typod_ticket_id_neither_overwrites_nor_cleans(
+    mock_session_with_rt37525_data, tmp_path
+):
+    """RT answers a missing ticket with HTTP 200 and an error line as the body.
+
+    Found live: without the metadata guard, `download-ticket 99999999 --into
+    existing/ --clean` wrote that error text over metadata.txt, history.txt and
+    ticket.md, parsed an empty history, and then deleted the entire tree as
+    orphaned. The guard makes it a no-op.
+    """
+    downloader = TicketDownloader(mock_session_with_rt37525_data)
+    downloader.download_ticket("37525", tmp_path, lean=True)
+
+    ticket_dir = tmp_path / "rt37525"
+    before = _tree(ticket_dir)
+
+    missing = Mock()
+    missing.is_ok = True
+    missing.payload = b"# Ticket 99999999 does not exist.\n\n"
+    mock_session_with_rt37525_data.fetch_rest = Mock(return_value=missing)
+
+    downloader.download_ticket(
+        "37525", tmp_path, create_ticket_dir=False, lean=True, clean=True
+    )
+
+    assert _tree(ticket_dir) == before
+    assert "does not exist" not in (ticket_dir / "metadata.txt").read_text()
+
+
+def _tree(root: Path) -> set[str]:
+    """Every file under root, as paths relative to it."""
+    return {p.relative_to(root).as_posix() for p in root.rglob("*") if p.is_file()}

@@ -14,7 +14,7 @@ from typing import BinaryIO
 from requests import RequestException, Response, Session
 
 from .credentials import DEFAULT_COOKIE_FILE, fetch_password, load_cookies, save_cookies
-from .parser import parse_ticket_status
+from .parser import parse_queue_names, parse_ticket_status
 
 logger = logging.getLogger(__name__)
 
@@ -207,6 +207,25 @@ class RTSession(Session):
         result = parse_rt_response(response)
         return result
 
+    def fetch_rest_params(
+        self, *parts: str, params: dict[str, str] | None = None
+    ) -> RTResponseData:
+        """GET a REST URL with query parameters and return the parsed result.
+
+        RT treats a cookie-authenticated GET carrying arguments as a possible
+        CSRF attempt and serves an HTML interstitial instead of the REST
+        payload. Sending a same-origin Referer satisfies that check.
+
+        Args:
+            *parts: Parts of the REST URL path.
+            params: Query parameters; requests handles the URL encoding.
+        """
+        url = RTSession.rest_url(*parts)
+        response = self.get(url, params=params, headers={"Referer": f"{BASE_URL}/"})
+        log_response(response)
+        result = parse_rt_response(response)
+        return result
+
     def dump_url(self, url: str) -> None:
         """GET a URL and dump the response."""
         dump_response(self.get(url))
@@ -224,6 +243,51 @@ class RTSession(Session):
     def rest_url(*parts) -> str:
         """Generate a REST 1.0 URL using any supplied parts."""
         return "/".join([REST_URL] + list(parts))
+
+
+def search_tickets(
+    session: RTSession, query: str, fields: str, orderby: str = "+Created"
+) -> RTResponseData:
+    """Run a TicketSQL search and return the raw parsed response.
+
+    Args:
+        session: Authenticated RTSession to use for the request
+        query: TicketSQL query string (see cli.build_ticket_query)
+        fields: Comma-separated RT field names to include in the result
+        orderby: RT sort field, prefixed with + (ascending) or - (descending)
+
+    Returns:
+        RTResponseData whose payload is a format=l search result
+    """
+    logger.debug(f"ticket search query: {query}")
+    return session.fetch_rest_params(
+        "search",
+        "ticket",
+        params={
+            "query": query,
+            "orderby": orderby,
+            "format": "l",
+            "fields": fields,
+        },
+    )
+
+
+def fetch_queue_names(session: RTSession) -> list[str]:
+    """Fetch the names of every queue visible to the authenticated user.
+
+    Args:
+        session: Authenticated RTSession to use for the request
+
+    Returns:
+        Queue names in the order RT returned them
+
+    Raises:
+        RTResponseError: if RT returns a non-OK response
+    """
+    response = session.fetch_rest_params("search", "queue", params={"query": "id > 0"})
+    if not response.is_ok:
+        raise RTResponseError(f"Queue listing failed: {response.status_text}")
+    return parse_queue_names(response.payload)
 
 
 def get_ticket_statuses(ticket_ids: list[str], session: RTSession) -> dict[str, str]:

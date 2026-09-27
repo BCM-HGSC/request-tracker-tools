@@ -1,13 +1,19 @@
 from pytest import fixture
 
 from rt_tools.parser import (
+    NO_CONTENT_SENTINEL,
     Attachment,
     AttachmentMeta,
     HistoryItemMeta,
     HistoryMessage,
+    is_missing_ticket,
+    is_no_content,
     parse_attachment_list,
     parse_history_list,
     parse_history_message,
+    parse_ticket_metadata,
+    split_quoted_reply,
+    strip_history_counter,
     strip_quoted_reply,
 )
 
@@ -208,6 +214,67 @@ def test_strip_quoted_reply_fixture_1490011(fixtures_dir):
     assert "No problem! The files are copying now." in stripped
 
 
+def test_split_quoted_reply_drops_rt_quoting_itself():
+    """An "On ..., ... wrote:" block quotes an RT entry the transcript holds."""
+    content = (
+        "Files are ready.\n"
+        "On Fri Aug 01 17:00:00 2025, user001 wrote:\n\n"
+        "  Original message."
+    )
+
+    body, quotes = split_quoted_reply(content)
+
+    assert body == "Files are ready."
+    assert quotes == []
+
+
+def test_split_quoted_reply_keeps_an_outlook_thread():
+    """A forwarded Outlook thread has no RT entry, so it is the only record."""
+    content = (
+        "Hi Evette,\n\n"
+        "I cc ed you on the e-mail with SRA.\n\n"
+        "From: Evette Skinner via RT <rt@hgsc.bcm.tmc.edu>\n"
+        "Sent: Monday, September 8, 2025 1:06 PM\n"
+        "Subject: RE: [MFTS #37719] Replace existing data\n\n"
+        "Previous message content."
+    )
+
+    body, quotes = split_quoted_reply(content)
+
+    assert body == "Hi Evette,\n\nI cc ed you on the e-mail with SRA."
+    assert len(quotes) == 1
+    assert quotes[0].startswith("From: Evette Skinner via RT")
+    assert quotes[0].endswith("Previous message content.")
+
+
+def test_split_quoted_reply_finds_an_outlook_thread_inside_an_rt_quote():
+    """RT quoting a reply that itself forwarded an external thread."""
+    content = (
+        "Done.\n"
+        "On Mon Aug 04 16:47:07 2025, user002 wrote:\n\n"
+        "  Passing this along.\n"
+        "From: someone@example.com\n"
+        "Sent: Friday\n\n"
+        "The original external message."
+    )
+
+    body, quotes = split_quoted_reply(content)
+
+    assert body == "Done."
+    assert len(quotes) == 1
+    assert "The original external message." in quotes[0]
+
+
+def test_split_quoted_reply_body_matches_strip_quoted_reply(fixtures_dir):
+    """The body half stays exactly what content.txt consumers already get."""
+    text = (fixtures_dir / "rt37525_sanitized" / "1490742" / "message.txt").read_text()
+    content = parse_history_message(text).content
+
+    body, _ = split_quoted_reply(content)
+
+    assert body == strip_quoted_reply(content)
+
+
 def test_parse_attachment_list_edge_cases():
     # Test with empty input
     empty_result = parse_attachment_list("")
@@ -346,3 +413,117 @@ def test_history_message_dataclass():
     assert msg.ticket == "222"
     assert msg.type == "Create"
     assert len(msg.attachments) == 0  # Default empty list
+
+
+# Ticket metadata parsing
+
+
+def test_parse_ticket_metadata(fixtures_dir):
+    # Parse the real sanitized metadata.txt fixture
+    payload = (fixtures_dir / "rt37525_sanitized" / "metadata.txt").read_bytes()
+
+    metadata = parse_ticket_metadata(payload)
+
+    assert metadata.id == "37525"  # "ticket/" prefix removed
+    assert metadata.queue == "Submissions"
+    assert metadata.owner == "user002"
+    assert metadata.creator == "user001"
+    assert metadata.status == "open"
+    assert metadata.subject.startswith("[SUBMISSION] MFTS Submission")
+    assert metadata.requestors == ["user001@example.com"]
+    assert metadata.created == "Wed Jul 30 12:23:55 2025"
+    assert metadata.last_updated == "Tue Aug 05 11:45:05 2025"
+
+
+def test_parse_ticket_metadata_multiple_requestors():
+    # RT joins extra requestors onto indented continuation lines
+    payload = (
+        b"id: ticket/1\n"
+        b"Subject: Test\n"
+        b"Requestors: one@example.com, two@example.com\n"
+        b"    three@example.com\n"
+        b"Cc:\n"
+    )
+
+    metadata = parse_ticket_metadata(payload)
+
+    assert metadata.requestors == [
+        "one@example.com",
+        "two@example.com",
+        "three@example.com",
+    ]
+
+
+def test_parse_ticket_metadata_missing_fields():
+    # Absent fields become empty rather than None
+    metadata = parse_ticket_metadata(b"id: ticket/42\n")
+
+    assert metadata.id == "42"
+    assert metadata.subject == ""
+    assert metadata.owner == ""
+    assert metadata.requestors == []
+
+
+# No-content sentinel
+
+
+def test_is_no_content_sentinel():
+    assert is_no_content(NO_CONTENT_SENTINEL)
+    assert is_no_content(f"  {NO_CONTENT_SENTINEL}\n")
+    assert is_no_content(None)
+    assert is_no_content("")
+
+
+def test_is_no_content_real_content():
+    assert not is_no_content("Please submit the files.")
+    assert not is_no_content(f"{NO_CONTENT_SENTINEL} but actually here is more")
+
+
+# History counter stripping
+
+
+def test_strip_history_counter(fixtures_dir):
+    # The real fixture still carries RT's counter line
+    payload = (
+        fixtures_dir / "rt37525_sanitized" / "1489286" / "message.txt"
+    ).read_bytes()
+    assert payload.startswith(b"# 18/18 (id/1489286/total)\n")
+
+    stripped = strip_history_counter(payload)
+
+    assert stripped.startswith(b"id: 1489286\n")
+    assert b"# 18/18" not in stripped
+
+
+def test_strip_history_counter_without_counter():
+    # A payload with no counter is returned unchanged
+    payload = b"id: 1489286\nTicket: 37525\n"
+
+    assert strip_history_counter(payload) == payload
+
+
+def test_strip_history_counter_leaves_later_hashes():
+    # Only a leading counter is removed, not a "#" line inside the content
+    payload = b"# 3/3 (id/7/total)\n\nid: 7\nContent: # 1/1 (id/9/total)\n"
+
+    stripped = strip_history_counter(payload)
+
+    assert stripped == b"id: 7\nContent: # 1/1 (id/9/total)\n"
+
+
+# is_missing_ticket
+
+
+def test_rt_reports_a_missing_ticket_in_the_body():
+    """RT answers with HTTP 200, so only the body distinguishes this."""
+    assert is_missing_ticket(b"# Ticket 99999999 does not exist.\n\n")
+
+
+def test_a_real_ticket_payload_is_not_a_missing_ticket():
+    assert not is_missing_ticket(b"id: ticket/37525\nSubject: Example\n")
+
+
+def test_no_payload_is_not_a_missing_ticket():
+    """Absent is a different failure from confirmed-absent."""
+    assert not is_missing_ticket(b"")
+    assert not is_missing_ticket(None)

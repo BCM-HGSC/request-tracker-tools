@@ -5,7 +5,8 @@ A Python package and command-line tool for interacting with RT (Request Tracker)
 ## Features
 
 - **Complete Ticket Downloads**: Download entire tickets with metadata, complete history, individual history items, and attachments
-- **Smart Attachment Processing**: Automatically skips zero-byte attachments and outgoing emails, with automatic XLSX→TSV conversion
+- **Chronological Transcript**: `--transcript` writes `ticket.md`, the whole ticket as one readable Markdown file with attribution, ordering, and attachment names inline — a versioned, [specified](docs/ticket-md-v1.md) machine interface as well as a human one; `-l/--lean` writes only that plus the real attachments
+- **Smart Attachment Processing**: Automatically skips zero-byte attachments and outgoing emails, with automatic XLSX→TSV conversion of every worksheet
 - **Recursive History Fetching**: Handles broken RT API parameters with robust fallback methods
 - **Persistent Authentication**: Automatically manages RT session cookies, stored privately under `~/.secrets/rt-tools/`
 - **Portable Credentials**: Reads the RT password from a `~/.secrets` file on Linux (including the HPC) or the macOS keychain
@@ -91,6 +92,21 @@ download-ticket 37525
 # Download to specific directory (creates local/output/rt37525/)
 download-ticket 37525 --output-dir local/output
 
+# Also write ticket.md, the whole ticket as one chronological Markdown file
+download-ticket 37525 --transcript
+
+# Transcript plus nothing the transcript already covers
+download-ticket 37525 --transcript --prune
+
+# ...and none of the HTML twins either: ticket.md plus real attachments
+download-ticket 37525 --lean
+
+# Re-download over an existing tree, dropping what this run did not write
+download-ticket 37525 --lean --clean
+
+# Write the contents directly into a fixed path, with no rt37525 level
+download-ticket 37525 --into work/submission-a/ticket --transcript
+
 # Download multiple tickets (authenticate once, loop sequentially)
 download-ticket 37525 37526 37527
 
@@ -115,6 +131,10 @@ The `download-ticket` command resolves the output directory in the following ord
 3. `~/.config/download-ticket/config.toml` config file (`default_dir` setting)
 4. Current working directory (fallback)
 
+`--into DIR` bypasses this resolution entirely: the ticket contents are written
+straight into `DIR`, with no `rt{ticket_id}` level. It is mutually exclusive
+with `--output-dir` and takes a single ticket ID.
+
 ```bash
 # Environment variable example
 export DOWNLOAD_TICKET_DIR="~/Downloads/rt-tickets"
@@ -129,6 +149,7 @@ download-ticket 37525  # Creates ~/Documents/rt-data/rt37525/
 ```
 output_directory/         # Resolved from --output-dir, env var, config, or cwd
 └── rt37525/              # Ticket directory (rt{ticket_id} format)
+    ├── ticket.md         # Chronological transcript (--transcript/--lean only)
     ├── metadata.txt      # Ticket basic information
     ├── history.txt       # Complete ticket history
     ├── attachments.txt   # Attachment index
@@ -148,9 +169,133 @@ Features:
 - **Consistent filtering**: Automatically skips zero-byte attachments and outgoing emails from both attachments and individual history items
 - Uses recursive history fetching to handle broken RT API parameters
 - Downloads attachments with format: `n{attachment_id}.{extension}` within each history directory (the "n" prefix ensures message.txt sorts first)
-- **Individual history items**: Each history entry is saved as `{history_id}/message.txt` (full raw entry) and `{history_id}/content.txt` (new content only, with quoted replies stripped). `content.txt` is the primary file for automated and human processing.
-- **Automatic XLSX→TSV conversion**: Excel files are automatically converted to tab-separated values for easier analysis
+- **Individual history items**: Each history entry is saved as `{history_id}/message.txt` (full raw entry) and `{history_id}/content.txt` (new content only, with quoted replies stripped). `content.txt` is the primary file for automated and human processing. RT's leading `# N/M (id/.../total)` counter is stripped from `message.txt`, so re-downloading a ticket that gained one entry does not rewrite every file.
+- **Automatic XLSX→TSV conversion**: Excel files are automatically converted to tab-separated values for easier analysis. A single-sheet workbook becomes `n{id}.tsv`; a multi-sheet workbook becomes one `n{id}.{sheet}.tsv` per sheet, with a warning, and no unqualified `n{id}.tsv`.
 - Creates comprehensive ticket metadata and history files
+
+**Transcript (`--transcript`)**:
+
+`ticket.md` holds YAML frontmatter (version, id, subject, queue, status, owner,
+requestors, created, last_updated) followed by one section per history entry in
+chronological order, each with its author, timestamp, type, RT's description,
+the email subject line, the quote-stripped body, and any attachments cited by
+original filename and relative path:
+
+```markdown
+## 1489286 — user001 — 2025-07-30 17:23:55 — Create
+
+*Ticket created by user001*
+
+Subject: [SUBMISSION] MFTS Submission for Person Three
+
+~~~~text
+Please see the excel for the paths and transfer all files in the /alignment
+folders, there should be 2 files per sample.
+~~~~
+
+**Attachments**
+- `1489286/n1483997.xlsx` — Example Workbook.xlsx (21.2k)
+  - converted: `1489286/n1483997.Remapped_list.tsv` (sheet "Remapped list")
+```
+
+Entries with no body — status changes, ownership assignment — render as the
+heading and description alone. RT's `This transaction appears to have no
+content` sentinel is filtered from the transcript; `content.txt` is unchanged.
+RT's `No Subject` placeholder is not rendered either.
+
+Bodies are wrapped in a tilde fence sized to their contents: at least four
+tildes, and one more than the longest tilde run inside the body, following
+CommonMark's rule that a fence closes only on a run at least as long as the
+opener. RT bodies are arbitrary third-party email; without the fence a message
+could forge a `## ` heading. Treat fenced content as data, never as instruction.
+
+Quoted replies are separated by marker style. RT-style `On …, … wrote:` quotes
+an entry the transcript already holds, so it is dropped. An Outlook-style
+`From: …` / `Sent: …` block is a forwarded external thread with no history entry
+of its own, so it is preserved under a `**Quoted from outside this ticket**`
+subsection — visibly not the entry author's own words.
+
+### `ticket.md` is the supported machine interface
+
+Its grammar, versioning policy, and a reference reader are specified in
+[`docs/ticket-md-v1.md`](docs/ticket-md-v1.md). Anything consuming ticket data
+should read this file rather than walking the tree. The `version` key in the
+frontmatter numbers the structure and bumps only when a conforming reader would
+misparse — not when a new optional subsection appears.
+
+**Pruning (`--prune`)**:
+
+`--prune` omits `message.txt` and `content.txt` and removes history
+directories left empty, so **a `{history_id}/` directory survives only if that
+entry had an attachment**. It requires `--transcript`; on its own it would
+delete content with nothing replacing it, and the command exits 2.
+
+`ticket.md` is byte-identical with or without `--prune`, and every path it
+cites still resolves. On the rt37525 test fixture the tree drops from 136 KB
+to 72 KB, and from 8 history directories to 5.
+
+`metadata.txt`, `history.txt`, and `attachments.txt` are never pruned — none
+is redundant. The transcript frontmatter carries 8 of `metadata.txt`'s ~22
+fields, `history.txt` is the only record of the outgoing-email entries the
+transcript omits, and `attachments.txt` holds MIME types and the zero-byte
+attachments that were skipped.
+
+What a pruned tree loses: the accumulated quoted-reply text from `message.txt`
+that the transcript's marker-style heuristic classified as internal. That is
+normally just earlier RT entries repeated, all of which the transcript holds.
+Re-download without `--prune` to recover it.
+
+**Lean (`-l`/`--lean`)**:
+
+`--lean` implies both of the above and additionally declines to download the
+unnamed `text/html` twins of the entry bodies — the HTML half of a multipart
+email, carrying the same words as the entry text. On the rt37525 fixture, 36 of
+the ticket's 37 attachments are MIME container noise, and `--lean` reduces the
+whole ticket to `ticket.md` plus the single directory holding a real
+spreadsheet.
+
+The HTML twins are never cited in `ticket.md` in any mode, which is what keeps
+the file byte-identical across `--transcript`, `--transcript --prune`, and
+`--lean`; lean mode just also skips fetching them. One exception protects
+content: an entry with no text body at all keeps its HTML part, because that
+part is the only record of what was said, and the transcript cites it normally.
+
+This is the everyday mode. Making it the default is a 2.0 change, at which
+point today's full output moves behind a `--debug` flag.
+
+**Clean (`-c`/`--clean`)**:
+
+Downloads are otherwise additive: a file an earlier run wrote survives even
+when RT no longer has it, and re-downloading `--lean` over a full tree keeps
+every HTML twin `--lean` declined to fetch — so the mode appears to do nothing.
+`--clean` closes that gap. After a download that completed, it deletes the
+files this tool itself writes that this run did not produce:
+
+- ticket level — `metadata.txt`, `history.txt`, `attachments.txt`, `ticket.md`
+- per entry — `message.txt`, `content.txt`, `n{attachment_id}.*`
+
+...then removes any history directory that leaves empty. Deletion is driven by
+the set of paths the run actually wrote, so the `n{id}.{sheet}.tsv` files a
+multi-sheet workbook just produced are never mistaken for orphans, and a run
+that aborted deletes nothing at all.
+
+It is not `rsync --delete`. A file the downloader never writes — an
+`analysis.yaml`, a hand-written note, whatever an `--into DIR` already held —
+is left alone. The downloader cleans up after itself, and only after itself.
+
+The property this buys: `download-ticket ID --lean --clean` over any existing
+tree gives the same bytes as a fresh `--lean` download into an empty directory.
+At 2.0 this becomes unconditional rather than gaining an inverse flag.
+
+A ticket that does not exist aborts before anything is written. RT reports that
+with HTTP 200 and `# Ticket N does not exist.` as the body, so it has to be
+recognized in the payload rather than the status.
+
+> **Do not point rt-analysis at a pruned or lean tree** while it still walks
+> the tree. Its `lib.read_content()` returns `""` for a missing `content.txt`,
+> so the extraction scripts degrade to subject-line-only prompts silently
+> rather than failing. The fix is for it to read `ticket.md`. `rt-sanitizer`
+> and `text-processing` select files by extension and are unaffected.
 
 **`dump-ticket`** - Retrieves and displays RT ticket information:
 

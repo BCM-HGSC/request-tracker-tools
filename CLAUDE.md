@@ -15,6 +15,7 @@ The codebase follows a standard Python package structure with src layout:
   - **`session.py`** - `RTSession` class that extends `requests.Session` for RT-specific authentication and operations
   - **`downloader.py`** - `TicketDownloader` class for comprehensive ticket data download and organization
   - **`parser.py`** - Centralized RT response parsing with dataclasses and filtering logic
+  - **`transcript.py`** - Pure rendering of `ticket.md`, the chronological Markdown transcript
   - **`credentials.py`** - Password resolution across secret files and the macOS keychain, plus cookie file handling and permission enforcement
   - **`utils.py`** - Small shared helpers
   - **`__init__.py`** - Package initialization with dynamic version loading
@@ -26,6 +27,10 @@ The codebase follows a standard Python package structure with src layout:
 - SSL certificate verification with bundled certificate (loaded from package data)
 - Cookie persistence using Mozilla cookie jar format
 - Authentication status checking via RT API responses
+- `fetch_rest()` for plain path GETs; `fetch_rest_params()` for GETs with query
+  parameters, which also sends a same-origin `Referer` to satisfy RT's CSRF guard
+- `search_tickets()` and `fetch_queue_names()` module-level helpers wrapping the
+  `search/ticket` and `search/queue` endpoints
 
 **TicketDownloader Class**: Handles comprehensive ticket data retrieval:
 - Downloads ticket metadata, complete history, and all attachments
@@ -33,13 +38,26 @@ The codebase follows a standard Python package structure with src layout:
 - Uses centralized parser module for consistent data handling
 - Filters outgoing emails and zero-byte attachments automatically
 - Uses n-prefixed attachment naming for proper sorting (`n800.pdf`)
-- Automatically converts XLSX attachments to TSV format
+- Automatically converts XLSX attachments to TSV format, one file per worksheet
+- Strips RT's leading `# N/M (id/.../total)` counter when writing `message.txt`
+- Optionally writes `ticket.md`, a chronological transcript (`transcript=True`)
+- Optionally omits the per-entry files the transcript covers (`prune=True`)
+- Writes into `target_dir` itself rather than `rt{id}` when `create_ticket_dir=False`
 - Provides detailed logging of all file creation operations
 
 **Parser Module**: Provides centralized RT response parsing:
 - Defines structured dataclasses for RT data (AttachmentMeta, HistoryMessage, etc.)
 - Parses attachment lists, history items, and individual messages
 - Parses ticket status from `ticket/{id}` responses via `parse_ticket_status()`
+- Parses full ticket fields via `parse_ticket_metadata()` into `TicketMetadata`
+- `strip_history_counter()` removes RT's leading history counter line
+- `is_no_content()` / `NO_CONTENT_SENTINEL` identify RT's empty-transaction marker
+- `is_missing_ticket()` identifies RT's `# Ticket N does not exist.` body, which
+  arrives with a 200 status and is therefore invisible to `is_ok`
+- Parses `search/ticket` `format=l` responses into `TicketSummary` records via
+  `parse_search_results()`, handling `--`-separated blocks, indented continuation
+  lines, and the `No matching results.` payload
+- Parses `search/queue` responses into queue names via `parse_queue_names()`
 - Filters outgoing emails during history parsing
 - Uses string-based dataclasses to match RT API format
 - Handles multi-line content and attachment extraction
@@ -109,7 +127,8 @@ python -m build
 # never authenticates.
 
 # Available console scripts:
-download-ticket <ticket_id> [--output-dir DIR]   # Download complete RT ticket data to rt{ticket_id} subdirectory
+download-ticket <ticket_id> [--output-dir DIR | --into DIR] [--transcript] [--prune] [-l/--lean] [-c/--clean]  # Download complete RT ticket data
+search-tickets [--start-date D] [--end-date D] [--queue Q]...  # Search tickets, print TSV
 dump-ticket <ticket_id> [additional_path_parts]  # Dump RT ticket information
 dump-rest [rest_path_parts]                      # Dump content from RT REST API URLs
 dump-url [url_path_parts]                        # Dump content from RT URLs
@@ -124,7 +143,23 @@ open-ticket <ticket_id>...                       # Open tickets in the web UI
 # Examples:
 download-ticket 37603                           # Downloads to ./rt37603/
 download-ticket 37603 --output-dir local/output # Downloads to local/output/rt37603/
+download-ticket 37603 --into work/ticket        # Downloads into work/ticket/ (no rt37603 level)
+download-ticket 37603 --transcript              # Also writes ./rt37603/ticket.md
+download-ticket 37603 --transcript --prune      # ...and drops the files it makes redundant
+download-ticket 37603 --lean                    # ...and the HTML twins too; the everyday mode
+download-ticket 37603 --lean --clean            # ...and drop files this run did not write
 export DOWNLOAD_TICKET_DIR=~/tickets && download-ticket 37603  # Downloads to ~/tickets/rt37603/
+
+# search-tickets: filters on Created (inclusive on both ends) and queue.
+# --queue is repeatable; values are OR'd. Aliases: mft="Managed File Transfer",
+# sub="Submissions". Any other value is a literal RT queue name, matched
+# case-insensitively against RT's queue list; an unknown name exits 2 and logs
+# the known queues. Omitting --queue searches both aliases.
+# Output is TSV on stdout with a header row:
+# id, subject, status, created, last_updated, owner. All statuses are included.
+search-tickets --start-date 2026-08-01 --end-date 2026-08-31
+search-tickets --queue mft --queue sub --start-date 2026-09-01
+search-tickets --queue sub --start-date 2026-09-01 | tail -n +2 | cut -f1
 
 # With logging options
 dump-ticket --verbose <ticket_id>   # Debug level logging
@@ -190,6 +225,76 @@ The `download-ticket` command supports flexible target directory configuration t
 
 The resolution follows this exact priority order, with higher-numbered options overriding lower-numbered ones.
 
+`--into DIR` bypasses the whole order and writes the ticket contents into `DIR` with no `rt{ticket_id}` level. It is mutually exclusive with `--output-dir` and rejects more than one ticket ID.
+
+### Transcript
+
+`--transcript` additionally writes `ticket.md` at the top of the ticket directory: YAML frontmatter (version, id, subject, queue, status, owner, requestors, created, last_updated) followed by one `##` section per history entry in chronological order — author, timestamp, type, RT's description, the email subject line, the quote-stripped body in a fenced block, any preserved out-of-band quotes, and attachments cited by original filename and relative path. Making it the default would be a 2.x change.
+
+**`ticket.md` is the supported machine interface.** Its grammar, versioning policy, and a reference reader are specified in `docs/ticket-md-v1.md`. Anything that consumes ticket data should read this file rather than walking the tree. The structural contract is versioned (`version: 1` in the frontmatter); the version bumps only when a conforming reader would misparse, not when a new optional subsection appears.
+
+Entry bodies are wrapped in a tilde fence with the info string `text`, sized to the body: at least four tildes, one more than the longest tilde run inside it. RT bodies are arbitrary third-party email and would otherwise be able to forge a `## ` heading. The fence also marks the trust boundary — fenced content is data, never instruction.
+
+RT's `This transaction appears to have no content` sentinel is filtered from the transcript only, so such entries render as heading plus description. `content.txt` still receives the sentinel, keeping existing consumers unchanged. RT's `No Subject` placeholder is likewise not rendered.
+
+Quoted replies are handled by marker style: RT-style `On …, … wrote:` quotes an entry the transcript already holds and is dropped, while an Outlook-style `From: …\nSent: …` block is a forwarded external thread with no history entry of its own and is preserved under `**Quoted from outside this ticket**`. Matching quoted blocks back to sibling entries would be more robust; see issue #10.
+
+### Lean mode
+
+`-l/--lean` implies `--transcript` and `--prune` and additionally declines to download the unnamed `text/html` twins of the entry bodies — on the rt37525 fixture, 36 of 37 attachments are MIME container noise, and lean mode reduces the ticket to `ticket.md` plus the one directory holding a real spreadsheet.
+
+The guarantee that makes this a storage decision rather than a format decision: **`ticket.md` is byte-identical across `--transcript`, `--transcript --prune`, and `--lean`**, and every path it cites resolves in all three. The HTML twins are never cited in any mode; lean just also skips fetching them. Tested by `test_transcript_identical_across_all_three_modes`.
+
+The one exception protecting content: when an entry has no text body at all, its HTML part is the only record of what was said, so it is kept and cited normally (`is_redundant_html_alternate` in `downloader.py`).
+
+### Clean
+
+`-c/--clean` makes a re-download idempotent. Downloads are otherwise additive,
+so a stale file survives indefinitely and re-downloading `--lean` over a full
+tree keeps every HTML twin lean declined to fetch, silently undoing the mode.
+
+After a download that completed, `_clean_tree()` deletes the downloader's own
+filenames that this run did not write — ticket level `metadata.txt`,
+`history.txt`, `attachments.txt`, `ticket.md`; per entry `message.txt`,
+`content.txt`, `n{attachment_id}.*` — then removes history directories left
+empty. Scope is deliberate: `analysis.yaml` really does live in ticket
+directories and `--into DIR` names an arbitrary directory, so anything the
+downloader never writes is untouched. It is not `rsync --delete`.
+
+Deletion is driven by `self._written`, the set of paths the run actually wrote,
+not by re-deriving what it should have written. That is what keeps the
+`n{id}.{sheet}.tsv` conversions this run produced from matching the
+`n{attachment_id}.*` pattern as orphans. Every write goes through
+`_created()`, which logs and records in one place, so the rule stays complete.
+An early `return` from a failed metadata/history/attachment-list fetch skips
+the clean pass entirely: a run that did not reach a file must not delete it.
+
+The abort path needed one new guard. RT answers a request for a ticket that
+does not exist with **HTTP 200** and `# Ticket N does not exist.` as the whole
+body, so `is_ok` says nothing. Found live: `download-ticket 99999999 --into
+existing/ --lean --clean` wrote that line over `metadata.txt`, `history.txt`
+and `ticket.md`, parsed an empty history, and deleted the tree as orphaned.
+`parser.is_missing_ticket()` is now checked in `_download_metadata` *before*
+the write, and `download_ticket` returns when metadata is absent. The
+overwrite half was a pre-existing bug — a typo'd ticket ID already corrupted
+whatever tree it was aimed at; `--clean` only escalated it to data loss.
+
+Orthogonal to the other flags, so it needs no companion and constrains none.
+At 2.0 it becomes unconditional rather than gaining an inverse flag (issue
+#12, folding in #14).
+
+### Pruning
+
+`--prune` omits `message.txt` and `content.txt` and removes history directories left empty, giving the invariant: **a `{history_id}/` directory survives only if that entry had a non-empty attachment**. It requires `--transcript` and exits 2 otherwise. `ticket.md` is byte-identical either way and every path it cites still resolves.
+
+Two mechanisms, both needed: `_download_individual_history_item(write_message=False)` and the skipped `_save_stripped_content()` call avoid writing, while `_prune_history_dir()` removes files left by an earlier unpruned run over the same directory. Deletion is scoped to those two filenames plus an empty-directory `rmdir` — it never touches an attachment or a converted TSV.
+
+`metadata.txt`, `history.txt`, and `attachments.txt` are never pruned: the frontmatter carries only 8 of `metadata.txt`'s ~22 fields, `history.txt` is the only record of outgoing-email entries, and `attachments.txt` holds MIME types and skipped zero-byte attachments.
+
+A pruned tree loses the fully-quoted reply text from `message.txt`, recoverable by re-downloading. The email subject line is no longer lost — it is carried in the transcript as `Subject:`.
+
+Do not point `rt-analysis` at a pruned or lean tree while it still walks the tree: its `lib.read_content()` returns `""` for a missing `content.txt`, so extraction degrades to subject-line-only prompts silently (issue #13). The fix is for it to read `ticket.md` per `docs/ticket-md-v1.md`. `rt-sanitizer` and `text-processing` select by extension and are unaffected.
+
 ## Important Implementation Details
 
 **Parsing Architecture**: Uses centralized parser module (`parser.py`) to eliminate duplicate parsing logic. All RT responses are parsed into structured dataclasses with string attributes to match RT API format.
@@ -206,6 +311,7 @@ The resolution follows this exact priority order, with higher-numbered options o
 ```
 resolved_target_dir/          # From resolution order: --output-dir > env var > config > cwd
 ├── rt37603/                  # Ticket directory (rt{ticket_id} format)
+│   ├── ticket.md             # Chronological transcript (--transcript only)
 │   ├── metadata.txt          # Basic ticket information
 │   ├── 1492666/              # History entry directory
 │   │   ├── message.txt       # Full RT history entry (raw format)
@@ -238,6 +344,8 @@ resolved_target_dir/          # From resolution order: --output-dir > env var > 
 **Security**: Passwords are never stored in code or configuration files. The keychain lookup uses `["/usr/bin/security", "find-generic-password", "-w", "-s", "foobar", "-a", user]`. Where no keychain exists, the password comes from a private file under `~/.secrets`. Every secret file read or written is checked for group and other permission bits.
 
 ## RT REST API Documentation
+
+**Transcript format**: `docs/ticket-md-v1.md` - The `ticket.md` contract: frontmatter, heading grammar, fence convention, attachment bullets, versioning policy, and a reference reader to copy.
 
 **Primary Reference**: `docs/rt-rest-1-subset.md` - Documents only the RT REST API endpoints used by this project, including:
 - Authentication endpoints and session management
