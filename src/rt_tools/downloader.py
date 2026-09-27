@@ -20,6 +20,7 @@ and uses the parser module for consistent response parsing.
 import logging
 from dataclasses import dataclass
 from dataclasses import field as dc_field
+from mimetypes import guess_extension
 from pathlib import Path
 
 try:
@@ -489,7 +490,15 @@ class TicketDownloader:
             "application/octet-stream": "bin",
         }
 
-        return mime_to_ext.get(mime_type.lower(), "bin")
+        # The table stays authoritative, since it encodes choices the stdlib
+        # does not make (x-zip-compressed -> zip, jpeg -> jpg). Falling back to
+        # mimetypes covers the long tail for free: a text/tab-separated-values
+        # attachment was landing as an opaque .bin.
+        mime_type = mime_type.split(";")[0].strip().lower()
+        if mime_type in mime_to_ext:
+            return mime_to_ext[mime_type]
+        guessed = guess_extension(mime_type)
+        return guessed.removeprefix(".") if guessed else "bin"
 
     def _convert_xlsx_to_tsv(self, xlsx_path: Path) -> list[tuple[str, Path]]:
         """Convert every worksheet of an XLSX file to TSV using openpyxl.

@@ -841,3 +841,36 @@ def test_mime_type_parameters_do_not_defeat_the_match():
     meta = AttachmentMeta("(Unnamed)", "text/html; charset=utf-8", "610b")
 
     assert is_redundant_html_alternate(meta, entry_has_content=True)
+
+
+# _mime_type_to_extension
+
+
+def test_extension_table_wins_over_the_stdlib(mock_session):
+    """The table encodes choices mimetypes does not make."""
+    downloader = TicketDownloader(mock_session)
+
+    assert downloader._mime_type_to_extension("application/x-zip-compressed") == "zip"
+    assert downloader._mime_type_to_extension("image/jpeg") == "jpg"
+
+
+def test_unlisted_mime_types_fall_back_to_the_stdlib(mock_session):
+    """A real rt39242 attachment was landing as an opaque .bin."""
+    downloader = TicketDownloader(mock_session)
+
+    assert downloader._mime_type_to_extension("text/tab-separated-values") == "tsv"
+    assert downloader._mime_type_to_extension("text/markdown") == "md"
+
+
+def test_mime_type_parameters_are_ignored(mock_session):
+    """RT can hand back a charset-qualified type."""
+    downloader = TicketDownloader(mock_session)
+
+    assert downloader._mime_type_to_extension("text/csv; charset=utf-8") == "csv"
+
+
+def test_genuinely_unknown_mime_types_still_become_bin(mock_session):
+    """The fallback of last resort is unchanged."""
+    downloader = TicketDownloader(mock_session)
+
+    assert downloader._mime_type_to_extension("application/vnd.acme.widget") == "bin"
