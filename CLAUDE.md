@@ -156,7 +156,8 @@ export DOWNLOAD_TICKET_DIR=~/tickets && download-ticket 37603  # Downloads to ~/
 # case-insensitively against RT's queue list; an unknown name exits 2 and logs
 # the known queues. Omitting --queue searches both aliases.
 # Output is TSV on stdout with a header row:
-# id, subject, status, created, last_updated, owner. All statuses are included.
+# id, subject, status, created, last_updated, owner, queue. All statuses are
+# included.
 search-tickets --start-date 2026-08-01 --end-date 2026-08-31
 search-tickets --queue mft --queue sub --start-date 2026-09-01
 search-tickets --queue sub --start-date 2026-09-01 | tail -n +2 | cut -f1

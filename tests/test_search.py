@@ -38,6 +38,7 @@ Status: resolved
 Created: Mon Aug 04 14:22:11 2026
 LastUpdated: Tue Aug 12 09:01:45 2026
 Owner: hale
+Queue: Submissions
 
 --
 
@@ -47,6 +48,7 @@ Status: open
 Created: Wed Aug 06 08:15:00 2026
 LastUpdated: Wed Aug 06 08:15:00 2026
 Owner: Nobody
+Queue: Managed File Transfer
 
 """
 
@@ -244,8 +246,10 @@ def test_parse_search_results_full_payload():
         created="Mon Aug 04 14:22:11 2026",
         last_updated="Tue Aug 12 09:01:45 2026",
         owner="hale",
+        queue="Submissions",
     )
     assert tickets[1].owner == "Nobody"
+    assert tickets[1].queue == "Managed File Transfer"
 
 
 def test_parse_search_results_no_matches():
@@ -261,6 +265,7 @@ def test_parse_search_results_missing_field():
     (ticket,) = parse_search_results(payload)
     assert ticket.owner == ""
     assert ticket.created == ""
+    assert ticket.queue == ""
 
 
 def test_parse_search_results_continuation_lines():
@@ -283,7 +288,7 @@ def test_write_ticket_tsv_header_and_row():
     write_ticket_tsv([_summary()], file=out)
 
     header, row = out.getvalue().splitlines()
-    assert header == "id\tsubject\tstatus\tcreated\tlast_updated\towner"
+    assert header == "id\tsubject\tstatus\tcreated\tlast_updated\towner\tqueue"
     assert row.split("\t") == [
         "37525",
         "Delivery of WGS data",
@@ -291,13 +296,16 @@ def test_write_ticket_tsv_header_and_row():
         "Mon Aug 04 14:22:11 2026",
         "Tue Aug 12 09:01:45 2026",
         "hale",
+        "Submissions",
     ]
 
 
 def test_write_ticket_tsv_header_only_when_empty():
     out = io.StringIO()
     write_ticket_tsv([], file=out)
-    assert out.getvalue() == "id\tsubject\tstatus\tcreated\tlast_updated\towner\n"
+    assert (
+        out.getvalue() == "id\tsubject\tstatus\tcreated\tlast_updated\towner\tqueue\n"
+    )
 
 
 def test_write_ticket_tsv_scrubs_tabs_and_newlines():
@@ -338,5 +346,6 @@ def _summary(**overrides) -> TicketSummary:
         "created": "Mon Aug 04 14:22:11 2026",
         "last_updated": "Tue Aug 12 09:01:45 2026",
         "owner": "hale",
+        "queue": "Submissions",
     }
     return TicketSummary(**(defaults | overrides))
