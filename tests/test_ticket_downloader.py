@@ -7,7 +7,11 @@ from unittest.mock import Mock
 from pytest import fixture
 
 from rt_tools import RTSession, download_ticket
-from rt_tools.downloader import TicketDownloader, is_redundant_html_alternate
+from rt_tools.downloader import (
+    TicketDownloader,
+    is_downloader_entry_file,
+    is_redundant_html_alternate,
+)
 from rt_tools.parser import AttachmentMeta
 
 
@@ -874,3 +878,24 @@ def test_genuinely_unknown_mime_types_still_become_bin(mock_session):
     downloader = TicketDownloader(mock_session)
 
     assert downloader._mime_type_to_extension("application/vnd.acme.widget") == "bin"
+
+
+# is_downloader_entry_file
+
+
+def test_downloader_written_entry_files_are_recognized():
+    """These are the only names --clean may delete from a history dir."""
+    assert is_downloader_entry_file("message.txt")
+    assert is_downloader_entry_file("content.txt")
+    assert is_downloader_entry_file("n1483997.xlsx")
+    assert is_downloader_entry_file("n1483997.tsv")
+    # Multi-sheet conversions carry the sheet name between id and extension
+    assert is_downloader_entry_file("n1483997.Remapped_list.tsv")
+
+
+def test_files_the_downloader_never_writes_are_not_candidates():
+    """Anything else in a history directory belongs to someone else."""
+    assert not is_downloader_entry_file("notes.md")
+    assert not is_downloader_entry_file("analysis.yaml")
+    assert not is_downloader_entry_file("n1483997")  # no extension
+    assert not is_downloader_entry_file("nonsense.txt")  # n not followed by digits

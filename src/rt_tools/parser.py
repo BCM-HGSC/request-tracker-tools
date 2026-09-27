@@ -391,6 +391,22 @@ def is_no_content(content: str | None) -> bool:
     return not content or content.strip() == NO_CONTENT_SENTINEL
 
 
+#: RT answers a request for a ticket that is not there with HTTP 200 and this
+#: comment line as the whole body, so is_ok says nothing about whether the
+#: ticket exists.
+_MISSING_TICKET = compile(rb"^#\s*Ticket\s+\d+\s+does not exist\.", MULTILINE)
+
+
+def is_missing_ticket(payload: bytes | None) -> bool:
+    """Report whether an RT payload is the "no such ticket" response.
+
+    Worth a dedicated check because RT signals this in the body rather than
+    the status line: without it a typo'd ticket ID looks like a successful
+    download of a ticket with no history.
+    """
+    return bool(payload) and _MISSING_TICKET.search(payload) is not None
+
+
 _OPEN_STATUSES = {"new", "open", "stalled"}
 _RESOLVED_STATUSES = {"resolved"}
 

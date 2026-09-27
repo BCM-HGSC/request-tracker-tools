@@ -6,6 +6,7 @@ from rt_tools.parser import (
     AttachmentMeta,
     HistoryItemMeta,
     HistoryMessage,
+    is_missing_ticket,
     is_no_content,
     parse_attachment_list,
     parse_history_list,
@@ -508,3 +509,21 @@ def test_strip_history_counter_leaves_later_hashes():
     stripped = strip_history_counter(payload)
 
     assert stripped == b"id: 7\nContent: # 1/1 (id/9/total)\n"
+
+
+# is_missing_ticket
+
+
+def test_rt_reports_a_missing_ticket_in_the_body():
+    """RT answers with HTTP 200, so only the body distinguishes this."""
+    assert is_missing_ticket(b"# Ticket 99999999 does not exist.\n\n")
+
+
+def test_a_real_ticket_payload_is_not_a_missing_ticket():
+    assert not is_missing_ticket(b"id: ticket/37525\nSubject: Example\n")
+
+
+def test_no_payload_is_not_a_missing_ticket():
+    """Absent is a different failure from confirmed-absent."""
+    assert not is_missing_ticket(b"")
+    assert not is_missing_ticket(None)

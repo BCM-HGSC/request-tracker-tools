@@ -33,6 +33,7 @@ def test_flags_default_off(monkeypatch):
     assert args.prune is False
     assert args.transcript is False
     assert args.lean is False
+    assert args.clean is False
     assert args.into is None
 
 
@@ -46,6 +47,13 @@ def test_lean_is_accepted_alone(monkeypatch):
 def test_lean_has_a_short_form(monkeypatch):
     # This is the everyday mode until 2.0 makes it the default
     assert parse(monkeypatch, "37525", "-l").lean is True
+
+
+def test_clean_is_independent_of_the_other_modes(monkeypatch):
+    # --clean scopes itself to the downloader's own files, so it needs no
+    # companion flag and constrains none
+    assert parse(monkeypatch, "37525", "--clean").clean is True
+    assert parse(monkeypatch, "37525", "-c", "-l").clean is True
 
 
 def test_into_rejects_multiple_tickets(monkeypatch, capsys):

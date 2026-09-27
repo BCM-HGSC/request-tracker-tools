@@ -61,6 +61,7 @@ def download_ticket_cli():
                     transcript=args.transcript,
                     prune=args.prune,
                     lean=args.lean,
+                    clean=args.clean,
                 )
             except Exception as e:
                 logging.error("Failed to download ticket %s: %s", ticket_id, e)
@@ -94,6 +95,12 @@ bodies are not downloaded either, so most tickets reduce to ticket.md
 plus the directories holding real attachments. ticket.md is
 byte-identical across all three modes; only the files beside it differ.
 It is the supported machine interface -- see docs/ticket-md-v1.md.
+
+Downloads are otherwise additive: files from an earlier run survive even
+when RT no longer has them, and re-downloading --lean over a full tree
+keeps every file --lean would have skipped. -c/--clean removes those,
+deleting only the filenames this tool itself writes and only after a
+download that completed.
 """,
     )
     add_common_arguments(parser)
@@ -134,6 +141,15 @@ It is the supported machine interface -- see docs/ticket-md-v1.md.
         help="Write only what ticket.md does not already carry: implies "
         "--transcript and --prune, and skips the unnamed text/html twins "
         "of the entry bodies.",
+    )
+    parser.add_argument(
+        "-c",
+        "--clean",
+        action="store_true",
+        help="After a complete download, delete this tool's own files that "
+        "this run did not write, so re-downloading over an existing tree "
+        "matches a download into an empty directory. Files the downloader "
+        "never writes are left alone.",
     )
     args = parser.parse_args()
     if args.into and len(args.ticket_ids) > 1:

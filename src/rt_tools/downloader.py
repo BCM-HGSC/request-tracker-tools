@@ -22,6 +22,7 @@ from dataclasses import dataclass
 from dataclasses import field as dc_field
 from mimetypes import guess_extension
 from pathlib import Path
+from re import compile as compile_pattern
 
 try:
     import openpyxl
@@ -29,6 +30,7 @@ except ImportError:
     openpyxl = None
 
 from .parser import (
+    is_missing_ticket,
     is_no_content,
     parse_attachment_list,
     parse_history_list,
@@ -47,6 +49,18 @@ from .transcript import (
 )
 
 logger = logging.getLogger(__name__)
+
+#: Files the downloader writes at the top of a ticket directory. Anything else
+#: found there -- analysis.yaml, a note, whatever an --into DIR already held --
+#: is not ours and --clean leaves it alone.
+TICKET_FILES = ("metadata.txt", "history.txt", "attachments.txt", TRANSCRIPT_FILENAME)
+
+#: Files the downloader writes inside a {history_id}/ directory.
+ENTRY_FILES = ("message.txt", "content.txt")
+
+#: Attachments and their conversions: n{attachment_id}.{ext}, including the
+#: n{id}.{sheet}.tsv form a multi-sheet workbook produces.
+ATTACHMENT_PATTERN = compile_pattern(r"n\d+\..+")
 
 
 @dataclass
@@ -72,6 +86,9 @@ class TicketDownloader:
             session: Authenticated RTSession for making RT API calls
         """
         self.session = session
+        #: Files the current download_ticket call has written. Reset per call
+        #: and consulted only by the --clean pass.
+        self._written: set[Path] = set()
 
     def download_ticket(
         self,
@@ -82,6 +99,7 @@ class TicketDownloader:
         transcript: bool = False,
         prune: bool = False,
         lean: bool = False,
+        clean: bool = False,
     ) -> None:
         """Download all relevant content for a ticket to target directory.
 
@@ -121,10 +139,16 @@ class TicketDownloader:
                 alternates that no mode cites in the transcript. Implies
                 transcript and prune. ticket.md is byte-identical across all
                 three modes; they differ only in the files beside it.
+            clean: After a complete download, delete the downloader's own
+                files that this run did not write, making a re-download into
+                an existing tree equivalent to one into an empty directory.
+                Skipped when the download aborts early, so a failed run never
+                deletes what it merely did not reach.
         """
         if lean:
             transcript = True
             prune = True
+        self._written = set()
         target_dir = Path(target_dir)
         ticket_dir = target_dir / f"rt{ticket_id}" if create_ticket_dir else target_dir
         ticket_dir.mkdir(parents=True, exist_ok=True)
@@ -133,6 +157,11 @@ class TicketDownloader:
 
         # Download ticket metadata
         metadata_payload = self._download_metadata(ticket_id, ticket_dir)
+        if not metadata_payload:
+            logger.error(
+                f"No metadata for ticket {ticket_id}, skipping remaining downloads"
+            )
+            return
 
         attachment_list_payload = self._download_attachment_ist(ticket_id, ticket_dir)
         if not attachment_list_payload:
@@ -211,7 +240,43 @@ class TicketDownloader:
         if transcript:
             self._write_transcript(ticket_dir, metadata_payload, entries)
 
+        if clean:
+            self._clean_tree(ticket_dir)
+
         logger.info(f"Completed downloading ticket {ticket_id}")
+
+    def _clean_tree(self, ticket_dir: Path) -> None:
+        """Delete the downloader's own files that this run did not write.
+
+        Scoped deliberately: only the filenames this downloader produces are
+        candidates, so an analysis.yaml sitting in the ticket directory or an
+        unrelated file under an --into DIR survives. The downloader cleans up
+        after itself, and only after itself.
+
+        Deletion is driven by the set of paths actually written, not by
+        re-deriving what should have been written, so a converted
+        n{id}.{sheet}.tsv this run produced is never mistaken for an orphan.
+        """
+        for filename in TICKET_FILES:
+            path = ticket_dir / filename
+            if path.exists() and path not in self._written:
+                self._remove_orphan(path)
+        for history_dir in sorted(ticket_dir.iterdir()):
+            if not history_dir.is_dir() or not history_dir.name.isdigit():
+                continue
+            for path in sorted(history_dir.iterdir()):
+                if path in self._written or not path.is_file():
+                    continue
+                if is_downloader_entry_file(path.name):
+                    self._remove_orphan(path)
+            if not any(history_dir.iterdir()):
+                history_dir.rmdir()
+                logger.debug(f"Removed stale empty {history_dir}")
+
+    def _remove_orphan(self, path: Path) -> None:
+        """Delete one file left behind by an earlier download."""
+        path.unlink()
+        logger.info(f"Removed stale {path}")
 
     def _prune_history_dir(self, ticket_dir: Path, history_id: str) -> None:
         """Remove transcript-redundant files from one history directory.
@@ -246,7 +311,7 @@ class TicketDownloader:
         transcript_file.write_text(
             render_transcript(metadata, entries), encoding="utf-8"
         )
-        logger.info(f"Created {transcript_file}")
+        self._created(transcript_file)
 
     def _build_transcript_entry(
         self,
@@ -305,9 +370,16 @@ class TicketDownloader:
             )
             return None
 
+        # RT reports a missing ticket in the body, with a 200 status. Checked
+        # before writing anything: a typo'd ticket ID used to overwrite the
+        # metadata of whatever tree it was pointed at with the error text.
+        if is_missing_ticket(rt_data.payload):
+            logger.error(f"Ticket {ticket_id} does not exist")
+            return None
+
         metadata_file = target_dir / "metadata.txt"
         metadata_file.write_bytes(rt_data.payload)
-        logger.info(f"Created {metadata_file}")
+        self._created(metadata_file)
 
         return rt_data.payload
 
@@ -330,7 +402,7 @@ class TicketDownloader:
 
         history_file = target_dir / "history.txt"
         history_file.write_bytes(rt_data.payload)
-        logger.info(f"Created {history_file}")
+        self._created(history_file)
 
         return rt_data.payload
 
@@ -372,7 +444,7 @@ class TicketDownloader:
         if write_message:
             message_file = history_item_dir / "message.txt"
             message_file.write_bytes(strip_history_counter(rt_data.payload))
-            logger.info(f"Created {message_file}")
+            self._created(message_file)
         return rt_data.payload
 
     def _save_stripped_content(
@@ -389,7 +461,7 @@ class TicketDownloader:
             return
         content_file = target_dir / history_id / "content.txt"
         content_file.write_text(stripped + "\n", encoding="utf-8")
-        logger.info(f"Created {content_file}")
+        self._created(content_file)
 
     def _download_attachment_ist(
         self, ticket_id: str, target_dir: Path
@@ -412,7 +484,7 @@ class TicketDownloader:
 
         metadata_file = target_dir / "attachments.txt"
         metadata_file.write_bytes(rt_data.payload)
-        logger.info(f"Created {metadata_file}")
+        self._created(metadata_file)
 
         return rt_data.payload
 
@@ -454,7 +526,7 @@ class TicketDownloader:
         # Save attachment content
         attachment_file = target_dir / history_id / filename
         attachment_file.write_bytes(rt_data.payload)
-        logger.info(f"Created {attachment_file}")
+        self._created(attachment_file)
 
         # If this is an XLSX file, automatically convert to TSV
         conversions = []
@@ -534,7 +606,7 @@ class TicketDownloader:
                     xlsx_path, sheet_name, qualify=len(sheet_names) > 1
                 )
                 self._write_worksheet_tsv(wb[sheet_name], tsv_path)
-                logger.info(f"Created {tsv_path}")
+                self._created(tsv_path)
                 written.append((sheet_name, tsv_path))
 
             return written
@@ -572,6 +644,29 @@ class TicketDownloader:
         if value is None:
             return ""
         return str(value)
+
+    def _created(self, path: Path) -> None:
+        """Log a file this run wrote and record it for the --clean pass.
+
+        Every file the downloader produces goes through here, which is what
+        makes "delete our own files this run did not write" a complete rule
+        rather than a list that can drift.
+        """
+        self._written.add(path)
+        logger.info(f"Created {path}")
+
+
+# Cleanup helpers
+
+
+def is_downloader_entry_file(name: str) -> bool:
+    """Report whether a file inside {history_id}/ is one the downloader writes.
+
+    Only these are candidates for --clean. A file the downloader never
+    produces -- a hand-written note, an analysis artifact -- is left alone
+    even when it sits in a directory the downloader created.
+    """
+    return name in ENTRY_FILES or ATTACHMENT_PATTERN.fullmatch(name) is not None
 
 
 # Transcript helpers
@@ -628,6 +723,7 @@ def download_ticket(
     transcript: bool = False,
     prune: bool = False,
     lean: bool = False,
+    clean: bool = False,
 ) -> None:
     """Convenience function to download a ticket using TicketDownloader.
 
@@ -643,6 +739,8 @@ def download_ticket(
             directories; requires transcript
         lean: Also skip the redundant HTML body alternates; implies transcript
             and prune
+        clean: Delete the downloader's own files this run did not write, so a
+            re-download into an existing tree leaves no orphans
     """
     downloader = TicketDownloader(session)
     downloader.download_ticket(
@@ -652,4 +750,5 @@ def download_ticket(
         lean=lean,
         transcript=transcript,
         prune=prune,
+        clean=clean,
     )

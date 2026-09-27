@@ -628,3 +628,162 @@ def test_html_twins_are_never_cited_but_are_kept_unless_lean(
     # ...but the full tree still has them, for anyone debugging RT itself
     assert (ticket_dir / "1489286" / "n1483996.html").exists()
     assert (ticket_dir / "1489982" / "n1484849.html").exists()
+
+
+# --clean
+
+
+def test_clean_makes_redownloading_lean_match_a_fresh_lean_download(
+    mock_session_with_rt37525_data, tmp_path
+):
+    """The property --clean exists for: history stops mattering.
+
+    Without it, re-downloading --lean over a full tree keeps every HTML twin
+    --lean declined to fetch, so the mode silently does nothing.
+    """
+    downloader = TicketDownloader(mock_session_with_rt37525_data)
+    downloader.download_ticket("37525", tmp_path / "fresh", lean=True, clean=True)
+    downloader.download_ticket("37525", tmp_path / "reused", transcript=True)
+    downloader.download_ticket("37525", tmp_path / "reused", lean=True, clean=True)
+
+    assert _tree(tmp_path / "fresh" / "rt37525") == _tree(
+        tmp_path / "reused" / "rt37525"
+    )
+
+
+def test_clean_removes_attachments_rt_no_longer_has(
+    mock_session_with_rt37525_data, tmp_path
+):
+    """An attachment deleted from RT should not linger from an earlier run."""
+    downloader = TicketDownloader(mock_session_with_rt37525_data)
+    downloader.download_ticket("37525", tmp_path, lean=True)
+
+    ticket_dir = tmp_path / "rt37525"
+    orphan = ticket_dir / "1489286" / "n999999.pdf"
+    orphan.write_bytes(b"from a previous life")
+
+    downloader.download_ticket("37525", tmp_path, lean=True, clean=True)
+
+    assert not orphan.exists()
+    assert (ticket_dir / "1489286" / "n1483997.xlsx").exists()
+
+
+def test_clean_removes_directories_for_entries_that_are_gone(
+    mock_session_with_rt37525_data, tmp_path
+):
+    """A history directory holding only stale downloader files goes away."""
+    downloader = TicketDownloader(mock_session_with_rt37525_data)
+    downloader.download_ticket("37525", tmp_path, lean=True)
+
+    ticket_dir = tmp_path / "rt37525"
+    stale = ticket_dir / "1400000"
+    stale.mkdir()
+    (stale / "message.txt").write_text("gone from RT")
+
+    downloader.download_ticket("37525", tmp_path, lean=True, clean=True)
+
+    assert not stale.exists()
+
+
+def test_clean_leaves_files_the_downloader_never_writes(
+    mock_session_with_rt37525_data, tmp_path
+):
+    """--clean is the downloader cleaning up after itself, and only itself.
+
+    analysis.yaml really does live in ticket directories, and --into names an
+    arbitrary directory that may hold unrelated work.
+    """
+    downloader = TicketDownloader(mock_session_with_rt37525_data)
+    downloader.download_ticket("37525", tmp_path, lean=True)
+
+    ticket_dir = tmp_path / "rt37525"
+    analysis = ticket_dir / "analysis.yaml"
+    analysis.write_text("summary: hand-written\n")
+    notes = ticket_dir / "1489286" / "notes.md"
+    notes.write_text("what this spreadsheet means\n")
+
+    downloader.download_ticket("37525", tmp_path, lean=True, clean=True)
+
+    assert analysis.exists()
+    assert notes.exists()
+
+
+def test_clean_keeps_the_conversions_this_run_produced(
+    mock_session_with_rt37525_data, tmp_path
+):
+    """n{id}.{sheet}.tsv matches the attachment pattern, so only the
+    written-paths set keeps --clean from deleting what it just made."""
+    downloader = TicketDownloader(mock_session_with_rt37525_data)
+    downloader.download_ticket("37525", tmp_path, lean=True, clean=True)
+
+    entry_dir = tmp_path / "rt37525" / "1489286"
+    assert (entry_dir / "n1483997.Remapped_list.tsv").exists()
+    assert (entry_dir / "n1483997.Samples_with_2__merge.tsv").exists()
+
+
+def test_clean_is_skipped_when_the_download_aborts(
+    mock_session_with_rt37525_data, tmp_path
+):
+    """A run that never reached the history must not delete what is there."""
+    downloader = TicketDownloader(mock_session_with_rt37525_data)
+    downloader.download_ticket("37525", tmp_path, transcript=True)
+
+    ticket_dir = tmp_path / "rt37525"
+    before = _tree(ticket_dir)
+
+    failing = Mock()
+    failing.is_ok = False
+    failing.status_code = 500
+    failing.status_text = "Internal Server Error"
+    original = mock_session_with_rt37525_data.fetch_rest
+
+    def fetch(*parts):
+        return failing if parts[-1] == "history" else original(*parts)
+
+    mock_session_with_rt37525_data.fetch_rest = fetch
+    downloader.download_ticket("37525", tmp_path, lean=True, clean=True)
+
+    assert _tree(ticket_dir) == before
+
+
+def test_clean_is_opt_in(mock_session_with_rt37525_data, tmp_path):
+    """Without --clean, downloads stay additive, as they always were."""
+    downloader = TicketDownloader(mock_session_with_rt37525_data)
+    downloader.download_ticket("37525", tmp_path, transcript=True)
+    downloader.download_ticket("37525", tmp_path, lean=True)
+
+    assert (tmp_path / "rt37525" / "1489286" / "n1483996.html").exists()
+
+
+def test_a_typod_ticket_id_neither_overwrites_nor_cleans(
+    mock_session_with_rt37525_data, tmp_path
+):
+    """RT answers a missing ticket with HTTP 200 and an error line as the body.
+
+    Found live: without the metadata guard, `download-ticket 99999999 --into
+    existing/ --clean` wrote that error text over metadata.txt, history.txt and
+    ticket.md, parsed an empty history, and then deleted the entire tree as
+    orphaned. The guard makes it a no-op.
+    """
+    downloader = TicketDownloader(mock_session_with_rt37525_data)
+    downloader.download_ticket("37525", tmp_path, lean=True)
+
+    ticket_dir = tmp_path / "rt37525"
+    before = _tree(ticket_dir)
+
+    missing = Mock()
+    missing.is_ok = True
+    missing.payload = b"# Ticket 99999999 does not exist.\n\n"
+    mock_session_with_rt37525_data.fetch_rest = Mock(return_value=missing)
+
+    downloader.download_ticket(
+        "37525", tmp_path, create_ticket_dir=False, lean=True, clean=True
+    )
+
+    assert _tree(ticket_dir) == before
+    assert "does not exist" not in (ticket_dir / "metadata.txt").read_text()
+
+
+def _tree(root: Path) -> set[str]:
+    """Every file under root, as paths relative to it."""
+    return {p.relative_to(root).as_posix() for p in root.rglob("*") if p.is_file()}

@@ -52,6 +52,8 @@ The codebase follows a standard Python package structure with src layout:
 - Parses full ticket fields via `parse_ticket_metadata()` into `TicketMetadata`
 - `strip_history_counter()` removes RT's leading history counter line
 - `is_no_content()` / `NO_CONTENT_SENTINEL` identify RT's empty-transaction marker
+- `is_missing_ticket()` identifies RT's `# Ticket N does not exist.` body, which
+  arrives with a 200 status and is therefore invisible to `is_ok`
 - Parses `search/ticket` `format=l` responses into `TicketSummary` records via
   `parse_search_results()`, handling `--`-separated blocks, indented continuation
   lines, and the `No matching results.` payload
@@ -125,7 +127,7 @@ python -m build
 # never authenticates.
 
 # Available console scripts:
-download-ticket <ticket_id> [--output-dir DIR | --into DIR] [--transcript] [--prune] [-l/--lean]  # Download complete RT ticket data
+download-ticket <ticket_id> [--output-dir DIR | --into DIR] [--transcript] [--prune] [-l/--lean] [-c/--clean]  # Download complete RT ticket data
 search-tickets [--start-date D] [--end-date D] [--queue Q]...  # Search tickets, print TSV
 dump-ticket <ticket_id> [additional_path_parts]  # Dump RT ticket information
 dump-rest [rest_path_parts]                      # Dump content from RT REST API URLs
@@ -145,6 +147,7 @@ download-ticket 37603 --into work/ticket        # Downloads into work/ticket/ (n
 download-ticket 37603 --transcript              # Also writes ./rt37603/ticket.md
 download-ticket 37603 --transcript --prune      # ...and drops the files it makes redundant
 download-ticket 37603 --lean                    # ...and the HTML twins too; the everyday mode
+download-ticket 37603 --lean --clean            # ...and drop files this run did not write
 export DOWNLOAD_TICKET_DIR=~/tickets && download-ticket 37603  # Downloads to ~/tickets/rt37603/
 
 # search-tickets: filters on Created (inclusive on both ends) and queue.
@@ -243,6 +246,42 @@ Quoted replies are handled by marker style: RT-style `On …, … wrote:` quotes
 The guarantee that makes this a storage decision rather than a format decision: **`ticket.md` is byte-identical across `--transcript`, `--transcript --prune`, and `--lean`**, and every path it cites resolves in all three. The HTML twins are never cited in any mode; lean just also skips fetching them. Tested by `test_transcript_identical_across_all_three_modes`.
 
 The one exception protecting content: when an entry has no text body at all, its HTML part is the only record of what was said, so it is kept and cited normally (`is_redundant_html_alternate` in `downloader.py`).
+
+### Clean
+
+`-c/--clean` makes a re-download idempotent. Downloads are otherwise additive,
+so a stale file survives indefinitely and re-downloading `--lean` over a full
+tree keeps every HTML twin lean declined to fetch, silently undoing the mode.
+
+After a download that completed, `_clean_tree()` deletes the downloader's own
+filenames that this run did not write — ticket level `metadata.txt`,
+`history.txt`, `attachments.txt`, `ticket.md`; per entry `message.txt`,
+`content.txt`, `n{attachment_id}.*` — then removes history directories left
+empty. Scope is deliberate: `analysis.yaml` really does live in ticket
+directories and `--into DIR` names an arbitrary directory, so anything the
+downloader never writes is untouched. It is not `rsync --delete`.
+
+Deletion is driven by `self._written`, the set of paths the run actually wrote,
+not by re-deriving what it should have written. That is what keeps the
+`n{id}.{sheet}.tsv` conversions this run produced from matching the
+`n{attachment_id}.*` pattern as orphans. Every write goes through
+`_created()`, which logs and records in one place, so the rule stays complete.
+An early `return` from a failed metadata/history/attachment-list fetch skips
+the clean pass entirely: a run that did not reach a file must not delete it.
+
+The abort path needed one new guard. RT answers a request for a ticket that
+does not exist with **HTTP 200** and `# Ticket N does not exist.` as the whole
+body, so `is_ok` says nothing. Found live: `download-ticket 99999999 --into
+existing/ --lean --clean` wrote that line over `metadata.txt`, `history.txt`
+and `ticket.md`, parsed an empty history, and deleted the tree as orphaned.
+`parser.is_missing_ticket()` is now checked in `_download_metadata` *before*
+the write, and `download_ticket` returns when metadata is absent. The
+overwrite half was a pre-existing bug — a typo'd ticket ID already corrupted
+whatever tree it was aimed at; `--clean` only escalated it to data loss.
+
+Orthogonal to the other flags, so it needs no companion and constrains none.
+At 2.0 it becomes unconditional rather than gaining an inverse flag (issue
+#12, folding in #14).
 
 ### Pruning
 

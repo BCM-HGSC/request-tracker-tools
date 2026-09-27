@@ -101,6 +101,9 @@ download-ticket 37525 --transcript --prune
 # ...and none of the HTML twins either: ticket.md plus real attachments
 download-ticket 37525 --lean
 
+# Re-download over an existing tree, dropping what this run did not write
+download-ticket 37525 --lean --clean
+
 # Write the contents directly into a fixed path, with no rt37525 level
 download-ticket 37525 --into work/submission-a/ticket --transcript
 
@@ -259,6 +262,34 @@ part is the only record of what was said, and the transcript cites it normally.
 
 This is the everyday mode. Making it the default is a 2.0 change, at which
 point today's full output moves behind a `--debug` flag.
+
+**Clean (`-c`/`--clean`)**:
+
+Downloads are otherwise additive: a file an earlier run wrote survives even
+when RT no longer has it, and re-downloading `--lean` over a full tree keeps
+every HTML twin `--lean` declined to fetch — so the mode appears to do nothing.
+`--clean` closes that gap. After a download that completed, it deletes the
+files this tool itself writes that this run did not produce:
+
+- ticket level — `metadata.txt`, `history.txt`, `attachments.txt`, `ticket.md`
+- per entry — `message.txt`, `content.txt`, `n{attachment_id}.*`
+
+...then removes any history directory that leaves empty. Deletion is driven by
+the set of paths the run actually wrote, so the `n{id}.{sheet}.tsv` files a
+multi-sheet workbook just produced are never mistaken for orphans, and a run
+that aborted deletes nothing at all.
+
+It is not `rsync --delete`. A file the downloader never writes — an
+`analysis.yaml`, a hand-written note, whatever an `--into DIR` already held —
+is left alone. The downloader cleans up after itself, and only after itself.
+
+The property this buys: `download-ticket ID --lean --clean` over any existing
+tree gives the same bytes as a fresh `--lean` download into an empty directory.
+At 2.0 this becomes unconditional rather than gaining an inverse flag.
+
+A ticket that does not exist aborts before anything is written. RT reports that
+with HTTP 200 and `# Ticket N does not exist.` as the body, so it has to be
+recognized in the payload rather than the status.
 
 > **Do not point rt-analysis at a pruned or lean tree** while it still walks
 > the tree. Its `lib.read_content()` returns `""` for a missing `content.txt`,
