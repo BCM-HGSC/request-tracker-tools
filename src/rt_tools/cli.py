@@ -31,8 +31,16 @@ QUEUE_ALIASES = {
     "mft": "Managed File Transfer",
     "sub": "Submissions",
 }
-SEARCH_FIELDS = "id,Subject,Status,Created,LastUpdated,Owner"
-TSV_COLUMNS = ("id", "subject", "status", "created", "last_updated", "owner")
+SEARCH_FIELDS = "id,Subject,Status,Created,LastUpdated,Owner,Queue"
+TSV_COLUMNS = (
+    "id",
+    "subject",
+    "status",
+    "created",
+    "last_updated",
+    "owner",
+    "queue",
+)
 
 
 def download_ticket_cli():

@@ -229,6 +229,7 @@ class TicketSummary:
         created: RT-formatted creation timestamp
         last_updated: RT-formatted last-update timestamp
         owner: Owner username, or "Nobody" for unowned tickets
+        queue: Queue name (e.g., "Submissions")
     """
 
     id: str
@@ -237,6 +238,7 @@ class TicketSummary:
     created: str
     last_updated: str
     owner: str
+    queue: str
 
 
 def parse_search_results(payload: bytes) -> list[TicketSummary]:
@@ -268,6 +270,7 @@ def parse_search_results(payload: bytes) -> list[TicketSummary]:
                 created=fields.get("created", ""),
                 last_updated=fields.get("lastupdated", ""),
                 owner=fields.get("owner", ""),
+                queue=fields.get("queue", ""),
             )
         )
     return result
