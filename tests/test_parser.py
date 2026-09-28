@@ -156,6 +156,57 @@ def test_parse_message_attachments(sample_history_data):
     assert msg.attachments[2].name == "Example Workbook.xlsx"
 
 
+def test_parse_message_attachments_ignores_link_description():
+    """A link entry's Description has the same shape as an attachment line.
+
+    RT writes "Member #39174: Subject (detail) added by user", which a
+    whole-message scan read as attachment id 39174 -- a ticket number that
+    then raised KeyError against the ticket's attachment index.
+    """
+    link_entry = """id: 1574514
+Ticket: 39134
+TimeTaken: 0
+Type: AddLink
+Field: HasMember
+OldValue:
+NewValue: fsck.com-rt://hgsc.bcm.edu/ticket/39174
+Data:
+Description: Member #39174: Help deleting files (group exiting /stornext) added by hale
+Content: This transaction appears to have no content
+Creator: hale
+Created: 2026-05-08 21:46:46
+Attachments:
+
+"""
+    msg = parse_history_message(link_entry)
+    assert msg.attachments == []
+
+
+def test_parse_message_attachments_ignores_content_lookalike():
+    """Body text can also carry the "N: name (size)" shape."""
+    entry = """id: 1574515
+Ticket: 39134
+TimeTaken: 0
+Type: Correspond
+Field:
+OldValue:
+NewValue:
+Data:
+Description: Comment added by user001
+Content: Please see the list below.
+         39174: Some other ticket (still open)
+Creator: user001
+Created: 2026-05-08 21:46:46
+Attachments:
+             1531715: report.pdf (12.3k)
+
+"""
+    msg = parse_history_message(entry)
+    assert msg.attachments == [
+        Attachment(id="1531715", name="report.pdf", size="12.3k")
+    ]
+
+
 def test_strip_quoted_reply_no_quotes():
     content = "Hi,\n\nThis is a message.\n\nThanks,\nOne"
     assert strip_quoted_reply(content) == "Hi,\n\nThis is a message.\n\nThanks,\nOne"
