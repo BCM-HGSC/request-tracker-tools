@@ -61,6 +61,10 @@ The codebase follows a standard Python package structure with src layout:
 - Filters outgoing emails during history parsing
 - Uses string-based dataclasses to match RT API format
 - Handles multi-line content and attachment extraction
+- Scopes attachment extraction to the trailing `Attachments:` section. An
+  `AddLink` entry's Description — `Member #39174: Subject (detail) added by
+  user` — has the same `N: name (size)` shape, and a whole-message scan read
+  the linked ticket number as an attachment id (issue #18)
 
 **Credentials Module**: Owns every secret that touches the filesystem:
 - Resolves the password in order: `--password-file` → `$RT_PASSWORD_FILE` → `~/.secrets/rt-tools/password` → `~/.secrets/rt` → macOS keychain

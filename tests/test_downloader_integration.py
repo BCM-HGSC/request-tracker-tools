@@ -784,6 +784,62 @@ def test_a_typod_ticket_id_neither_overwrites_nor_cleans(
     assert "does not exist" not in (ticket_dir / "metadata.txt").read_text()
 
 
+def test_non_ascii_attachment_filename_does_not_abort_the_ticket(
+    mock_session_with_rt37525_data, rt37525_sanitized_data, tmp_path
+):
+    """RT serves UTF-8, and Word/Outlook/macOS filenames are full of em dashes.
+
+    Decoding the attachment list as ASCII aborted the whole download after
+    metadata.txt and attachments.txt were already written, so the tree read
+    downstream as an incomplete download rather than an error.
+    """
+    _patch_attachment_list(
+        mock_session_with_rt37525_data,
+        rt37525_sanitized_data["attachments"].replace(
+            b"Example Workbook.xlsx", "Example — Workbook.xlsx".encode()
+        ),
+    )
+    downloader = TicketDownloader(mock_session_with_rt37525_data)
+    downloader.download_ticket("37525", tmp_path, lean=True)
+
+    transcript = (tmp_path / "rt37525" / "ticket.md").read_text()
+    assert "Example — Workbook.xlsx" in transcript
+
+
+def test_attachment_missing_from_the_index_is_skipped_not_fatal(
+    mock_session_with_rt37525_data, rt37525_sanitized_data, tmp_path, caplog
+):
+    """One unresolvable citation must not cost the entire transcript."""
+    attachments = b"\n".join(
+        line
+        for line in rt37525_sanitized_data["attachments"].split(b"\n")
+        if b"1483997" not in line
+    )
+    _patch_attachment_list(mock_session_with_rt37525_data, attachments)
+    downloader = TicketDownloader(mock_session_with_rt37525_data)
+
+    with caplog.at_level("WARNING"):
+        downloader.download_ticket("37525", tmp_path, lean=True)
+
+    assert (tmp_path / "rt37525" / "ticket.md").exists()
+    assert not (tmp_path / "rt37525" / "1489286" / "n1483997.xlsx").exists()
+    assert "1483997" in caplog.text
+
+
+def _patch_attachment_list(session, payload: bytes) -> None:
+    """Make the mock session serve a different ticket/{id}/attachments body."""
+    from rt_tools.session import RTResponseData
+
+    original = session.fetch_rest
+
+    def fetch(*parts):
+        if parts[-1] == "attachments":
+            return RTResponseData("4.4.3", 200, "Ok", True, payload)
+        return original(*parts)
+
+    session.fetch_rest = fetch
+
+
 def _tree(root: Path) -> set[str]:
     """Every file under root, as paths relative to it."""
     return {p.relative_to(root).as_posix() for p in root.rglob("*") if p.is_file()}

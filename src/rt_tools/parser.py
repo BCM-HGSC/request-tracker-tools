@@ -16,7 +16,7 @@ from collections.abc import Iterator
 from dataclasses import dataclass
 from dataclasses import field as dc_field
 from logging import getLogger
-from re import DOTALL, MULTILINE, compile, findall, search
+from re import DOTALL, MULTILINE, compile, search
 from textwrap import dedent
 
 logger = getLogger(__name__)
@@ -171,11 +171,7 @@ def parse_history_message(text: str) -> HistoryMessage:
     creator = search(r"Creator: (.+)", text).group(1)
     created = search(r"Created: (.+)", text).group(1)
 
-    # Extract attachments
-    attachments = []
-    attachment_matches = findall(r"(\d+): (.+?) \((.+?)\)", text)
-    for match in attachment_matches:
-        attachments.append(Attachment(id=match[0], name=match[1], size=match[2]))
+    attachments = _parse_attachments(text)
 
     return HistoryMessage(
         id=id,
@@ -192,6 +188,35 @@ def parse_history_message(text: str) -> HistoryMessage:
         created=created,
         attachments=attachments,
     )
+
+
+_ATTACHMENTS_HEADER = compile(r"^Attachments:[ \t]*$", MULTILINE)
+_ATTACHMENT_LINE = compile(r"^[ \t]+(\d+): (.+?) \((.+?)\)[ \t]*$", MULTILINE)
+
+
+def _parse_attachments(text: str) -> list[Attachment]:
+    """Parse the indented lines of a history message's Attachments section.
+
+    Scoped to that section deliberately. RT's Description line can carry the
+    same "N: text (text)" shape — a link entry reads "Member #39174: Help
+    deleting files (some detail) added by hale" — so scanning the whole
+    message picked up a ticket number as an attachment id, and the download
+    then failed with a KeyError against the ticket's attachment index.
+
+    Args:
+        text: Raw RT history message response text
+
+    Returns:
+        Attachments in the order RT listed them, empty when there are none
+    """
+    headers = list(_ATTACHMENTS_HEADER.finditer(text))
+    if not headers:
+        return []
+    start = headers[-1].end()
+    return [
+        Attachment(id=id_, name=name, size=size)
+        for id_, name, size in _ATTACHMENT_LINE.findall(text, start)
+    ]
 
 
 _HISTORY_COUNTER_PATTERN = compile(rb"\A# \d+/\d+ \([^)\n]*\)\n\n?")

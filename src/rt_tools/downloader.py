@@ -170,8 +170,11 @@ class TicketDownloader:
                 f"skipping downloads"
             )
             return
+        # RT serves UTF-8, and attachment filenames routinely carry em dashes
+        # and curly quotes out of Word, Outlook or macOS. errors="replace"
+        # keeps one odd byte from costing the whole ticket.
         attachment_index = parse_attachment_list(
-            attachment_list_payload.decode("ascii")
+            attachment_list_payload.decode("utf-8", errors="replace")
         )
 
         # Download ticket history and cache the payload for reuse
@@ -183,7 +186,7 @@ class TicketDownloader:
             )
             return
 
-        history_text = history_payload.decode("utf-8")
+        history_text = history_payload.decode("utf-8", errors="replace")
         logger.debug(f"Downloading individual history items for ticket {ticket_id}")
         entries: list[TranscriptEntry] = []
         for history_meta in parse_history_list(history_text):
@@ -193,7 +196,7 @@ class TicketDownloader:
             )
             if not history_item_payload:
                 continue
-            history_item_text = history_item_payload.decode("utf-8")
+            history_item_text = history_item_payload.decode("utf-8", errors="replace")
             history_message = parse_history_message(history_item_text)
             if not prune:
                 self._save_stripped_content(
@@ -204,7 +207,14 @@ class TicketDownloader:
             for attachment in history_message.attachments:
                 if attachment.size == "0b":
                     continue
-                meta = attachment_index[attachment.id]
+                meta = attachment_index.get(attachment.id)
+                if meta is None:
+                    logger.warning(
+                        f"Attachment {attachment.id} cited by history "
+                        f"{history_id} is not in the attachment index for "
+                        f"ticket {ticket_id}; skipping"
+                    )
+                    continue
                 redundant = is_redundant_html_alternate(meta, content is not None)
                 if redundant and lean:
                     logger.debug(
