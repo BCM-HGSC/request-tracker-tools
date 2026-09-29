@@ -10,19 +10,27 @@ from pathlib import Path
 from sys import stdout
 
 from . import __version__
+from .console import NeedsExplicitYes, confirm, render_preview, resolve_body
 from .credentials import (
     PASSWORD_FILE_CANDIDATES,
     PASSWORD_FILE_ENV_VAR,
     SECRET_FILE_MODE,
 )
 from .downloader import download_ticket
-from .parser import TicketSummary, parse_search_results
+from .parser import TicketSummary, parse_content_block, parse_search_results
 from .session import (
     BASE_URL,
     REST_URL,
     RTSession,
     fetch_queue_names,
     search_tickets,
+)
+from .writer import (
+    ACTION_COMMENT,
+    ACTION_CORRESPOND,
+    send,
+    ticket_create_request,
+    ticket_transaction_request,
 )
 
 TICKET_DISPLAY_URL = f"{BASE_URL}/Ticket/Display.html?id={{}}"
@@ -319,6 +327,157 @@ def _quote(value: str) -> str:
 def _flatten(value: str) -> str:
     """Collapse tabs and line breaks to single spaces for TSV output."""
     return " ".join(value.split()) if value else ""
+
+
+def create_ticket_cli():
+    """Entry point for creating an RT ticket from a content block file."""
+    args = parse_create_ticket_arguments()
+    config_logging(args)
+    try:
+        fields = parse_content_block(Path(args.file).read_text())
+        fields = apply_field_overrides(fields, args)
+        request = ticket_create_request(fields)
+    except (OSError, ValueError) as e:
+        raise SystemExit(f"create-ticket: {e}") from e
+    _run_write(request, args)
+
+
+def parse_create_ticket_arguments() -> Namespace:
+    """Parse command line arguments for create-ticket."""
+    parser = make_parser("Create an RT ticket from a content block file")
+    parser.add_argument(
+        "file",
+        help="File holding the RT content block: 'Field: value' per line, "
+        "continuation lines indented by one space, '#' lines ignored. "
+        "Queue is required; Text carries the body.",
+    )
+    parser.add_argument("--queue", help="Override the Queue field")
+    parser.add_argument("--subject", help="Override the Subject field")
+    parser.add_argument(
+        "--requestor",
+        action="append",
+        metavar="ADDRESS",
+        help="Override the Requestor field; repeatable",
+    )
+    parser.add_argument(
+        "--cc", action="append", metavar="ADDRESS", help="Override Cc; repeatable"
+    )
+    add_write_arguments(parser)
+    return parser.parse_args()
+
+
+def comment_ticket_cli():
+    """Entry point for adding an internal comment to an RT ticket."""
+    _run_transaction(ACTION_COMMENT, "comment-ticket")
+
+
+def reply_ticket_cli():
+    """Entry point for replying to an RT ticket, which mails the requestors."""
+    _run_transaction(ACTION_CORRESPOND, "reply-ticket")
+
+
+def _run_transaction(action: str, program: str) -> None:
+    """Shared body of comment-ticket and reply-ticket.
+
+    The two differ only in the Action field, but that field decides whether
+    anyone is mailed, which is why they are separate commands rather than one
+    command with a flag.
+    """
+    args = parse_transaction_arguments(action, program)
+    config_logging(args)
+    try:
+        text = resolve_body(args.message, args.body)
+        request = ticket_transaction_request(
+            args.ticket_id,
+            action,
+            text,
+            cc=args.cc,
+            bcc=args.bcc,
+            time_worked=args.time_worked,
+        )
+    except (OSError, ValueError) as e:
+        raise SystemExit(f"{program}: {e}") from e
+    _run_write(request, args)
+
+
+def parse_transaction_arguments(action: str, program: str) -> Namespace:
+    """Parse command line arguments for comment-ticket and reply-ticket."""
+    if action == ACTION_CORRESPOND:
+        description = "Reply to an RT ticket. RT mails this to the requestors."
+    else:
+        description = "Add an internal comment to an RT ticket. Mails nobody."
+    parser = make_parser(description)
+    parser.prog = program
+    parser.add_argument("ticket_id", help="RT ticket ID")
+    parser.add_argument("-m", "--message", help="Message body as an argument")
+    parser.add_argument(
+        "--body",
+        metavar="FILE",
+        help="Read the body from FILE, or from stdin when FILE is '-'. "
+        "With neither -m nor --body, reads piped stdin, else opens $EDITOR.",
+    )
+    parser.add_argument(
+        "--cc", action="append", metavar="ADDRESS", help="Cc this reply; repeatable"
+    )
+    parser.add_argument(
+        "--bcc", action="append", metavar="ADDRESS", help="Bcc this reply; repeatable"
+    )
+    parser.add_argument(
+        "--time-worked", metavar="MINUTES", help="Record time worked against the ticket"
+    )
+    add_write_arguments(parser)
+    return parser.parse_args()
+
+
+def add_write_arguments(parser: ArgumentParser) -> None:
+    """Add the safety options shared by every command that writes to RT."""
+    parser.add_argument(
+        "-n",
+        "--dry-run",
+        action="store_true",
+        help="Print the endpoint and exact content block; send nothing",
+    )
+    parser.add_argument(
+        "-y",
+        "--yes",
+        action="store_true",
+        help="Skip the confirmation prompt. Required when not interactive.",
+    )
+
+
+def apply_field_overrides(fields: dict[str, str], args: Namespace) -> dict[str, str]:
+    """Apply command-line overrides over the fields read from the file.
+
+    Flags override rather than replace, so the file stays the record of what
+    was sent and a flag is a one-off adjustment to it.
+    """
+    overrides = {
+        "Queue": args.queue,
+        "Subject": args.subject,
+        "Requestor": ", ".join(args.requestor) if args.requestor else None,
+        "Cc": ", ".join(args.cc) if args.cc else None,
+    }
+    return fields | {k: v for k, v in overrides.items() if v is not None}
+
+
+def _run_write(request, args) -> None:
+    """Preview, confirm, and send a write, or explain why nothing was sent."""
+    if args.dry_run:
+        print(render_preview(request))
+        return
+    try:
+        if not confirm(request, args.yes):
+            raise SystemExit("aborted; nothing sent")
+    except NeedsExplicitYes as e:
+        raise SystemExit(str(e)) from e
+    with RTSession(password_file=args.password_file) as session:
+        session.authenticate()
+        if args.verbose:
+            session.print_cookies()
+        result = send(session, request)
+    if not result.ok:
+        raise SystemExit(f"RT rejected the write: {result.message}")
+    print(result.message)
 
 
 def dump_ticket():

@@ -12,6 +12,8 @@ A Python package and command-line tool for interacting with RT (Request Tracker)
 - **Portable Credentials**: Reads the RT password from a `~/.secrets` file on Linux (including the HPC) or the macOS keychain
 - **SSL Certificate Verification**: Custom certificate support for secure RT server connections
 - **Flexible Logging**: Configurable log levels (quiet, normal, verbose) for debugging and production use
+- **Ticket Search**: `search-tickets` filters by creation date and queue and writes TSV, ready to pipe into `download-ticket`
+- **Writing to RT**: `create-ticket`, `comment-ticket`, and `reply-ticket` create tickets and add comments or replies, with a preview, a confirmation prompt, and `--dry-run`
 - **Command-line Interface**: Multiple CLI tools for accessing RT ticket data and attachments
 
 ## Installation
@@ -297,6 +299,30 @@ recognized in the payload rather than the status.
 > rather than failing. The fix is for it to read `ticket.md`. `rt-sanitizer`
 > and `text-processing` select files by extension and are unaffected.
 
+**`search-tickets`** - Searches tickets and writes TSV to stdout:
+
+```bash
+# Tickets created in August, in either of the two default queues
+search-tickets --start-date 2026-08-01 --end-date 2026-08-31
+
+# One queue, open-ended
+search-tickets --queue sub --start-date 2026-09-01
+
+# Feed the IDs to another command
+search-tickets --queue sub --start-date 2026-09-01 | tail -n +2 | cut -f1 | xargs download-ticket
+```
+
+Filters on `Created`, inclusive at both ends, and on queue. `--queue` is
+repeatable and the values are OR'd; `mft` and `sub` are aliases for "Managed
+File Transfer" and "Submissions". Any other value is a literal RT queue name,
+matched case-insensitively against RT's queue list — an unknown name exits 2
+and logs the queues that do exist. Omitting `--queue` searches both aliases.
+
+Output is TSV with a header row: `id`, `subject`, `status`, `created`,
+`last_updated`, `owner`, `queue`. Tabs and newlines inside a field are
+collapsed to single spaces so each ticket occupies exactly one line. All
+statuses are included, resolved ones among them.
+
 **`dump-ticket`** - Retrieves and displays RT ticket information:
 
 ```bash
@@ -355,6 +381,92 @@ open-ticket 37525
 # Open several at once
 open-ticket 37525 37526
 ```
+
+### Writing to RT
+
+Three commands write. They are separate rather than one command with an
+`--action` flag because `comment` and `correspond` hit the same RT endpoint
+but differ in who receives email, which is too large a difference to hang on a
+flag.
+
+**`create-ticket`** - Creates a ticket from a content block file:
+
+```bash
+# The file is the content block itself
+create-ticket new-ticket.txt
+
+# Preview the exact POST body; send nothing
+create-ticket new-ticket.txt --dry-run
+
+# Override individual fields without editing the file
+create-ticket new-ticket.txt --queue Submissions --subject "Delivery of WGS data"
+```
+
+The file holds `Field: value` one per line, with continuation lines indented
+by one space and `#` lines ignored. `Queue` is required; the body is `Text`:
+
+```
+# Lines starting with # are ignored.
+Queue: Submissions
+Subject: Delivery of WGS data
+Requestor: someone@example.org
+Text: The first paragraph of the ticket body.
+
+ A second paragraph. A blank line works the way you would expect; RT's own
+ encoding needs a line holding one space, and that is handled for you.
+```
+
+Optional fields include `Cc`, `AdminCc`, `Owner`, `Status`, `Priority`,
+`Starts`, `Due`, and `CF-{Name}` for custom fields. Omitting `Owner` leaves
+assignment to RT, which is the ordinary case.
+
+**`comment-ticket`** - Adds an internal comment. Mails nobody:
+
+```bash
+comment-ticket 37525 -m "Checked the manifest; 3 samples are missing."
+
+# Body from a file, or from stdin
+comment-ticket 37525 --body notes.md
+generate-report | comment-ticket 37525 --body -
+
+# With no -m and no --body, opens $EDITOR
+comment-ticket 37525
+```
+
+**`reply-ticket`** - Replies to the ticket. **RT mails the requestors**, and a
+`new` ticket becomes `open`:
+
+```bash
+reply-ticket 37525 -m "Your data is available at the path below."
+
+# Cc this reply only
+reply-ticket 37525 -m "See attached path list." --cc colleague@example.org
+
+# Record time worked alongside the reply
+reply-ticket 37525 --body reply.md --time-worked 30
+```
+
+**Before anything is sent**, all three print what will be sent and ask:
+
+```
+RT write: reply to ticket 37525
+endpoint: POST ticket/37525/comment
+!! this sends email
+--- content
+id: 37525
+Action: correspond
+Text: Your data is available at the path below.
+--- end
+Send this to RT? [y/N]
+```
+
+- `-n`/`--dry-run` prints that preview and exits without sending.
+- `-y`/`--yes` skips the prompt.
+- When stdin is not a terminal, the commands **refuse** unless `-y` is given.
+  A prompt nobody can answer is not consent, so a script that would silently
+  mail requestors fails instead.
+
+Attachments are not yet supported on writes.
 
 ### Python API
 

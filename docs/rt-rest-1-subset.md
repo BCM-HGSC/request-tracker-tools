@@ -282,6 +282,84 @@ RT/{version} {status_code} {status_text}\n\n{payload}
 - Standard endpoints: Payload ends after header
 - `/content` endpoints: Payload ends with `\n\n\n` which is automatically stripped
 
+## Write Operations
+
+Every write posts a single form variable named `content`, holding an
+RFC822-ish block of `Field: value` lines. A value spanning multiple lines
+continues with a **leading space** on each subsequent line; a blank line
+inside a value must therefore be a line holding exactly one space, since an
+empty line ends the field and RT silently drops the rest.
+
+### Required header
+
+**A same-origin `Referer` is required on every write.** Without it RT answers
+with **HTTP 200** and its "Possible cross-site request forgery" HTML page, and
+the write does not happen. Measured against rt.hgsc.bcm.edu 4.4.3:
+
+| POST variant | result |
+| --- | --- |
+| urlencoded, no extra headers | HTTP 200, CSRF interstitial, nothing written |
+| urlencoded + `Referer: https://rt.hgsc.bcm.edu/` | `RT/4.4.3 200 Ok` |
+| urlencoded + `Referer` + `X-Requested-With` | identical; `X-Requested-With` is not needed |
+| multipart, no extra headers | CSRF interstitial; encoding is irrelevant |
+
+This is the same guard `fetch_rest_params()` works around for GETs carrying
+query parameters. `parser.is_csrf_interstitial()` detects the rejection, which
+is otherwise invisible: the status line says 200 and the body is HTML rather
+than an RT response.
+
+### Create a ticket
+
+```
+POST /REST/1.0/ticket/new
+content=id: ticket/new
+Queue: Submissions
+Subject: ...
+Requestor: someone@example.org
+Owner: username
+Text: first line
+ continuation line
+```
+
+`Queue` is required. Other fields: `Cc`, `AdminCc`, `Status`, `Priority`,
+`InitialPriority`, `FinalPriority`, `TimeEstimated`, `Starts`, `Due`, and
+`CF-{Name}` for custom fields.
+
+Success response: `# Ticket 39945 created.`
+
+### Comment on or reply to a ticket
+
+Both use the same endpoint and differ only in `Action`:
+
+```
+POST /REST/1.0/ticket/{id}/comment
+content=id: {id}
+Action: comment        # or: correspond
+Text: the message
+Cc: someone@example.org
+Bcc: ...
+TimeWorked: ...
+```
+
+- `Action: comment` is an internal note. RT mails nobody, though it still
+  records an outgoing `CommentEmailRecord` history entry.
+- `Action: correspond` is a reply. RT mails the requestors, and moves a `new`
+  ticket to `open`.
+- `Cc` and `Bcc` apply to that transaction only.
+
+Success responses: `# Comments added` and `# Correspondence added`
+respectively. Both arrive with no trailing id.
+
+### Failure reporting
+
+RT reports a rejected write in the **body**, with `200 Ok` on the status line
+— for example `# Could not create ticket.` followed by field errors. Treat any
+response that does not match a known success comment as a failure rather than
+assuming success from the status line.
+
+Attachments (`Attachment:` in the block plus a multipart `attachment_$i` per
+file) are documented upstream but not implemented here.
+
 ## History Entry Types
 
 Common history entry types encountered:
@@ -298,7 +376,7 @@ Common history entry types encountered:
 - History timestamps are in UTC
 - Boolean values return as `1` (true) and `0` (false)
 - Comments in response body start with `#` symbol
-- Use only `\n`, not `\r\n` in POST content
+- Use only `\n`, not `\r\n` in POST content (see Write Operations)
 - Multi-line attachment lists use indented continuation lines
 
 ## SSL Configuration
@@ -310,4 +388,4 @@ This project uses custom SSL certificate verification:
 
 ---
 
-*This documentation covers only the RT REST API subset used by rt-tools. For complete API documentation including ticket creation, editing, search, and other operations, refer to the full documentation.*
+*This documentation covers only the RT REST API subset used by rt-tools. For operations it does not use — editing fields, links, merges, attachments on writes — refer to the full documentation.*

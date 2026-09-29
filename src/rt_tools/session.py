@@ -14,7 +14,7 @@ from typing import BinaryIO
 from requests import RequestException, Response, Session
 
 from .credentials import DEFAULT_COOKIE_FILE, fetch_password, load_cookies, save_cookies
-from .parser import parse_queue_names, parse_ticket_status
+from .parser import is_csrf_interstitial, parse_queue_names, parse_ticket_status
 
 logger = logging.getLogger(__name__)
 
@@ -173,6 +173,47 @@ class RTSession(Session):
         else:
             if verbose:
                 dump_response(response)
+
+    def post_rest(self, *parts: str, content: str) -> RTResponseData:
+        """POST a content block to a REST URL and return the parsed result.
+
+        The write counterpart to fetch_rest(): it returns RTResponseData and
+        raises rather than exiting, so callers decide what a failure means.
+        Note that is_ok only reports the status line — RT reports the real
+        outcome of a write in the body, so pass the payload through
+        parser.parse_write_response().
+
+        The same-origin Referer is required, not defensive. Measured against
+        the live server: without it RT answers HTTP 200 with its "Possible
+        cross-site request forgery" HTML page and the write does not happen.
+        Encoding is irrelevant — multipart is rejected the same way — and
+        X-Requested-With makes no difference. This is what the unfinished
+        "You need to send header to post comments" line in the RT wiki meant.
+
+        Args:
+            *parts: Parts of the REST URL path, e.g. ("ticket", "new")
+            content: The block from parser.build_content_block()
+
+        Returns:
+            RTResponseData with the parsed status line and body
+
+        Raises:
+            RTResponseError: If the response is RT's CSRF interstitial, or is
+                otherwise not in RT's response format
+        """
+        url = RTSession.rest_url(*parts)
+        response = self.post(
+            url, data={"content": content}, headers={"Referer": f"{BASE_URL}/"}
+        )
+        log_response(response)
+        if is_csrf_interstitial(response.content):
+            raise RTResponseError(
+                f"RT rejected the POST to {url} as cross-site request forgery. "
+                "The same-origin Referer header is missing or does not match "
+                "RT's configured hostname.",
+                response,
+            )
+        return parse_rt_response(response)
 
     def logout(self) -> None:
         """Logout from RT and clear cookies."""
