@@ -16,6 +16,8 @@ The codebase follows a standard Python package structure with src layout:
   - **`downloader.py`** - `TicketDownloader` class for comprehensive ticket data download and organization
   - **`parser.py`** - Centralized RT response parsing with dataclasses and filtering logic
   - **`transcript.py`** - Pure rendering of `ticket.md`, the chronological Markdown transcript
+  - **`writer.py`** - Builds and sends RT writes: `WriteRequest`, `ticket_create_request()`, `ticket_transaction_request()`, `send()`. Never touches a terminal.
+  - **`console.py`** - Body resolution, preview rendering, and the confirmation rules for writes. Never talks to RT.
   - **`credentials.py`** - Password resolution across secret files and the macOS keychain, plus cookie file handling and permission enforcement
   - **`utils.py`** - Small shared helpers
   - **`__init__.py`** - Package initialization with dynamic version loading
@@ -137,6 +139,11 @@ dump-ticket <ticket_id> [additional_path_parts]  # Dump RT ticket information
 dump-rest [rest_path_parts]                      # Dump content from RT REST API URLs
 dump-url [url_path_parts]                        # Dump content from RT URLs
 open-ticket <ticket_id>...                       # Open tickets in the web UI
+
+# The write commands. All three take -n/--dry-run and -y/--yes.
+create-ticket FILE [--queue Q] [--subject S] [--requestor A]... [--cc A]...
+comment-ticket <ticket_id> [-m TEXT | --body FILE] [--cc A]... [--time-worked N]
+reply-ticket <ticket_id>   [-m TEXT | --body FILE] [--cc A]... [--time-worked N]
 
 # Target directory resolution (in order of priority):
 # 1. --output-dir command-line option
@@ -299,6 +306,50 @@ Two mechanisms, both needed: `_download_individual_history_item(write_message=Fa
 A pruned tree loses the fully-quoted reply text from `message.txt`, recoverable by re-downloading. The email subject line is no longer lost — it is carried in the transcript as `Subject:`.
 
 Do not point `rt-analysis` at a pruned or lean tree while it still walks the tree: its `lib.read_content()` returns `""` for a missing `content.txt`, so extraction degrades to subject-line-only prompts silently (issue #13). The fix is for it to read `ticket.md` per `docs/ticket-md-v1.md`. `rt-sanitizer` and `text-processing` select by extension and are unaffected.
+
+### Writing to RT
+
+Three commands, because RT's one `ticket/{id}/comment` endpoint does two very
+different things depending on its `Action` field:
+
+- `create-ticket FILE` — POST `ticket/new`. `FILE` is the content block
+  itself: `Queue:` (required), `Subject:`, `Requestor:`, `Owner:`, `CF-*:`,
+  and the body as `Text:`. `--queue`, `--subject`, `--requestor` and `--cc`
+  override individual fields without replacing the file, so the file stays the
+  record of what was sent.
+- `comment-ticket ID` — `Action: comment`. Internal; mails nobody.
+- `reply-ticket ID` — `Action: correspond`. **Mails the requestors**, and
+  moves a `new` ticket to `open`. A separate command rather than a flag on
+  `comment-ticket`: who receives mail is too large a difference to hang on a
+  flag that is one keystroke from absent.
+
+Body resolution for comment/reply, in order: `-m/--message`, `--body FILE`
+(`-` meaning stdin), piped stdin, then `$EDITOR` on a template whose `#` lines
+are stripped. An empty body aborts.
+
+Safety, on all three: `-n/--dry-run` prints the endpoint and the exact content
+block and sends nothing; an interactive run previews and prompts `y/N`; a
+non-interactive run **refuses** unless `-y/--yes` is given, since a prompt
+nobody can answer is not consent. The preview flags any write that generates
+mail — including a comment carrying `--cc`, which is still outbound mail.
+
+The layering exists so the decision to write is testable without a session:
+`writer.py` builds a `WriteRequest` and never touches a terminal, `console.py`
+holds the terminal rules and never talks to RT, and `cli.py` joins them.
+
+**A same-origin `Referer` is required on every write.** Without it RT answers
+HTTP 200 with its "Possible cross-site request forgery" HTML page and writes
+nothing; `parser.is_csrf_interstitial()` names that case, which is otherwise
+invisible in the status line. Encoding is irrelevant and `X-Requested-With`
+changes nothing — measured, see `docs/rt-rest-1-subset.md`.
+
+The content block's one real trap: a multi-line value continues with a leading
+space, so a blank line inside a body must be a line holding exactly one space.
+`build_content_block()` emits that, and `parse_content_block()` also accepts
+the wholly empty line a human would write, keeping it as a paragraph break
+when a continuation follows and dropping it when a new field does.
+
+Attachments and `ticket/{id}/edit` are not implemented.
 
 ## Important Implementation Details
 
