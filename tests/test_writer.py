@@ -138,6 +138,25 @@ def test_parse_content_block_round_trips_a_multi_line_body():
     assert parse_content_block(build_content_block(fields)) == fields
 
 
+def test_hand_written_blank_line_survives_as_a_paragraph_break():
+    """No human writes a line holding one space, so an empty one must work."""
+    text = "Text: paragraph one\n\n paragraph two\n"
+
+    assert parse_content_block(text) == {"Text": "paragraph one\n\nparagraph two"}
+
+
+def test_trailing_blank_lines_are_not_appended_to_the_last_field():
+    text = "Queue: Submissions\nText: body\n\n\n"
+
+    assert parse_content_block(text) == {"Queue": "Submissions", "Text": "body"}
+
+
+def test_blank_line_before_a_new_field_is_just_spacing():
+    text = "Queue: Submissions\n\nSubject: Hello\n"
+
+    assert parse_content_block(text) == {"Queue": "Submissions", "Subject": "Hello"}
+
+
 def test_parse_content_block_drops_comments_and_blank_lines():
     text = "# a template comment\n\nQueue: Submissions\nSubject: Hello\n"
 

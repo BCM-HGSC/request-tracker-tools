@@ -507,9 +507,16 @@ def parse_content_block(text: str) -> dict[str, str]:
     has to be read as fields rather than passed through opaquely.
 
     Continuation lines — those starting with a space — are appended to the
-    preceding field with the leading space removed. A line that is blank or
-    starts with "#" is a comment and is dropped, which is what makes an
-    $EDITOR template possible.
+    preceding field with the leading space removed. A line starting with "#"
+    is a comment and is dropped, which is what makes an $EDITOR template
+    possible.
+
+    A wholly empty line is held rather than decided on: if a continuation line
+    follows it, it was a paragraph break inside a body and is kept; if a new
+    field or the end of the block follows, it was just spacing and is dropped.
+    Deciding immediately would mean a hand-written file loses its paragraph
+    breaks silently — build_content_block() renders them as a line holding one
+    space, which no human writes.
 
     Args:
         text: An RT content block
@@ -523,13 +530,19 @@ def parse_content_block(text: str) -> dict[str, str]:
     """
     fields: dict[str, str] = {}
     last_key: str | None = None
+    pending_blanks = 0
     for number, line in enumerate(text.replace("\r\n", "\n").split("\n"), start=1):
+        if not line.strip() and not line.startswith(" "):
+            pending_blanks += 1
+            continue
         if line.startswith(" "):
             if last_key is None:
                 raise ValueError(f"line {number}: continuation before any field")
-            fields[last_key] += "\n" + line[1:]
+            fields[last_key] += "\n" * (pending_blanks + 1) + line[1:]
+            pending_blanks = 0
             continue
-        if not line.strip() or line.lstrip().startswith("#"):
+        pending_blanks = 0
+        if line.lstrip().startswith("#"):
             continue
         key, separator, value = line.partition(":")
         if not separator:
