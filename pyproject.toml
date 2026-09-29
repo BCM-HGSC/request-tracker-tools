@@ -27,6 +27,9 @@ search-tickets = "rt_tools.cli:search_tickets_cli"
 dump-rest = "rt_tools.cli:dump_rest"
 dump-url = "rt_tools.cli:dump_url"
 open-ticket = "rt_tools.cli:open_ticket"
+create-ticket = "rt_tools.cli:create_ticket_cli"
+comment-ticket = "rt_tools.cli:comment_ticket_cli"
+reply-ticket = "rt_tools.cli:reply_ticket_cli"
 
 [tool.setuptools.packages.find]
 where = ["src"]
