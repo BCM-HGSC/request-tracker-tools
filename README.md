@@ -12,6 +12,7 @@ A Python package and command-line tool for interacting with RT (Request Tracker)
 - **Portable Credentials**: Reads the RT password from a `~/.secrets` file on Linux (including the HPC) or the macOS keychain
 - **SSL Certificate Verification**: Custom certificate support for secure RT server connections
 - **Flexible Logging**: Configurable log levels (quiet, normal, verbose) for debugging and production use
+- **Ticket Search**: `search-tickets` filters by creation date and queue and writes TSV, ready to pipe into `download-ticket`
 - **Writing to RT**: `create-ticket`, `comment-ticket`, and `reply-ticket` create tickets and add comments or replies, with a preview, a confirmation prompt, and `--dry-run`
 - **Command-line Interface**: Multiple CLI tools for accessing RT ticket data and attachments
 
@@ -297,6 +298,30 @@ recognized in the payload rather than the status.
 > so the extraction scripts degrade to subject-line-only prompts silently
 > rather than failing. The fix is for it to read `ticket.md`. `rt-sanitizer`
 > and `text-processing` select files by extension and are unaffected.
+
+**`search-tickets`** - Searches tickets and writes TSV to stdout:
+
+```bash
+# Tickets created in August, in either of the two default queues
+search-tickets --start-date 2026-08-01 --end-date 2026-08-31
+
+# One queue, open-ended
+search-tickets --queue sub --start-date 2026-09-01
+
+# Feed the IDs to another command
+search-tickets --queue sub --start-date 2026-09-01 | tail -n +2 | cut -f1 | xargs download-ticket
+```
+
+Filters on `Created`, inclusive at both ends, and on queue. `--queue` is
+repeatable and the values are OR'd; `mft` and `sub` are aliases for "Managed
+File Transfer" and "Submissions". Any other value is a literal RT queue name,
+matched case-insensitively against RT's queue list — an unknown name exits 2
+and logs the queues that do exist. Omitting `--queue` searches both aliases.
+
+Output is TSV with a header row: `id`, `subject`, `status`, `created`,
+`last_updated`, `owner`, `queue`. Tabs and newlines inside a field are
+collapsed to single spaces so each ticket occupies exactly one line. All
+statuses are included, resolved ones among them.
 
 **`dump-ticket`** - Retrieves and displays RT ticket information:
 
