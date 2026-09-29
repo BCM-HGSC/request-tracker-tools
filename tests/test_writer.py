@@ -10,7 +10,7 @@ from rt_tools.parser import (
     parse_content_block,
     parse_write_response,
 )
-from rt_tools.session import BASE_URL, RTResponseData, RTSession
+from rt_tools.session import BASE_URL, RTResponseData, RTResponseError, RTSession
 from rt_tools.writer import (
     ACTION_COMMENT,
     ACTION_CORRESPOND,
@@ -18,6 +18,13 @@ from rt_tools.writer import (
     ticket_create_request,
     ticket_transaction_request,
 )
+
+#: The head of what RT actually serves for a POST without a Referer, verbatim.
+CSRF_INTERSTITIAL = (
+    b'<!DOCTYPE html>\n\n<html lang="en">\n  <head>\n'
+    b"    <title>Possible cross-site request forgery</title>\n"
+)
+
 
 # Write requests
 
@@ -190,6 +197,27 @@ def test_post_rest_sends_the_content_block_and_a_referer():
     assert url == "https://rt.hgsc.bcm.edu/REST/1.0/ticket/new"
     assert session.post.call_args.kwargs["data"] == {"content": "id: ticket/new\n"}
     assert session.post.call_args.kwargs["headers"] == {"Referer": f"{BASE_URL}/"}
+
+
+def test_post_rest_names_the_csrf_rejection_for_what_it_is():
+    """RT serves this with HTTP 200, so only the body gives the cause away."""
+    session = MagicMock()
+    session.post.return_value = _raw_response(
+        CSRF_INTERSTITIAL, "https://rt.hgsc.bcm.edu/REST/1.0/ticket/39943/comment"
+    )
+
+    with pytest.raises(RTResponseError, match="cross-site request forgery"):
+        RTSession.post_rest(
+            session, "ticket", "39943", "comment", content="id: 39943\n"
+        )
+
+
+def test_live_comment_response_is_recognized():
+    """Exactly what rt.hgsc.bcm.edu returned for an accepted comment."""
+    result = parse_write_response(b"# Comments added\n\n")
+
+    assert result.ok
+    assert result.message == "Comments added"
 
 
 def test_send_returns_the_parsed_write_result():

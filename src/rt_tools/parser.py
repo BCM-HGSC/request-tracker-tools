@@ -16,7 +16,7 @@ from collections.abc import Iterator
 from dataclasses import dataclass
 from dataclasses import field as dc_field
 from logging import getLogger
-from re import DOTALL, MULTILINE, compile, search
+from re import DOTALL, IGNORECASE, MULTILINE, compile, search
 from textwrap import dedent
 
 logger = getLogger(__name__)
@@ -537,6 +537,22 @@ def parse_content_block(text: str) -> dict[str, str]:
         last_key = key.strip()
         fields[last_key] = value.strip()
     return fields
+
+
+#: RT serves this page, with an HTTP 200, when its CSRF guard rejects a
+#: request. Confirmed against the live server for POSTs sent without a Referer.
+_CSRF_INTERSTITIAL = compile(rb"<title>Possible cross-site request forgery", IGNORECASE)
+
+
+def is_csrf_interstitial(content: bytes | None) -> bool:
+    """Report whether a response body is RT's CSRF rejection page.
+
+    Like a missing ticket, RT signals this with a 200 and an unexpected body,
+    so nothing in the status line gives it away. Worth naming because the
+    generic "invalid RT response format" error points at the HTML rather than
+    at the missing Referer that caused it.
+    """
+    return bool(content) and _CSRF_INTERSTITIAL.search(content) is not None
 
 
 @dataclass
