@@ -462,6 +462,136 @@ def parse_ticket_status(payload: bytes) -> str:
     return "unknown"
 
 
+# Write operations
+
+
+def build_content_block(fields: dict[str, str | list[str] | None]) -> str:
+    """Render fields as the RFC822-ish block RT's write endpoints expect.
+
+    Every RT write — ticket/new, ticket/{id}/comment, ticket/{id}/edit — posts
+    a single form variable named "content" holding "key: value" one per line.
+    A value spanning multiple lines continues with a leading space on each
+    subsequent line, so a blank line inside a body is rendered as a line
+    holding exactly one space. Without that, RT reads the blank line as the end
+    of the field and silently drops the rest of the message.
+
+    Fields whose value is None are omitted, which lets callers pass an optional
+    field unconditionally. A list value is joined with ", " for RT's
+    multi-address fields (Requestor, Cc, AdminCc).
+
+    Args:
+        fields: RT field names mapped to values, in the order RT should see them
+
+    Returns:
+        The block, newline-terminated. Never contains \\r\\n: RT rejects it.
+    """
+    lines: list[str] = []
+    for key, value in fields.items():
+        if value is None:
+            continue
+        if isinstance(value, list | tuple):
+            value = ", ".join(str(item) for item in value if item)
+        text = str(value).replace("\r\n", "\n").replace("\r", "\n")
+        first, *rest = text.split("\n")
+        lines.append(f"{key}: {first}")
+        # A bare "" continuation would terminate the field; " " continues it.
+        lines.extend(f" {line}" if line else " " for line in rest)
+    return "\n".join(lines) + "\n"
+
+
+def parse_content_block(text: str) -> dict[str, str]:
+    """Parse an RT content block back into fields, inverting build_content_block().
+
+    Needed because create-ticket takes the whole block from a file: to let a
+    flag override a single field, and to preview what will be sent, the file
+    has to be read as fields rather than passed through opaquely.
+
+    Continuation lines — those starting with a space — are appended to the
+    preceding field with the leading space removed. A line that is blank or
+    starts with "#" is a comment and is dropped, which is what makes an
+    $EDITOR template possible.
+
+    Args:
+        text: An RT content block
+
+    Returns:
+        Field names mapped to values, in the order they appeared
+
+    Raises:
+        ValueError: If a continuation line appears before any field, or a
+            non-continuation line carries no colon
+    """
+    fields: dict[str, str] = {}
+    last_key: str | None = None
+    for number, line in enumerate(text.replace("\r\n", "\n").split("\n"), start=1):
+        if line.startswith(" "):
+            if last_key is None:
+                raise ValueError(f"line {number}: continuation before any field")
+            fields[last_key] += "\n" + line[1:]
+            continue
+        if not line.strip() or line.lstrip().startswith("#"):
+            continue
+        key, separator, value = line.partition(":")
+        if not separator:
+            raise ValueError(f"line {number}: expected 'Field: value', got {line!r}")
+        last_key = key.strip()
+        fields[last_key] = value.strip()
+    return fields
+
+
+@dataclass
+class WriteResult:
+    """Outcome of an RT write, parsed from the response body.
+
+    Args:
+        ok: Whether RT reported the write as successful
+        message: RT's own comment line, hash stripped, for logging and errors
+        ticket_id: The new ticket ID for a create, None for every other write
+    """
+
+    ok: bool
+    message: str
+    ticket_id: str | None = None
+
+
+#: "# Ticket 775 created." — the only write response carrying an id.
+_TICKET_CREATED = compile(r"^#\s*Ticket\s+(\d+)\s+created\.", MULTILINE)
+
+#: RT's success comments for comment/correspond, which carry no id.
+_WRITE_SUCCEEDED = compile(
+    r"^#\s*(Message recorded|Correspondence added|Comments added|"
+    r"Ticket\s+\d+\s+updated)",
+    MULTILINE,
+)
+
+
+def parse_write_response(payload: bytes) -> WriteResult:
+    """Parse the body of an RT write response into a WriteResult.
+
+    RT reports the real outcome of a write in the body, not the status line: a
+    rejected create still arrives as "200 Ok" with "# Could not create ticket."
+    as the payload. Anything not matching a known success comment is therefore
+    treated as a failure rather than assumed fine.
+
+    Args:
+        payload: Raw payload bytes from RTResponseData (RT header stripped)
+
+    Returns:
+        WriteResult with ok, RT's comment line, and the new id for a create
+    """
+    text = payload.decode("utf-8", errors="replace").strip()
+    message = "\n".join(
+        line.lstrip("#").strip() for line in text.splitlines() if line.strip()
+    )
+    created = _TICKET_CREATED.search(text)
+    if created:
+        return WriteResult(ok=True, message=message, ticket_id=created.group(1))
+    if _WRITE_SUCCEEDED.search(text):
+        return WriteResult(ok=True, message=message)
+    logger.warning(f"RT write not confirmed: {message!r}")
+    return WriteResult(ok=False, message=message)
+
+
 _QUOTE_BOUNDARY = r"(^|\n)(On .+, .+ wrote:|From: .+\nSent: )"
 _OUTLOOK_BOUNDARY = r"(^|\n)From: .+\nSent: "
 

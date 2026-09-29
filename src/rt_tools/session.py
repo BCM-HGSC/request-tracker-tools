@@ -174,6 +174,39 @@ class RTSession(Session):
             if verbose:
                 dump_response(response)
 
+    def post_rest(self, *parts: str, content: str) -> RTResponseData:
+        """POST a content block to a REST URL and return the parsed result.
+
+        The write counterpart to fetch_rest(): it returns RTResponseData and
+        raises rather than exiting, so callers decide what a failure means.
+        Note that is_ok only reports the status line — RT reports the real
+        outcome of a write in the body, so pass the payload through
+        parser.parse_write_response().
+
+        RT's CSRF guard is Referer-based, and fetch_rest_params() already has
+        to send a same-origin Referer for a cookie-authenticated GET carrying
+        arguments. Whether a POST needs the same is undetermined — the wiki
+        sentence that would say so was never finished — so this sends it
+        unconditionally: harmless if unnecessary, and it matches what the web
+        UI does.
+
+        Args:
+            *parts: Parts of the REST URL path, e.g. ("ticket", "new")
+            content: The block from parser.build_content_block()
+
+        Returns:
+            RTResponseData with the parsed status line and body
+
+        Raises:
+            RTResponseError: If the response is not in RT's response format
+        """
+        url = RTSession.rest_url(*parts)
+        response = self.post(
+            url, data={"content": content}, headers={"Referer": f"{BASE_URL}/"}
+        )
+        log_response(response)
+        return parse_rt_response(response)
+
     def logout(self) -> None:
         """Logout from RT and clear cookies."""
         response = self.get(f"{REST_URL}/logout")
