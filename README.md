@@ -55,10 +55,8 @@ pip install -e .[dev]
 uv pip install -e .[dev]
 ```
 
-### Production Installation
-```bash
-pip install rt-tools
-```
+**Note**: rt-tools is not published on PyPI; install it from GitHub as shown
+above.
 
 **Note**: The package includes `openpyxl` for automatic XLSX→TSV conversion of Excel attachments.
 
