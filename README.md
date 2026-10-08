@@ -18,6 +18,30 @@ A Python package and command-line tool for interacting with RT (Request Tracker)
 
 ## Installation
 
+### Installing with uv tool
+
+To use the commands without a checkout or an activated virtualenv, install a
+release tag as a uv tool. uv puts the console scripts (`download-ticket`,
+`search-tickets`, `create-ticket`, and the rest) on your `PATH`, each in an
+isolated environment.
+
+```bash
+# Install a specific release (tags are named vX.Y.Z)
+uv tool install git+https://github.com/BCM-HGSC/request-tracker-tools.git@v1.2.0
+
+# Or over SSH
+uv tool install git+ssh://git@github.com/BCM-HGSC/request-tracker-tools.git@v1.2.0
+
+# Move an existing install to another release
+uv tool install --force git+https://github.com/BCM-HGSC/request-tracker-tools.git@v1.3.0
+
+# Remove it
+uv tool uninstall rt-tools
+```
+
+If `uv tool` reports that the install directory is not on `PATH`, run
+`uv tool update-shell` once.
+
 ### Development Installation
 ```bash
 # Clone the repository
@@ -31,10 +55,8 @@ pip install -e .[dev]
 uv pip install -e .[dev]
 ```
 
-### Production Installation
-```bash
-pip install rt-tools
-```
+**Note**: rt-tools is not published on PyPI; install it from GitHub as shown
+above.
 
 **Note**: The package includes `openpyxl` for automatic XLSX→TSV conversion of Excel attachments.
 
