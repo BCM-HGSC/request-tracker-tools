@@ -25,15 +25,19 @@ release tag as a uv tool. uv puts the console scripts (`download-ticket`,
 `search-tickets`, `create-ticket`, and the rest) on your `PATH`, each in an
 isolated environment.
 
+Tags are named `vX.Y.Z`. `v1.2.x` below is a placeholder, not a tag: replace
+it with the latest release from the
+[tags page](https://github.com/BCM-HGSC/request-tracker-tools/tags).
+
 ```bash
-# Install a specific release (tags are named vX.Y.Z)
-uv tool install git+https://github.com/BCM-HGSC/request-tracker-tools.git@v1.2.0
+# Install a specific release
+uv tool install git+https://github.com/BCM-HGSC/request-tracker-tools.git@v1.2.x
 
 # Or over SSH
-uv tool install git+ssh://git@github.com/BCM-HGSC/request-tracker-tools.git@v1.2.0
+uv tool install git+ssh://git@github.com/BCM-HGSC/request-tracker-tools.git@v1.2.x
 
 # Move an existing install to another release
-uv tool install --force git+https://github.com/BCM-HGSC/request-tracker-tools.git@v1.3.0
+uv tool install --force git+https://github.com/BCM-HGSC/request-tracker-tools.git@v1.2.x
 
 # Remove it
 uv tool uninstall rt-tools
